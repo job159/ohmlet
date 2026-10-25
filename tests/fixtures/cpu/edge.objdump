@@ -1,0 +1,146 @@
+
+
+Disassembly of section .text:
+
+080000ec <reset>:
+ 80000ec:      	ldr	r0, [pc, #0x1a0]        @ 0x8000290 <odd_sp+0x4>
+ 80000ee:      	ldr	r1, [pc, #0x1a4]        @ 0x8000294 <odd_sp+0x8>
+ 80000f0:      	ldr	r2, [pc, #0x1a4]        @ 0x8000298 <odd_sp+0xc>
+ 80000f2:      	cmp	r1, r2
+ 80000f4:      	bhs	0x8000100 <reset+0x14>  @ imm = #0x8
+ 80000f6:      	ldr	r3, [r0], #4
+ 80000fa:      	str	r3, [r1], #4
+ 80000fe:      	b	0x80000f2 <reset+0x6>   @ imm = #-0x10
+ 8000100:      	ldr	r1, [pc, #0x198]        @ 0x800029c <odd_sp+0x10>
+ 8000102:      	ldr	r2, [pc, #0x19c]        @ 0x80002a0 <odd_sp+0x14>
+ 8000104:      	movs	r3, #0x0
+ 8000106:      	cmp	r1, r2
+ 8000108:      	bhs	0x8000110 <reset+0x24>  @ imm = #0x4
+ 800010a:      	str	r3, [r1], #4
+ 800010e:      	b	0x8000106 <reset+0x1a>  @ imm = #-0xc
+ 8000110:      	movw	r12, #0xed24
+ 8000114:      	movt	r12, #0xe000
+ 8000118:      	movw	r3, #0x0
+ 800011c:      	movt	r3, #0x4
+ 8000120:      	str.w	r3, [r12]
+ 8000124:      	mov	r9, sp
+ 8000126:      	movw	r0, #0x4ff3
+ 800012a:      	movt	r0, #0x2000
+ 800012e:      	mov.w	sp, r0
+ 8000132:      	mov	r1, sp
+ 8000134:      	movw	r12, #0x4
+ 8000138:      	movt	r12, #0x4000
+ 800013c:      	str.w	r1, [r12]
+ 8000140:      	movs	r2, #0x7
+ 8000142:      	add.w	sp, sp, r2
+ 8000146:      	mov	r1, sp
+ 8000148:      	movw	r12, #0x4
+ 800014c:      	movt	r12, #0x4000
+ 8000150:      	str.w	r1, [r12]
+ 8000154:      	sub.w	sp, sp, r2, lsl #1
+ 8000158:      	mov	r1, sp
+ 800015a:      	movw	r12, #0x4
+ 800015e:      	movt	r12, #0x4000
+ 8000162:      	str.w	r1, [r12]
+ 8000166:      	movw	r3, #0x28c
+ 800016a:      	movt	r3, #0x800
+ 800016e:      	ldr.w	sp, [r3]
+ 8000172:      	mov	r1, sp
+ 8000174:      	movw	r12, #0x4
+ 8000178:      	movt	r12, #0x4000
+ 800017c:      	str.w	r1, [r12]
+ 8000180:      	ldr	r0, [sp], #3
+ 8000184:      	mov	r1, sp
+ 8000186:      	movw	r12, #0x4
+ 800018a:      	movt	r12, #0x4000
+ 800018e:      	str.w	r1, [r12]
+ 8000192:      	movs	r6, #0x1
+ 8000194:      	sub.w	r3, r3, #0x4
+ 8000198:      	ldr.w	sp, [r3, r6, lsl #2]
+ 800019c:      	mov	r1, sp
+ 800019e:      	movw	r12, #0x4
+ 80001a2:      	movt	r12, #0x4000
+ 80001a6:      	str.w	r1, [r12]
+ 80001aa:      	mov	sp, r9
+ 80001ac:      	movw	r0, #0x1111
+ 80001b0:      	movt	r0, #0x1111
+ 80001b4:      	movw	r1, #0x2222
+ 80001b8:      	movt	r1, #0x2222
+ 80001bc:      	movw	r4, #0x1
+ 80001c0:      	movt	r4, #0x2000
+ 80001c4:      	blx	r4
+ 80001c6:      	movw	r4, #0x0
+ 80001ca:      	movt	r4, #0x2000
+ 80001ce:      	ldr	r2, [r4, #0x8]
+ 80001d0:      	movw	r12, #0x4
+ 80001d4:      	movt	r12, #0x4000
+ 80001d8:      	str.w	r2, [r12]
+ 80001dc:      	ldr	r2, [r4, #0xc]
+ 80001de:      	movw	r12, #0x4
+ 80001e2:      	movt	r12, #0x4000
+ 80001e6:      	str.w	r2, [r12]
+ 80001ea:      	movw	r5, #0x0
+ 80001ee:      	movt	r5, #0x4000
+
+080001f2 <ldrbt_pc>:
+ 80001f2:      	ldrbt	pc, [r5]
+ 80001f6:      	movw	r12, #0x4
+ 80001fa:      	movt	r12, #0x4000
+ 80001fe:      	movw	r3, #0xe003
+ 8000202:      	movt	r3, #0x0
+ 8000206:      	str.w	r3, [r12]
+
+0800020a <ldrb_pc_wb>:
+ 800020a:      	ldrb	pc, [r5], #4
+ 800020e:      	movw	r12, #0x4
+ 8000212:      	movt	r12, #0x4000
+ 8000216:      	str.w	r5, [r12]
+
+0800021a <smlabb>:
+ 800021a:      	<unknown>
+
+0800021e <mul_op2>:
+ 800021e:      	<unknown>
+ 8000222:      	movw	r12, #0x4
+ 8000226:      	movt	r12, #0x4000
+ 800022a:      	movw	r3, #0xe004
+ 800022e:      	movt	r3, #0x0
+ 8000232:      	str.w	r3, [r12]
+ 8000236:      	bkpt	#0x0
+
+08000238 <UsageFault_Handler>:
+ 8000238:      	movw	r12, #0x4
+ 800023c:      	movt	r12, #0x4000
+ 8000240:      	movw	r3, #0xfa17
+ 8000244:      	movt	r3, #0x0
+ 8000248:      	str.w	r3, [r12]
+ 800024c:      	movw	r12, #0xed28
+ 8000250:      	movt	r12, #0xe000
+ 8000254:      	ldr.w	r3, [r12]
+ 8000258:      	movw	r12, #0x4
+ 800025c:      	movt	r12, #0x4000
+ 8000260:      	str.w	r3, [r12]
+ 8000264:      	mrs	r1, msp
+ 8000268:      	ldr	r2, [r1, #0x18]
+ 800026a:      	movw	r12, #0x4
+ 800026e:      	movt	r12, #0x4000
+ 8000272:      	str.w	r2, [r12]
+ 8000276:      	movw	r12, #0xed28
+ 800027a:      	movt	r12, #0xe000
+ 800027e:      	ldr.w	r0, [r12]
+ 8000282:      	str.w	r0, [r12]
+ 8000286:      	adds	r2, #0x4
+ 8000288:      	str	r2, [r1, #0x18]
+ 800028a:      	bx	lr
+
+0800028c <odd_sp>:
+ 800028c: 8f 4f 00 20  	.word	0x20004f8f
+ 8000290: a8 02 00 08  	.word	0x080002a8
+ 8000294: 00 00 00 20  	.word	0x20000000
+ 8000298: 10 00 00 20  	.word	0x20000010
+ 800029c: 10 00 00 20  	.word	0x20000010
+ 80002a0: 10 00 00 20  	.word	0x20000010
+
+080002a4 <unexpected>:
+ 80002a4:      	bkpt	#0xee
+ 80002a6:      	b	0x80002a4 <unexpected>  @ imm = #-0x6

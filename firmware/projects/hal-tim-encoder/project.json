@@ -1,0 +1,67 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim", "uart"],
+  "description": "HAL quadrature encoder: TIM4 encoder mode 3 on PB6 (A) / PB7 (B) with pull-ups and input filter, prints 'enc=<n>' on every change",
+  "expect": "72 MHz; USART1 PA9 115200 8N1. TIM4 in encoder mode 3 (SMS = 011): every edge of A (PB6) and of B (PB7) counts, up when A leads B, down when B leads A (RM0008 Table 87: 4 counts per quadrature cycle); inputs PB6/PB7 with internal pull-ups, IC1F = IC2F = 15 (an edge must hold 256 timer clocks = 3.6 us, shorter pulses are ignored); ARR 65535. Boot: 'enc=0\\r\\n'. The main loop polls CNT as a signed 16-bit position and prints 'enc=<position>\\r\\n' for every change; it sleeps in __WFI() between SysTick interrupts, so a change is reported within 1 ms (first byte 0.09-1.2 ms after the edge). From rest (A = B = 1): A low, B low, A high, B high -> enc=1, 2, 3, 4; B low, A low, B high, A high -> enc=-1, -2, -3, -4.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "PB6, PB7: push-button to GND (encoder contacts A and B, common to GND)"
+    ],
+    "pins": { "PB6": "input-pullup", "PB7": "input-pullup", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "enc=0\r\n" },
+    "idle": { "PB6": 1, "PB7": 1 },
+    "signals": [],
+    "scenarios": [
+      {
+        "name": "one detent forward (A leads B) counts up four times",
+        "durationMs": 50,
+        "drive": [
+          { "at": 10, "pin": "PB6", "level": 0 },
+          { "at": 20, "pin": "PB7", "level": 0 },
+          { "at": 30, "pin": "PB6", "level": "open" },
+          { "at": 40, "pin": "PB7", "level": "open" }
+        ],
+        "expect": [
+          { "at": [10.08, 11.2], "uart": "enc=1\r\n" },
+          { "at": [20.08, 21.2], "uart": "enc=2\r\n" },
+          { "at": [30.08, 31.2], "uart": "enc=3\r\n" },
+          { "at": [40.08, 41.2], "uart": "enc=4\r\n" }
+        ],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "one detent backward (B leads A) counts down four times",
+        "durationMs": 50,
+        "drive": [
+          { "at": 10, "pin": "PB7", "level": 0 },
+          { "at": 20, "pin": "PB6", "level": 0 },
+          { "at": 30, "pin": "PB7", "level": "open" },
+          { "at": 40, "pin": "PB6", "level": "open" }
+        ],
+        "expect": [
+          { "at": [10.08, 11.2], "uart": "enc=-1\r\n" },
+          { "at": [20.08, 21.2], "uart": "enc=-2\r\n" },
+          { "at": [30.08, 31.2], "uart": "enc=-3\r\n" },
+          { "at": [40.08, 41.2], "uart": "enc=-4\r\n" }
+        ],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "a 2 us contact bounce is filtered out",
+        "durationMs": 30,
+        "drive": [
+          { "at": 10, "pin": "PB6", "level": 0 },
+          { "at": 10.002, "pin": "PB6", "level": "open" }
+        ],
+        "expect": [],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

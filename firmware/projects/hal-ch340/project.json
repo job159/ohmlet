@@ -1,0 +1,54 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "HAL USART2 (PA2/PA3, 115200 8N1) line echo through a CH340 USB-to-TTL adapter: banner, then 'echo N: <line>' for every line typed in the PC's COM port",
+  "expect": "72 MHz. USART2 PA2 (TX, AF push-pull) / PA3 (RX, input pull-up), 115200 8N1 (PCLK1 36 MHz: BRR 19 + 8/16 = 115384.6 baud, +0.16 %, as on real silicon). Wiring: PA2 -> CH340 RXD, PA3 <- CH340 TXD, GND, CH340 logic jumper at 3.3 V; the CH340's COM port opened at 115200 8N1. Once after reset: 'CH340 echo on USART2 (115200 8N1)\r\n'. Then every line received on USART2 (ended by CR or LF; empty lines ignored; at most 63 characters kept) is answered right after its terminator with 'echo N: <line>\r\n' (N counts the lines from 1). A COM port opened at another baud shows garbage, exactly like a real adapter.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART2",
+    "settleMs": 150,
+    "circuit": [
+      "CH340 module: not placed on this bench (the checks runner cannot place it; the COM-port round trip is covered by tests/devices/comm-firmware.test.ts) — the scenario types into USART2 directly",
+      "USART2: virtual terminal on PA2 (TX) / PA3 (RX)"
+    ],
+    "pins": {
+      "PA2": "af-pp",
+      "PA3": "input-pullup"
+    },
+    "uart": {
+      "USART2": {
+        "tx": "PA2",
+        "rx": "PA3",
+        "baud": 115384.6,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART2": "CH340 echo on USART2 (115200 8N1)\r\n"
+    },
+    "scenarios": [
+      {
+        "name": "two lines echoed",
+        "durationMs": 60,
+        "drive": [
+          { "at": 10, "uart": "USART2", "text": "hello\r" },
+          { "at": 30, "uart": "USART2", "text": "ohmlet lab\n" }
+        ],
+        "expect": [
+          { "at": [10.4, 11.5], "uart": "echo 1: hello\r\n" },
+          { "at": [30.8, 32], "uart": "echo 2: ohmlet lab\r\n" }
+        ],
+        "quiet": ["USART2"]
+      }
+    ]
+  }
+}

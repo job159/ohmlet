@@ -1,0 +1,61 @@
+{
+  "kind": "bare",
+  "sources": ["main.c"],
+  "description": "Register-level button mirror at 8 MHz HSI: PA0 (pull-up, button to GND) polled; PA5 high and PC13 LED on while pressed",
+  "expect": "8 MHz HSI, no SysTick, no UART. PA0 input pull-up, PA5/PC13 push-pull. Idle (button open): PA0=1, PA5=0, PC13=1. Every PA0 level change (contact bounce included, pulses >= 5 us) is mirrored within 5 us: PA0=0 -> PA5=1 and PC13=0 (LED on); PA0=1 -> PA5=0 and PC13=1. Always PA5 = !PA0 and PC13 = PA0 (PC13 follows PA5 within 1 us).",
+  "checks": {
+    "hclkHz": 8000000,
+    "t0": "settle",
+    "settleMs": 1,
+    "circuit": [
+      "PA0: push-button to GND, no external resistor (the internal pull-up holds it high)",
+      "PA5: LED + 330 ohm to GND",
+      "PC13: Blue Pill on-board LED (active low)"
+    ],
+    "pins": { "PA0": "input-pullup", "PA5": "output-pp", "PC13": "output-pp" },
+    "idle": { "PA0": 1, "PA5": 0, "PC13": 1 },
+    "signals": [
+      { "pin": "PA5", "invertOf": "PA0", "skewUs": 5, "always": true },
+      { "pin": "PC13", "sameAs": "PA0", "skewUs": 5, "always": true },
+      { "pin": "PC13", "invertOf": "PA5", "skewUs": 1, "always": true }
+    ],
+    "scenarios": [
+      {
+        "name": "press and release are mirrored",
+        "durationMs": 20,
+        "drive": [
+          { "at": 1, "pin": "PA0", "level": 0 },
+          { "at": 11, "pin": "PA0", "level": "open" }
+        ],
+        "expect": [
+          { "at": [1, 1.005], "pin": "PA5", "edge": 1 },
+          { "at": [1, 1.005], "pin": "PC13", "edge": 0 },
+          { "at": [11, 11.005], "pin": "PA5", "edge": 0 },
+          { "at": [11, 11.005], "pin": "PC13", "edge": 1 }
+        ],
+        "quiet": ["PA5", "PC13"]
+      },
+      {
+        "name": "contact bounce is mirrored edge for edge (no debounce)",
+        "durationMs": 10,
+        "drive": [
+          { "at": 1, "pin": "PA0", "level": 0 },
+          { "at": 1.1, "pin": "PA0", "level": "open" },
+          { "at": 1.2, "pin": "PA0", "level": 0 },
+          { "at": 1.35, "pin": "PA0", "level": "open" },
+          { "at": 1.5, "pin": "PA0", "level": 0 },
+          { "at": 5, "pin": "PA0", "level": "open" }
+        ],
+        "expect": [
+          { "at": [1, 1.005], "pin": "PA5", "edge": 1 },
+          { "at": [1.1, 1.105], "pin": "PA5", "edge": 0 },
+          { "at": [1.2, 1.205], "pin": "PA5", "edge": 1 },
+          { "at": [1.35, 1.355], "pin": "PA5", "edge": 0 },
+          { "at": [1.5, 1.505], "pin": "PA5", "edge": 1 },
+          { "at": [5, 5.005], "pin": "PA5", "edge": 0 }
+        ],
+        "quiet": ["PA5"]
+      }
+    ]
+  }
+}

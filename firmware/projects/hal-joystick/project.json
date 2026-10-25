@@ -1,0 +1,19 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["adc", "uart"],
+  "description": "KY-023 joystick: ADC1 IN0 (PA0, VRx) and IN1 (PA1, VRy) single conversions + SW on PB12 (pull-up), prints 'x=<raw> y=<raw> sw=<0|1>' every 100 ms on USART1",
+  "expect": "72 MHz, ADCCLK = PCLK2/6 = 12 MHz. ADC1 independent, single conversion, software start, right aligned; after HAL_ADCEx_Calibration_Start each report selects IN0 (PA0, analog) then IN1 (PA1, analog) as regular rank 1, sampling 55.5 cycles, start + poll + read. PB12 input with pull-up. USART1 PA9/PA10 115200 8N1. Boot: 'KY-023 joystick: VRx PA0, VRy PA1, SW PB12\\r\\n'. Every 100 ms (first right after boot): 'x=<raw> y=<raw> sw=<0|1>\\r\\n' with raw = round(V / VDDA x 4095) and sw = 1 while PB12 is low. A KY-023 fed from 3.3 V reads about 2048 / 2048 at rest, 0 and 4095 at the stops.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)", "PA0, PA1: 10k ohm pull-down to GND (tests/devices/sensors-firmware.test.ts wires a KY-023 joystick instead)"],
+    "pins": { "PA0": "analog", "PA1": "analog", "PB12": "input-pullup", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "KY-023 joystick: VRx PA0, VRy PA1, SW PB12\r\nx=0 y=0 sw=0\r\n" },
+    "idle": { "PB12": 1 }
+  }
+}

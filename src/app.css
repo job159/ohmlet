@@ -1,0 +1,595 @@
+/* ==========================================================================
+   App shell (app-shell agent) — phone-first liquid-glass chrome over the
+   full-bleed 3D canvas. Kit material/tokens come from src/ui/kit/kit.css
+   (loaded via the kit barrel); everything here is app-shell specific and
+   uses the `app-` prefix. Animations: transform/opacity only.
+   ========================================================================== */
+
+/* ---- fixed, non-scrolling shell (DESIGN.md §5) ---- */
+.app-root {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  width: 100dvw;
+  overflow: hidden;
+  background: #15171c;
+  color: var(--label);
+  font-family: var(--lg-font);
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---- full-bleed 3D canvas under everything ---- */
+.app-canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.app-canvas canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* ==========================================================================
+   Status capsule internals (run dot + clock)
+   ========================================================================== */
+
+.app-run-dot {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+.app-run-dot.is-running {
+  background: var(--ios-green);
+  animation: app-dot-pulse 1.5s var(--lg-spring) infinite;
+}
+@keyframes app-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+
+.app-run-word {
+  margin-left: 7px;
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+
+/* F6 lands on the 3D view (SH-16): a quiet inset ring says where the keys go */
+.app-canvas:focus {
+  outline: none;
+}
+.app-canvas:focus-visible {
+  outline: 2px solid rgba(10, 132, 255, 0.6);
+  outline-offset: -2px;
+}
+
+/* desktop workspace (new chrome only — body.ws-on never exists in the
+   classic chrome): the run capsule and the status pill under it centre on
+   the free scene column, like the toasts */
+body.ws-on .lg-capsule-wrap {
+  left: var(--ws-center-x);
+}
+/* the undo pill (now with 「對準電路」) shares the bottom row of the free
+   column: toasts float one row higher so a long one never sits on it */
+body.ws-on:not(.app-wire-armed) .lg-toast-host {
+  bottom: calc(var(--ws-inset-bottom) + 62px);
+}
+
+/* ---- run control (new chrome, UX wave SH-1): glyph disc + verb ---------- */
+
+.app-run-disc {
+  position: relative; /* hosts the pulsing ring */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -4px; /* optical: the disc sits closer to the pill's round end */
+  border-radius: 50%;
+  color: #fff;
+  background: var(--ios-green);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.app-run-disc svg {
+  display: block;
+}
+.app-run-disc.is-play svg {
+  margin-left: 1.5px; /* optical centre of the ▶ triangle */
+}
+/* state colours from the one table (H6 STATE_TONE → --app-state on the
+   capsule, SH-14); the fallbacks are the same tokens */
+.app-run-disc.is-halted {
+  background: var(--app-state, var(--ios-orange));
+}
+.app-run-disc.is-fault {
+  background: var(--app-state, var(--ios-red));
+}
+.app-run-disc.is-fault svg {
+  margin-top: -1px;
+}
+/* running: ❚❚ inside the pulsing green ring (the classic dot's keyframes —
+   transform/opacity only) */
+.app-run-disc.is-running {
+  color: var(--ios-green);
+  background: rgba(48, 209, 88, 0.16);
+  box-shadow: none;
+}
+.app-run-disc.is-running::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--app-state, var(--ios-green));
+  border-radius: 50%;
+  animation: app-dot-pulse 1.5s var(--lg-spring) infinite;
+}
+/* running, but every board is stopped by its blocker (release QA SH-F3):
+   ❚❚ on a solid disc in the blocker's state colour (no power red, no
+   firmware orange — H6 via --app-state), no pulse: nothing is running */
+.app-run-disc.is-blocked {
+  background: var(--app-state, var(--ios-red));
+}
+.app-run-extra.is-blocked {
+  font-weight: 600;
+}
+/* paused: the state dot before 「已暫停」 (blue — the MCU badge's colour) */
+.app-run-state {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: 0.08em;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--app-state, var(--ios-blue));
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.22);
+}
+
+.app-run-label.app-run-word {
+  margin-left: 0;
+  font: inherit;
+  color: inherit;
+}
+.app-run-sep {
+  margin: 0 6px;
+  color: var(--label-3);
+  font-weight: 400;
+}
+.app-run-time {
+  font-weight: 500;
+  color: var(--label-2);
+}
+.app-run-extra {
+  font-weight: 600;
+}
+.app-run-extra.is-action {
+  color: var(--ios-orange);
+}
+.app-run-extra.is-slow {
+  font-weight: 500;
+  color: var(--ios-orange);
+}
+
+/* ==========================================================================
+   Wire color strip — floats above the dock while wire mode is armed
+   ========================================================================== */
+
+.app-wire-strip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--lg-safe-bottom) + 83px); /* dock bottom 12 + dock 61 + gap 10 */
+  transform: translateX(-50%);
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  /* CLEAR-variant Liquid Glass (background comes from .lg-glass-clear in
+     kit.css) WITHOUT backdrop-filter: the strip coexists with dock +
+     capsule + toasts, and the ≤4 concurrent-blur budget (DESIGN.md §7)
+     reserves those for the big surfaces */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: app-rise-in 320ms var(--lg-spring);
+}
+
+.app-swatch {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: var(--swatch, #888c94);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.app-swatch.is-active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.85), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* toasts hop above the strip while it is shown */
+body.app-wire-armed .lg-toast-host {
+  bottom: calc(var(--lg-safe-bottom) + 145px);
+}
+/* new chrome on phones (release QA SH-F5): the undo / 對準電路 pill hops
+   above the strip as well (UndoPill.css, bottom + 145 px, 50 px tall) — the
+   toasts go one row higher still, so a two-line wire hint never covers it */
+@media (max-width: 899px) {
+  body.app-wire-armed.app-undo-visible .lg-toast-host {
+    bottom: calc(var(--lg-safe-bottom) + 203px);
+  }
+}
+
+@keyframes app-rise-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* ==========================================================================
+   Dock badge (issue count on the More tab)
+   ========================================================================== */
+
+.app-dock-iconwrap {
+  position: relative;
+  display: block;
+}
+.app-dock-badge {
+  position: absolute;
+  top: -3px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ios-red);
+  color: #fff;
+  font: 600 10px/16px var(--lg-font);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   Empty state — "Build your first circuit"
+   ========================================================================== */
+
+.app-empty {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  padding-bottom: calc(var(--lg-safe-bottom) + 110px); /* keep clear of the dock */
+  pointer-events: none;
+}
+.app-empty-card {
+  position: relative; /* Liquid Glass rim/specular layers need a positioned host */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(86vw, 340px);
+  padding: 28px 24px calc(24px);
+  text-align: center;
+  pointer-events: auto;
+  animation: app-card-in var(--lg-dur-sheet) var(--lg-spring);
+}
+.app-empty-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  background: rgba(10, 132, 255, 0.16);
+  color: var(--ios-blue);
+  margin-bottom: 4px;
+}
+.app-empty-title {
+  text-wrap: balance;
+}
+.app-empty-body {
+  text-wrap: pretty;
+}
+.app-empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+}
+.app-empty-actions .lg-btn {
+  width: 100%;
+}
+
+/* new chrome (UX wave SH-3): the learning-path card */
+.app-empty-card.is-path {
+  width: min(88vw, 360px);
+}
+/* first-screen readability (UX fix SH-16 — N5: the explanation read 2.2:1
+   over the bright board seen through the lens): primary ink in either glass
+   tone (the tone layer flips --label dark on light glass), the primary
+   button a deeper blue so its white label clears 4.5:1 (checked by
+   scripts/glass-a11y-probe.mjs empty-contrast) */
+.app-empty-card.is-path .app-empty-body {
+  color: var(--label);
+}
+/* the secondary links: full ink on light glass (label-2 read ≈ 4:1 there) */
+.app-empty-card.is-path.is-tone-light .app-empty-link {
+  color: rgba(16, 18, 26, 0.8);
+}
+/* on dark glass over the white breadboard the lens tint was too thin for
+   white ink: a deeper tint (still blurred + refracting at the rim) */
+.lg-lens-on .app-empty-card.is-path.lg-lens:not(.is-tone-light) {
+  background: linear-gradient(180deg, rgba(32, 35, 45, 0.74), rgba(22, 24, 32, 0.68));
+}
+.app-empty-card.is-path .lg-btn-filled {
+  background: linear-gradient(180deg, #1f7ae6, #0062d1 52%, #0057bb);
+}
+.app-empty-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 8px;
+  margin-top: 2px;
+}
+.app-empty-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--label-2);
+  font: 500 15px/20px var(--lg-font);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 340ms linear; /* glides with the tone flip */
+}
+.app-empty-link[data-pressed='true'] {
+  background: var(--fill-2);
+}
+.app-empty-link:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .app-empty-link:hover {
+    color: var(--label);
+  }
+}
+
+/* a run asked for on the empty board (SH-13): 「開啟範例」 pulses once —
+   transform + a ring, no layout change */
+.app-empty-examples.is-pulse {
+  animation: app-empty-pulse 1.2s var(--lg-spring) 1;
+}
+@keyframes app-empty-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(10, 132, 255, 0);
+  }
+  30% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(10, 132, 255, 0.45);
+  }
+  60% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+  }
+}
+
+@keyframes app-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ==========================================================================
+   Onboarding — 3-step coach overlay (first launch)
+   ========================================================================== */
+
+.app-onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.app-onboard-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45); /* dim only — never a full-screen blur */
+  animation: app-fade-in 240ms linear;
+}
+.app-onboard-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(88vw, 360px);
+  padding: 28px 0 18px;
+  animation: app-card-in var(--lg-dur-sheet) var(--lg-spring);
+}
+.app-onboard-track-clip {
+  overflow: hidden;
+  width: 100%;
+}
+.app-onboard-track {
+  display: flex;
+  width: 300%;
+  transition: transform var(--lg-dur-sheet) var(--lg-spring);
+  will-change: transform;
+}
+.app-onboard-step {
+  flex: 0 0 calc(100% / 3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 28px;
+  text-align: center;
+  min-height: 178px;
+}
+.app-onboard-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 24px;
+  background: rgba(10, 132, 255, 0.16);
+  color: var(--ios-blue);
+  margin-bottom: 4px;
+}
+.app-onboard-body {
+  text-wrap: pretty;
+}
+
+.app-onboard-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+.app-onboard-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--fill);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--lg-dur-control) var(--lg-spring),
+    opacity var(--lg-dur-control) var(--lg-spring);
+}
+.app-onboard-dot.is-active {
+  background: var(--ios-blue);
+  transform: scale(1.25);
+}
+
+.app-onboard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px 0;
+}
+.app-onboard-skip {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  background: none;
+  font: 400 17px/22px var(--lg-font);
+  color: var(--label-2);
+}
+
+/* last step (UX wave SH-3): the learning path, stacked — primary, example
+   link, skip */
+.app-onboard-title {
+  text-wrap: balance;
+}
+.app-onboard-finish {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 24px 0;
+}
+.app-onboard-finish .lg-btn {
+  width: 100%;
+}
+.app-onboard-link {
+  min-height: 44px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  font: 500 15px/20px var(--lg-font);
+  color: var(--ios-blue);
+  text-wrap: balance;
+  cursor: pointer;
+}
+.app-onboard-finish .app-onboard-skip {
+  min-height: 36px;
+  font-size: 15px;
+}
+/* new chrome only (.is-path): the classic tour keeps its pre-wave focus look */
+.app-onboard-card.is-path .app-onboard-link:focus-visible,
+.app-onboard-card.is-path .app-onboard-skip:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+
+@keyframes app-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ==========================================================================
+   Reduced motion — kill decorative animations (springs already collapse
+   via the --lg-dur-* tokens in kit.css)
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .app-empty-examples.is-pulse {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.45);
+  }
+  .app-run-dot.is-running,
+  .app-run-disc.is-running::before,
+  .app-wire-strip,
+  .app-empty-card,
+  .app-onboard-card,
+  .app-onboard-scrim {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Desktop ≥ 900px — rail + panels (DESIGN.md §6)
+   ========================================================================== */
+
+@media (min-width: 900px) {
+  /* the dock rail owns the left edge; keep floating bits clear of it */
+  .app-wire-strip {
+    bottom: calc(var(--lg-safe-bottom) + 24px);
+  }
+  body.app-wire-armed .lg-toast-host {
+    bottom: calc(var(--lg-safe-bottom) + 90px);
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "HAL USART1 115200 8N1: hello banner, 'tick N' every 1000 ms, interrupt-driven RX line echo",
+  "expect": "72 MHz, USART1 PA9/PA10 115200 8N1 (BRR 0x271, exact). First TX: 'Hello from STM32F103!\\r\\n'. Then 'tick N\\r\\n', N = 1, 2, ..., first bytes exactly 1000 ms apart (+-20 us; tick 1 starts 999-1000 ms after the banner) unless an echo is still being sent (no drift). RX via HAL_UART_Receive_IT, one byte at a time: CR or LF ends a line; a non-empty line is answered 'echo: <line>\\r\\n' starting < 0.5 ms after its terminator (later only while another line is being sent). Empty lines are ignored (CRLF echoes once), lines keep their first 63 bytes, up to 4 lines queue, bytes with framing/noise/parity errors are dropped.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)"],
+    "pins": { "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "Hello from STM32F103!\r\n" },
+    "signals": [
+      { "uart": "USART1", "lines": "tick {n}\r\n", "nFrom": 1, "firstAt": [998.95, 1000.05], "everyMs": 1000, "tolUs": 20 }
+    ],
+    "scenarios": [
+      {
+        "name": "CR-terminated line",
+        "durationMs": 50,
+        "drive": [{ "at": 10, "uart": "USART1", "text": "abc\r" }],
+        "expect": [{ "at": [10.25, 10.7], "uart": "echo: abc\r\n" }],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "CRLF echoes once, LF alone also terminates",
+        "durationMs": 80,
+        "drive": [
+          { "at": 10, "uart": "USART1", "text": "hello\r\n" },
+          { "at": 40, "uart": "USART1", "text": "x\n" }
+        ],
+        "expect": [
+          { "at": [10.4, 10.9], "uart": "echo: hello\r\n" },
+          { "at": [40.08, 40.5], "uart": "echo: x\r\n" }
+        ],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "two lines back to back are both echoed in order",
+        "durationMs": 50,
+        "drive": [{ "at": 10, "uart": "USART1", "text": "one\rtwo\r" }],
+        "expect": [
+          { "id": "e1", "at": [10.25, 10.7], "uart": "echo: one\r\n" },
+          { "from": "e1", "at": [0.9, 1.3], "uart": "echo: two\r\n" }
+        ],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "empty lines are ignored",
+        "durationMs": 50,
+        "drive": [{ "at": 10, "uart": "USART1", "text": "\r\n\r\n\n\r" }],
+        "expect": [],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "a long line keeps its first 63 bytes",
+        "durationMs": 50,
+        "drive": [{ "at": 10, "uart": "USART1", "text": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/=!?\r" }],
+        "expect": [{ "at": [16.1, 16.7], "uart": "echo: 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+\r\n" }],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

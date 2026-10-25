@@ -1,0 +1,7 @@
+{
+  "kind": "bare",
+  "sources": ["main.c", "selftest.c"],
+  "variants": ["-O0", "-Os"],
+  "description": "CPU self-test: CRC32, sorting, 64-bit math, bit ops, jump tables, struct copies, recursion, varargs; result left in RAM, then BKPT",
+  "expect": "halts on BKPT #0x42 with selftest_done = 0x600DF00D and selftest_checksum/selftest_text identical to the host (x86-64) build of selftest.c"
+}

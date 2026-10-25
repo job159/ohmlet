@@ -1,0 +1,73 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "First-release demo: PA5 LED 2 Hz / 5 Hz / on / off cycled by a debounced PB12 button, PC13 heartbeat, mode report on USART1 115200",
+  "expect": "72 MHz. USART1 PA9/PA10 115200 8N1 boot output: 'boot ok\\r\\n' then 'mode=0 blink 2 Hz\\r\\n'. PA5 push-pull: mode 0 = 250 ms high / 250 ms low (2 Hz), mode 1 = 100/100 ms (5 Hz), mode 2 = high, mode 3 = low; entering a mode sets PA5 high (low for mode 3) in that tick. PC13 push-pull (on-board LED, active low): low 50 ms at the start of every 1000 ms, unaffected by the button. PB12 input pull-up + EXTI falling, 30 ms debounce: a press is accepted 29-30 ms after its last falling edge if PB12 is still low and advances 0 -> 1 -> 2 -> 3 -> 0, printing 'mode=<n> <blink 2 Hz|blink 5 Hz|solid on|off>\\r\\n'. Release bounce and pulses shorter than 29 ms never count. All LED timing runs in SysTick: every PA5/PC13 edge is on a 1 ms tick (+-10 us), never delayed by UART output.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA5: LED + 330 ohm to GND",
+      "PC13: Blue Pill on-board LED (active low)",
+      "PB12: push-button to GND, no external resistor",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PA5": "output-pp", "PC13": "output-pp", "PB12": "input-pullup", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "boot ok\r\nmode=0 blink 2 Hz\r\n" },
+    "idle": { "PB12": 1 },
+    "signals": [
+      { "pin": "PA5", "square": [250, 250], "tolUs": 10, "firstEdge": 1, "firstEdgeAt": [0.6, 1.8] },
+      { "pin": "PC13", "square": [950, 50], "tolUs": 10, "firstEdge": 0, "firstEdgeAt": [0.6, 1.8], "always": true }
+    ],
+    "scenarios": [
+      {
+        "name": "the button cycles through all four modes",
+        "durationMs": 5000,
+        "drive": [
+          { "at": 1000, "pin": "PB12", "level": 0 },
+          { "at": 1200, "pin": "PB12", "level": "open" },
+          { "at": 2000, "pin": "PB12", "level": 0 },
+          { "at": 2200, "pin": "PB12", "level": "open" },
+          { "at": 3000, "pin": "PB12", "level": 0 },
+          { "at": 3200, "pin": "PB12", "level": "open" },
+          { "at": 4000, "pin": "PB12", "level": 0 },
+          { "at": 4200, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [
+          { "id": "m1", "at": [1029.05, 1030.2], "uart": "mode=1 blink 5 Hz\r\n" },
+          { "from": "m1", "at": [1, 450], "pin": "PA5", "every": 100 },
+          { "id": "m2", "at": [2029.05, 2030.2], "uart": "mode=2 solid on\r\n" },
+          { "from": "m2", "at": [0, 900], "pin": "PA5", "level": 1 },
+          { "id": "m3", "at": [3029.05, 3030.2], "uart": "mode=3 off\r\n" },
+          { "from": "m3", "at": [0, 900], "pin": "PA5", "level": 0 },
+          { "id": "m0", "at": [4029.05, 4030.2], "uart": "mode=0 blink 2 Hz\r\n" },
+          { "from": "m0", "at": [1, 900], "pin": "PA5", "every": 250 }
+        ],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "bouncy press counts once; release bounce and a 20 ms glitch are ignored",
+        "durationMs": 2200,
+        "drive": [
+          { "at": 1000, "pin": "PB12", "level": 0 },
+          { "at": 1000.4, "pin": "PB12", "level": "open" },
+          { "at": 1000.8, "pin": "PB12", "level": 0 },
+          { "at": 1001.2, "pin": "PB12", "level": "open" },
+          { "at": 1001.5, "pin": "PB12", "level": 0 },
+          { "at": 1300, "pin": "PB12", "level": "open" },
+          { "at": 1300.3, "pin": "PB12", "level": 0 },
+          { "at": 1300.7, "pin": "PB12", "level": "open" },
+          { "at": 1301, "pin": "PB12", "level": 0 },
+          { "at": 1301.3, "pin": "PB12", "level": "open" },
+          { "at": 2000, "pin": "PB12", "level": 0 },
+          { "at": 2020, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [{ "at": [1030.5, 1031.7], "uart": "mode=1 blink 5 Hz\r\n" }],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

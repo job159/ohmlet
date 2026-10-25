@@ -1,0 +1,46 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "i2c"
+  ],
+  "description": "HAL I2C1 bus scan (PB6 SCL / PB7 SDA, 100 kHz): HAL_I2C_IsDeviceReady on 0x08-0x77, 'found 0xNN' per device, 'scan done N' on USART1",
+  "expect": "72 MHz. I2C1 on PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz standard mode (PCLK1 36 MHz: FREQ 36, CCR 180 = 5 us high / 5 us low, TRISE 37); the bus needs pull-ups. USART1 PA9/PA10 115200 8N1. Once after reset: 'I2C1 scan 0x08-0x77\r\n', then HAL_I2C_IsDeviceReady (1 trial, 2 ms) on every address 0x08..0x77 in order: 'found 0xNN\r\n' for each acknowledging device (an AT24C02 with A2-A0 at GND: 'found 0x50'); a NACKed probe (START, address, NACK, STOP) takes about 115 us on the bus. Then 'scan done N\r\n' (N = devices found), and the core sleeps (WFI) with SCL/SDA released high. Without pull-ups SDA/SCL never read high: SR2.BUSY stays set, the first probe returns HAL_BUSY after 25 ms and the scan stops: 'bus busy at 0x08: SDA/SCL stuck low (pull-ups?)\r\nscan done 0\r\n'. A START that is never generated (HAL_TIMEOUT) prints 'timeout at 0xNN' and stops.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PB6": "af-od",
+      "PB7": "af-od",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "I2C1 scan 0x08-0x77\r\nscan done 0\r\n"
+    },
+    "idle": {
+      "PB6": 1,
+      "PB7": 1
+    }
+  }
+}

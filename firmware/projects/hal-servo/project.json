@@ -1,0 +1,16 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim"],
+  "description": "HAL servo signal: TIM2 CH2 PA1 50 Hz, pulse sweeping 1.0 -> 2.0 -> 1.0 ms in 0.1 ms steps every 200 ms",
+  "expect": "72 MHz; TIM2 PSC 71 (1 us per count), ARR 19999: a rising edge on PA1 (AF push-pull) every 20.000 ms exactly (50 Hz), PWM mode 1, pulse width = CCR2 us. The width starts at 1.000 ms and steps by 0.100 ms every 200 ms (HAL_GetTick deadlines, no drift): 1.0, 1.1, ..., 2.0, 1.9, ..., 1.0, 1.1 ms ... (a full sweep and back every 4.000 s). CCR2 is preloaded (OC2PE), so a width changes only at a frame boundary and every width is sent in exactly 10 consecutive frames (the first width may be sent a little longer after start). No UART.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PA1: servo signal input or logic analyzer probe (no load needed)"],
+    "pins": { "PA1": "af-pp" },
+    "signals": [],
+    "scenarios": []
+  }
+}

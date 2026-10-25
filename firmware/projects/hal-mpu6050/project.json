@@ -1,0 +1,31 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart", "i2c"],
+  "description": "GY-521 MPU-6050 on I2C1 (PB6 SCL / PB7 SDA): WHO_AM_I, wake from SLEEP, +-2 g / +-250 dps at 100 Hz, prints raw ax ay az gx gy gz and the temperature every 100 ms on USART1",
+  "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz; the GY-521 module brings 4.7 kOhm pull-ups to its 3.3 V regulator. USART1 PA9/PA10 115200 8N1; PB12 input with pull-up. Boot: 'MPU-6050 on I2C1 (PB6 SCL / PB7 SDA)\\r\\n', then HAL_I2C_Mem_Read of WHO_AM_I (0x75) from 0x68: no acknowledge -> 'MPU-6050 not found at 0x68\\r\\n' and the core idles (WFI); otherwise 'WHO_AM_I=0x68\\r\\n'. With PB12 open (high) the firmware clears SLEEP (PWR_MGMT_1 = 0x00) and writes CONFIG = 0x03 (DLPF 44 Hz, 1 kHz gyro rate), SMPLRT_DIV = 9 (100 Hz), GYRO_CONFIG = 0 (+-250 deg/s, 131 LSB/(deg/s)), ACCEL_CONFIG = 0 (+-2 g, 16384 LSB/g) and prints 'awake: +-2 g, +-250 dps, 100 Hz\\r\\n'; with PB12 tied to GND it prints 'PB12 low: PWR_MGMT_1 not written, the sensor stays asleep\\r\\n' and every reading stays 0 (the MPU-6050 powers up asleep). Every 100 ms (deadline from the end of boot) one 14-byte burst read from 0x3B prints 'ax=<n> ay=<n> az=<n> gx=<n> gy=<n> gz=<n> t=<C>.<cc>\\r\\n' with the raw signed counts and T = raw/340 + 36.53 C truncated to 0.01 C (asleep: all zero and t=36.53). A failed transfer prints 'i2c error <status>\\r\\n'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no MPU-6050 on the bus: every address is NACKed (tests/devices/sensors-firmware.test.ts wires a GY-521 module instead)"
+    ],
+    "pins": {
+      "PB6": "af-od",
+      "PB7": "af-od",
+      "PB12": "input-pullup",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "MPU-6050 on I2C1 (PB6 SCL / PB7 SDA)\r\nMPU-6050 not found at 0x68\r\n"
+    },
+    "idle": { "PB6": 1, "PB7": 1 }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "A3144 Hall switch: open-collector OUT on PB12 (internal pull-up, EXTI12 both edges), prints 'magnet' / 'no magnet' on every change and mirrors it on the PC13 LED",
+  "expect": "72 MHz. PB12 input with pull-up, EXTI12 on both edges; PC13 push-pull (on-board LED, active low) idles high. USART1 PA9/PA10 115200 8N1. Boot: 'A3144 on PB12 (pull-up, EXTI12)\\r\\n' then the current state: PB12 low -> 'magnet (OUT low)\\r\\n' and PC13 low (LED on), PB12 high -> 'no magnet (OUT high)\\r\\n' and PC13 high. Every EXTI edge wakes the main loop, which prints the new state only when it differs from the last one printed.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)", "PB12: open (the scenarios pull it low like the A3144's output transistor)"],
+    "pins": { "PB12": "input-pullup", "PC13": "output-pp", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "A3144 on PB12 (pull-up, EXTI12)\r\nno magnet (OUT high)\r\n" },
+    "idle": { "PB12": 1, "PC13": 1 },
+    "scenarios": [
+      {
+        "name": "a magnet pulls OUT low for 50 ms",
+        "durationMs": 100,
+        "drive": [
+          { "at": 10, "pin": "PB12", "level": 0 },
+          { "at": 60, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [
+          { "id": "on", "at": [10, 10.05], "pin": "PC13", "edge": 0 },
+          { "from": "on", "at": [0, 0.15], "uart": "magnet (OUT low)\r\n" },
+          { "id": "off", "at": [60, 60.05], "pin": "PC13", "edge": 1 },
+          { "from": "off", "at": [0, 0.15], "uart": "no magnet (OUT high)\r\n" }
+        ],
+        "quiet": ["PC13", "USART1"]
+      }
+    ]
+  }
+}

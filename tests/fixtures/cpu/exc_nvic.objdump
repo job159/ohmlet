@@ -1,0 +1,459 @@
+
+
+Disassembly of section .text:
+
+080000ec <reset>:
+ 80000ec:      	movw	r12, #0xe100
+ 80000f0:      	movt	r12, #0xe000
+ 80000f4:      	movw	r3, #0xff
+ 80000f8:      	movt	r3, #0x0
+ 80000fc:      	str.w	r3, [r12]
+ 8000100:      	movw	r12, #0xe400
+ 8000104:      	movt	r12, #0xe000
+ 8000108:      	movw	r3, #0x4080
+ 800010c:      	movt	r3, #0xc040
+ 8000110:      	str.w	r3, [r12]
+ 8000114:      	movw	r12, #0xe404
+ 8000118:      	movt	r12, #0xe000
+ 800011c:      	movw	r3, #0x8080
+ 8000120:      	movt	r3, #0x20
+ 8000124:      	str.w	r3, [r12]
+ 8000128:      	movw	r12, #0xc
+ 800012c:      	movt	r12, #0x4000
+ 8000130:      	movw	r3, #0x0
+ 8000134:      	movt	r3, #0x0
+ 8000138:      	str.w	r3, [r12]
+ 800013c:      	movw	r12, #0x4
+ 8000140:      	movt	r12, #0x4000
+ 8000144:      	movw	r3, #0xa001
+ 8000148:      	movt	r3, #0x0
+ 800014c:      	str.w	r3, [r12]
+ 8000150:      	cpsid i
+ 8000152:      	movw	r12, #0xc
+ 8000156:      	movt	r12, #0x4000
+ 800015a:      	movw	r3, #0x2
+ 800015e:      	movt	r3, #0x0
+ 8000162:      	str.w	r3, [r12]
+ 8000166:      	movw	r12, #0xc
+ 800016a:      	movt	r12, #0x4000
+ 800016e:      	movw	r3, #0x1
+ 8000172:      	movt	r3, #0x0
+ 8000176:      	str.w	r3, [r12]
+ 800017a:      	movw	r12, #0xe200
+ 800017e:      	movt	r12, #0xe000
+ 8000182:      	ldr.w	r3, [r12]
+ 8000186:      	movw	r12, #0x4
+ 800018a:      	movt	r12, #0x4000
+ 800018e:      	str.w	r3, [r12]
+ 8000192:      	movw	r12, #0xed04
+ 8000196:      	movt	r12, #0xe000
+ 800019a:      	ldr.w	r3, [r12]
+ 800019e:      	movw	r12, #0x4
+ 80001a2:      	movt	r12, #0x4000
+ 80001a6:      	str.w	r3, [r12]
+ 80001aa:      	cpsie i
+ 80001ac:      	movw	r12, #0x4
+ 80001b0:      	movt	r12, #0x4000
+ 80001b4:      	movw	r3, #0xa002
+ 80001b8:      	movt	r3, #0x0
+ 80001bc:      	str.w	r3, [r12]
+ 80001c0:      	movw	r12, #0xed0c
+ 80001c4:      	movt	r12, #0xe000
+ 80001c8:      	movw	r3, #0x600
+ 80001cc:      	movt	r3, #0x5fa
+ 80001d0:      	str.w	r3, [r12]
+ 80001d4:      	movw	r12, #0xed0c
+ 80001d8:      	movt	r12, #0xe000
+ 80001dc:      	ldr.w	r3, [r12]
+ 80001e0:      	movw	r12, #0x4
+ 80001e4:      	movt	r12, #0x4000
+ 80001e8:      	str.w	r3, [r12]
+ 80001ec:      	movw	r12, #0x0
+ 80001f0:      	movt	r12, #0x4000
+ 80001f4:      	movw	r3, #0x1
+ 80001f8:      	movt	r3, #0x0
+ 80001fc:      	str.w	r3, [r12]
+ 8000200:      	movw	r12, #0xc
+ 8000204:      	movt	r12, #0x4000
+ 8000208:      	movw	r3, #0x3
+ 800020c:      	movt	r3, #0x0
+ 8000210:      	str.w	r3, [r12]
+ 8000214:      	movw	r12, #0x4
+ 8000218:      	movt	r12, #0x4000
+ 800021c:      	movw	r3, #0xa003
+ 8000220:      	movt	r3, #0x0
+ 8000224:      	str.w	r3, [r12]
+ 8000228:      	movw	r12, #0xed0c
+ 800022c:      	movt	r12, #0xe000
+ 8000230:      	movw	r3, #0x0
+ 8000234:      	movt	r3, #0x5fa
+ 8000238:      	str.w	r3, [r12]
+ 800023c:      	movw	r12, #0x0
+ 8000240:      	movt	r12, #0x4000
+ 8000244:      	movw	r3, #0x1
+ 8000248:      	movt	r3, #0x0
+ 800024c:      	str.w	r3, [r12]
+ 8000250:      	movw	r12, #0xc
+ 8000254:      	movt	r12, #0x4000
+ 8000258:      	movw	r3, #0x3
+ 800025c:      	movt	r3, #0x0
+ 8000260:      	str.w	r3, [r12]
+ 8000264:      	movw	r12, #0x4
+ 8000268:      	movt	r12, #0x4000
+ 800026c:      	movw	r3, #0xa004
+ 8000270:      	movt	r3, #0x0
+ 8000274:      	str.w	r3, [r12]
+ 8000278:      	movw	r12, #0x0
+ 800027c:      	movt	r12, #0x4000
+ 8000280:      	movw	r3, #0x0
+ 8000284:      	movt	r3, #0x0
+ 8000288:      	str.w	r3, [r12]
+ 800028c:      	movs	r0, #0x80
+ 800028e:      	msr	basepri, r0
+ 8000292:      	movw	r12, #0xc
+ 8000296:      	movt	r12, #0x4000
+ 800029a:      	movw	r3, #0x0
+ 800029e:      	movt	r3, #0x0
+ 80002a2:      	str.w	r3, [r12]
+ 80002a6:      	movw	r12, #0xc
+ 80002aa:      	movt	r12, #0x4000
+ 80002ae:      	movw	r3, #0x1
+ 80002b2:      	movt	r3, #0x0
+ 80002b6:      	str.w	r3, [r12]
+ 80002ba:      	movw	r12, #0x4
+ 80002be:      	movt	r12, #0x4000
+ 80002c2:      	movw	r3, #0xa005
+ 80002c6:      	movt	r3, #0x0
+ 80002ca:      	str.w	r3, [r12]
+ 80002ce:      	movs	r0, #0x0
+ 80002d0:      	msr	basepri, r0
+ 80002d4:      	movw	r12, #0x4
+ 80002d8:      	movt	r12, #0x4000
+ 80002dc:      	movw	r3, #0xa006
+ 80002e0:      	movt	r3, #0x0
+ 80002e4:      	str.w	r3, [r12]
+ 80002e8:      	cpsid f
+ 80002ea:      	movw	r12, #0xc
+ 80002ee:      	movt	r12, #0x4000
+ 80002f2:      	movw	r3, #0x7
+ 80002f6:      	movt	r3, #0x0
+ 80002fa:      	str.w	r3, [r12]
+ 80002fe:      	movw	r12, #0x20
+ 8000302:      	movt	r12, #0x4000
+ 8000306:      	movw	r3, #0x1
+ 800030a:      	movt	r3, #0x0
+ 800030e:      	str.w	r3, [r12]
+ 8000312:      	movw	r12, #0x4
+ 8000316:      	movt	r12, #0x4000
+ 800031a:      	movw	r3, #0xa007
+ 800031e:      	movt	r3, #0x0
+ 8000322:      	str.w	r3, [r12]
+ 8000326:      	cpsie f
+ 8000328:      	movw	r12, #0x4
+ 800032c:      	movt	r12, #0x4000
+ 8000330:      	movw	r3, #0xa008
+ 8000334:      	movt	r3, #0x0
+ 8000338:      	str.w	r3, [r12]
+ 800033c:      	movw	r12, #0x8
+ 8000340:      	movt	r12, #0x4000
+ 8000344:      	movw	r3, #0x104
+ 8000348:      	movt	r3, #0x0
+ 800034c:      	str.w	r3, [r12]
+ 8000350:      	movw	r12, #0x4
+ 8000354:      	movt	r12, #0x4000
+ 8000358:      	movw	r3, #0xa009
+ 800035c:      	movt	r3, #0x0
+ 8000360:      	str.w	r3, [r12]
+ 8000364:      	cpsid i
+ 8000366:      	movw	r12, #0x8
+ 800036a:      	movt	r12, #0x4000
+ 800036e:      	movw	r3, #0x105
+ 8000372:      	movt	r3, #0x0
+ 8000376:      	str.w	r3, [r12]
+ 800037a:      	movw	r12, #0xc
+ 800037e:      	movt	r12, #0x4000
+ 8000382:      	movw	r3, #0x6
+ 8000386:      	movt	r3, #0x0
+ 800038a:      	str.w	r3, [r12]
+ 800038e:      	movw	r12, #0xe280
+ 8000392:      	movt	r12, #0xe000
+ 8000396:      	movw	r3, #0x60
+ 800039a:      	movt	r3, #0x0
+ 800039e:      	str.w	r3, [r12]
+ 80003a2:      	movw	r12, #0xe200
+ 80003a6:      	movt	r12, #0xe000
+ 80003aa:      	ldr.w	r3, [r12]
+ 80003ae:      	movw	r12, #0x4
+ 80003b2:      	movt	r12, #0x4000
+ 80003b6:      	str.w	r3, [r12]
+ 80003ba:      	movw	r12, #0x28
+ 80003be:      	movt	r12, #0x4000
+ 80003c2:      	movw	r3, #0x5
+ 80003c6:      	movt	r3, #0x0
+ 80003ca:      	str.w	r3, [r12]
+ 80003ce:      	movw	r12, #0xe280
+ 80003d2:      	movt	r12, #0xe000
+ 80003d6:      	movw	r3, #0x20
+ 80003da:      	movt	r3, #0x0
+ 80003de:      	str.w	r3, [r12]
+ 80003e2:      	movw	r12, #0xe200
+ 80003e6:      	movt	r12, #0xe000
+ 80003ea:      	ldr.w	r3, [r12]
+ 80003ee:      	movw	r12, #0x4
+ 80003f2:      	movt	r12, #0x4000
+ 80003f6:      	str.w	r3, [r12]
+ 80003fa:      	cpsie i
+ 80003fc:      	movw	r12, #0x4
+ 8000400:      	movt	r12, #0x4000
+ 8000404:      	movw	r3, #0xa00a
+ 8000408:      	movt	r3, #0x0
+ 800040c:      	str.w	r3, [r12]
+ 8000410:      	movw	r12, #0xef00
+ 8000414:      	movt	r12, #0xe000
+ 8000418:      	movw	r3, #0x6
+ 800041c:      	movt	r3, #0x0
+ 8000420:      	str.w	r3, [r12]
+ 8000424:      	movw	r12, #0x4
+ 8000428:      	movt	r12, #0x4000
+ 800042c:      	movw	r3, #0xa00b
+ 8000430:      	movt	r3, #0x0
+ 8000434:      	str.w	r3, [r12]
+ 8000438:      	movw	r12, #0x14
+ 800043c:      	movt	r12, #0x4000
+ 8000440:      	movw	r3, #0x6
+ 8000444:      	movt	r3, #0x0
+ 8000448:      	str.w	r3, [r12]
+ 800044c:      	movw	r12, #0x10
+ 8000450:      	movt	r12, #0x4000
+ 8000454:      	movw	r3, #0xc
+ 8000458:      	movt	r3, #0x0
+ 800045c:      	str.w	r3, [r12]
+ 8000460:      	movw	r12, #0xc
+ 8000464:      	movt	r12, #0x4000
+ 8000468:      	movw	r3, #0x3
+ 800046c:      	movt	r3, #0x0
+ 8000470:      	str.w	r3, [r12]
+ 8000474:      	movw	r12, #0x4
+ 8000478:      	movt	r12, #0x4000
+ 800047c:      	movw	r3, #0xa00c
+ 8000480:      	movt	r3, #0x0
+ 8000484:      	str.w	r3, [r12]
+ 8000488:      	movw	r12, #0x28
+ 800048c:      	movt	r12, #0x4000
+ 8000490:      	movw	r3, #0x6
+ 8000494:      	movt	r3, #0x0
+ 8000498:      	str.w	r3, [r12]
+ 800049c:      	bkpt	#0x0
+
+0800049e <IRQ0_Handler>:
+ 800049e:      	movw	r12, #0x4
+ 80004a2:      	movt	r12, #0x4000
+ 80004a6:      	movw	r3, #0x100
+ 80004aa:      	movt	r3, #0x0
+ 80004ae:      	str.w	r3, [r12]
+ 80004b2:      	movw	r12, #0x0
+ 80004b6:      	movt	r12, #0x4000
+ 80004ba:      	ldr.w	r0, [r12]
+ 80004be:      	cmp	r0, #0x0
+ 80004c0:      	bne	0x800051e <IRQ0_Handler+0x80> @ imm = #0x5a
+ 80004c2:      	movw	r0, #0x0
+ 80004c6:      	movt	r0, #0x0
+ 80004ca:      	movw	r12, #0x4
+ 80004ce:      	movt	r12, #0x4000
+ 80004d2:      	ldr	r1, [pc, #0x28c]        @ 0x8000760 <NMI_Handler+0x3a>
+ 80004d4:      	ldr	r2, [r1]
+ 80004d6:      	adds	r2, #0x1
+ 80004d8:      	str	r2, [r1]
+ 80004da:      	cmp	r2, #0x1
+ 80004dc:      	bne	0x800051e <IRQ0_Handler+0x80> @ imm = #0x3e
+ 80004de:      	movw	r12, #0xc
+ 80004e2:      	movt	r12, #0x4000
+ 80004e6:      	movw	r3, #0x1
+ 80004ea:      	movt	r3, #0x0
+ 80004ee:      	str.w	r3, [r12]
+ 80004f2:      	movw	r12, #0xc
+ 80004f6:      	movt	r12, #0x4000
+ 80004fa:      	movw	r3, #0x3
+ 80004fe:      	movt	r3, #0x0
+ 8000502:      	str.w	r3, [r12]
+ 8000506:      	movw	r12, #0xed04
+ 800050a:      	movt	r12, #0xe000
+ 800050e:      	ldr.w	r3, [r12]
+ 8000512:      	movw	r12, #0x4
+ 8000516:      	movt	r12, #0x4000
+ 800051a:      	str.w	r3, [r12]
+ 800051e:      	movw	r12, #0x4
+ 8000522:      	movt	r12, #0x4000
+ 8000526:      	movw	r3, #0x200
+ 800052a:      	movt	r3, #0x0
+ 800052e:      	str.w	r3, [r12]
+ 8000532:      	bx	lr
+
+08000534 <IRQ1_Handler>:
+ 8000534:      	movw	r12, #0x4
+ 8000538:      	movt	r12, #0x4000
+ 800053c:      	movw	r3, #0x101
+ 8000540:      	movt	r3, #0x0
+ 8000544:      	str.w	r3, [r12]
+ 8000548:      	movw	r12, #0x4
+ 800054c:      	movt	r12, #0x4000
+ 8000550:      	str.w	lr, [r12]
+ 8000554:      	movw	r12, #0xed04
+ 8000558:      	movt	r12, #0xe000
+ 800055c:      	ldr.w	r3, [r12]
+ 8000560:      	movw	r12, #0x4
+ 8000564:      	movt	r12, #0x4000
+ 8000568:      	str.w	r3, [r12]
+ 800056c:      	movw	r12, #0xe300
+ 8000570:      	movt	r12, #0xe000
+ 8000574:      	ldr.w	r3, [r12]
+ 8000578:      	movw	r12, #0x4
+ 800057c:      	movt	r12, #0x4000
+ 8000580:      	str.w	r3, [r12]
+ 8000584:      	movw	r12, #0x4
+ 8000588:      	movt	r12, #0x4000
+ 800058c:      	movw	r3, #0x201
+ 8000590:      	movt	r3, #0x0
+ 8000594:      	str.w	r3, [r12]
+ 8000598:      	bx	lr
+
+0800059a <IRQ2_Handler>:
+ 800059a:      	movw	r12, #0x4
+ 800059e:      	movt	r12, #0x4000
+ 80005a2:      	movw	r3, #0x102
+ 80005a6:      	movt	r3, #0x0
+ 80005aa:      	str.w	r3, [r12]
+ 80005ae:      	movw	r12, #0x4
+ 80005b2:      	movt	r12, #0x4000
+ 80005b6:      	movw	r3, #0x202
+ 80005ba:      	movt	r3, #0x0
+ 80005be:      	str.w	r3, [r12]
+ 80005c2:      	bx	lr
+
+080005c4 <IRQ3_Handler>:
+ 80005c4:      	movw	r12, #0x4
+ 80005c8:      	movt	r12, #0x4000
+ 80005cc:      	movw	r3, #0x103
+ 80005d0:      	movt	r3, #0x0
+ 80005d4:      	str.w	r3, [r12]
+ 80005d8:      	movw	r12, #0x0
+ 80005dc:      	movt	r12, #0x4000
+ 80005e0:      	ldr.w	r0, [r12]
+ 80005e4:      	cmp	r0, #0x1
+ 80005e6:      	bne	0x8000610 <IRQ3_Handler+0x4c> @ imm = #0x26
+ 80005e8:      	movw	r12, #0xc
+ 80005ec:      	movt	r12, #0x4000
+ 80005f0:      	movw	r3, #0x0
+ 80005f4:      	movt	r3, #0x0
+ 80005f8:      	str.w	r3, [r12]
+ 80005fc:      	movw	r12, #0x4
+ 8000600:      	movt	r12, #0x4000
+ 8000604:      	movw	r3, #0x303
+ 8000608:      	movt	r3, #0x0
+ 800060c:      	str.w	r3, [r12]
+ 8000610:      	movw	r12, #0x4
+ 8000614:      	movt	r12, #0x4000
+ 8000618:      	movw	r3, #0x203
+ 800061c:      	movt	r3, #0x0
+ 8000620:      	str.w	r3, [r12]
+ 8000624:      	bx	lr
+
+08000626 <IRQ4_Handler>:
+ 8000626:      	movw	r12, #0x4
+ 800062a:      	movt	r12, #0x4000
+ 800062e:      	movw	r3, #0x104
+ 8000632:      	movt	r3, #0x0
+ 8000636:      	str.w	r3, [r12]
+ 800063a:      	ldr	r1, [pc, #0x128]        @ 0x8000764 <NMI_Handler+0x3e>
+ 800063c:      	ldr	r2, [r1]
+ 800063e:      	adds	r2, #0x1
+ 8000640:      	str	r2, [r1]
+ 8000642:      	cmp	r2, #0x2
+ 8000644:      	blo	0x800065a <IRQ4_Handler+0x34> @ imm = #0x12
+ 8000646:      	movw	r12, #0x28
+ 800064a:      	movt	r12, #0x4000
+ 800064e:      	movw	r3, #0x4
+ 8000652:      	movt	r3, #0x0
+ 8000656:      	str.w	r3, [r12]
+ 800065a:      	movw	r12, #0x4
+ 800065e:      	movt	r12, #0x4000
+ 8000662:      	movw	r3, #0x204
+ 8000666:      	movt	r3, #0x0
+ 800066a:      	str.w	r3, [r12]
+ 800066e:      	bx	lr
+
+08000670 <IRQ5_Handler>:
+ 8000670:      	movw	r12, #0x4
+ 8000674:      	movt	r12, #0x4000
+ 8000678:      	movw	r3, #0x105
+ 800067c:      	movt	r3, #0x0
+ 8000680:      	str.w	r3, [r12]
+ 8000684:      	movw	r12, #0x4
+ 8000688:      	movt	r12, #0x4000
+ 800068c:      	movw	r3, #0x205
+ 8000690:      	movt	r3, #0x0
+ 8000694:      	str.w	r3, [r12]
+ 8000698:      	bx	lr
+
+0800069a <IRQ6_Handler>:
+ 800069a:      	movw	r12, #0x4
+ 800069e:      	movt	r12, #0x4000
+ 80006a2:      	movw	r3, #0x106
+ 80006a6:      	movt	r3, #0x0
+ 80006aa:      	str.w	r3, [r12]
+ 80006ae:      	movw	r12, #0x4
+ 80006b2:      	movt	r12, #0x4000
+ 80006b6:      	str.w	lr, [r12]
+ 80006ba:      	movw	r12, #0xe300
+ 80006be:      	movt	r12, #0xe000
+ 80006c2:      	ldr.w	r3, [r12]
+ 80006c6:      	movw	r12, #0x4
+ 80006ca:      	movt	r12, #0x4000
+ 80006ce:      	str.w	r3, [r12]
+ 80006d2:      	movw	r12, #0x28
+ 80006d6:      	movt	r12, #0x4000
+ 80006da:      	movw	r3, #0x6
+ 80006de:      	movt	r3, #0x0
+ 80006e2:      	str.w	r3, [r12]
+ 80006e6:      	movw	r12, #0x4
+ 80006ea:      	movt	r12, #0x4000
+ 80006ee:      	movw	r3, #0x206
+ 80006f2:      	movt	r3, #0x0
+ 80006f6:      	str.w	r3, [r12]
+ 80006fa:      	bx	lr
+
+080006fc <IRQ7_Handler>:
+ 80006fc:      	movw	r12, #0x4
+ 8000700:      	movt	r12, #0x4000
+ 8000704:      	movw	r3, #0x107
+ 8000708:      	movt	r3, #0x0
+ 800070c:      	str.w	r3, [r12]
+ 8000710:      	movw	r12, #0x4
+ 8000714:      	movt	r12, #0x4000
+ 8000718:      	movw	r3, #0x207
+ 800071c:      	movt	r3, #0x0
+ 8000720:      	str.w	r3, [r12]
+ 8000724:      	bx	lr
+
+08000726 <NMI_Handler>:
+ 8000726:      	movw	r12, #0x4
+ 800072a:      	movt	r12, #0x4000
+ 800072e:      	movw	r3, #0x1ff
+ 8000732:      	movt	r3, #0x0
+ 8000736:      	str.w	r3, [r12]
+ 800073a:      	mrs	r0, ipsr
+ 800073e:      	movw	r12, #0x4
+ 8000742:      	movt	r12, #0x4000
+ 8000746:      	str.w	r0, [r12]
+ 800074a:      	movw	r12, #0x4
+ 800074e:      	movt	r12, #0x4000
+ 8000752:      	movw	r3, #0x2ff
+ 8000756:      	movt	r3, #0x0
+ 800075a:      	str.w	r3, [r12]
+ 800075e:      	bx	lr
+ 8000760: 00 00 00 20  	.word	0x20000000
+ 8000764: 04 00 00 20  	.word	0x20000004
+
+08000768 <unexpected>:
+ 8000768:      	bkpt	#0xee
+ 800076a:      	b	0x8000768 <unexpected>  @ imm = #-0x6

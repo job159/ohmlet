@@ -1,0 +1,42 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "8 WS2812B LEDs on SPI1 MOSI (PA7) at 2.25 MHz with DMA: 3 SPI bits per WS bit (100 = 0, 110 = 1), an 8-colour palette rotating every 100 ms",
+  "expect": "72 MHz. SPI1 master transmit-only, mode 0, MSB first, 8-bit, prescaler 32: SCK 2.25 MHz on PA5 (unused), MOSI PA7 (AF push-pull) -> strip DIN; SPI1_TX on DMA1 channel 3 (memory -> peripheral, byte, memory increment, normal mode, high priority, transfer-complete interrupt). USART1 PA9/PA10 115200 8N1. Prints 'WS2812 demo (SPI1 + DMA, 2.25 MHz)\\r\\n'. From the next HAL tick, every 100 ms (deadline based) frame s = 0, 1, 2, ...: LED i = palette[(i + s) mod 8] with palette 400000, 401800, 404000, 004000, 004040, 000040, 200040, 303030 (0xRRGGBB); each colour byte in G, R, B order, MSB first, becomes 24 SPI bits (WS 1 = 110, 0 = 100: high 889 / 444 ns, period 1.33 us), 9 bytes per LED, 72 bytes per frame (256 us, back to back by DMA); MOSI stays low between frames (> 280 us reset). HAL_SPI_TxCpltCallback ends the wait (WFI). Every 10th frame 'frame N\\r\\n' on USART1 after the frame. The strip needs VIH >= 0.7 x VDD: power it from 4.5 V with this 3.3 V MCU.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA7: unconnected on this bench (WS2812B DIN in the full circuit; the LED colours are covered by tests/devices/displays-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "af-pp",
+      "PA7": "af-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "WS2812 demo (SPI1 + DMA, 2.25 MHz)\r\nframe 0\r\n"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim"],
+  "description": "Example: LED on PA6 fades 0 -> 100 -> 0 % in 2 s (TIM3 CH1 1 kHz PWM, preloaded CCR1 stepped by the update interrupt)",
+  "expect": "72 MHz; TIM3 CH1 on PA6 (AF push-pull), PWM mode 1 at 1 kHz (PSC 71, ARR 999: 1 us per count). The TIM3 update interrupt (IRQ 29) counts periods n = 1, 2, ... (mod 2000) and writes CCR1 = 10 x duty with duty = s for s = n / 10 <= 100 and 200 - s after the top; CCR1 is preloaded (OC1PE), so period n + 2 carries the value written in interrupt n. On the pin every period starts at an update event exactly 1.000 ms after the previous one; its high time is duty x 10 us: 0 us (no pulse) for duty 0, a constant high for 100 % (CCR1 1000 > ARR). The duty climbs 0, 1, ..., 100 % and falls 99, ..., 1 % in steps that last exactly 10 periods; the whole ramp repeats every 2000 periods = 2.000 s. With a 330 ohm + red LED to GND the LED brightness follows the duty.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PA6: red LED + 330 ohm to GND"],
+    "pins": { "PA6": "af-pp" },
+    "signals": [],
+    "scenarios": []
+  }
+}

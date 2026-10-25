@@ -1,0 +1,359 @@
+/* ==========================================================================
+   Electrical rule check panel (ErcPanel.tsx) — `erc-` prefix. Kit tokens
+   only (--ios-*, --label*, --fill*, --lg-*), Tier-S materials: NOTHING here
+   sets a backdrop-filter (DESIGN.md ≤4-filter budget).
+   ========================================================================== */
+
+.erc-panel {
+  margin-top: 16px;
+}
+
+.erc-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font: 700 11px/16px var(--lg-font);
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+.erc-badge.is-error {
+  background: rgba(255, 69, 58, 0.2);
+  color: var(--ios-red);
+}
+.erc-badge.is-risk {
+  background: rgba(255, 159, 10, 0.18);
+  color: var(--ios-orange);
+}
+
+.erc-dot {
+  display: block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.erc-dot.is-error {
+  background: var(--ios-red);
+}
+.erc-dot.is-risk {
+  background: var(--ios-orange);
+}
+.erc-dot.is-info {
+  background: var(--ios-blue);
+}
+
+.lg-row.erc-group {
+  min-height: 32px;
+  padding-top: 8px;
+  padding-bottom: 6px;
+  gap: 8px;
+  background: var(--fill);
+}
+.erc-group-title {
+  flex: 0 0 auto;
+  font: 600 13px/18px var(--lg-font);
+  color: var(--label);
+  white-space: nowrap;
+}
+.erc-group-count {
+  color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+.erc-group-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lg-row.erc-finding {
+  align-items: flex-start;
+  gap: 10px;
+}
+.erc-finding .erc-dot {
+  margin-top: 7px;
+}
+.erc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.erc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-height: 24px;
+}
+.erc-meta .emb-chip {
+  margin-left: auto;
+}
+.erc-rule {
+  font: 600 11px/14px var(--lg-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--label-2);
+}
+.erc-finding.is-error .erc-rule {
+  color: var(--ios-red);
+}
+.erc-finding.is-risk .erc-rule {
+  color: var(--ios-orange);
+}
+.erc-where {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--label-3);
+}
+/* CJK text never below 12 px (UX helper H9): a rule title, a place that names a rail or a terminal */
+:lang(zh) .erc-rule,
+:lang(zh) .erc-where {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0;
+}
+.erc-message {
+  font: 400 13.5px/19px var(--lg-font);
+  color: var(--label);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ==========================================================================
+   Problems panel (UX wave IN-3): one list for the ERC, the simulator's
+   issues and the MCU states — headline + where + cause/fix + actions.
+   ========================================================================== */
+
+.erc-panel.is-compact {
+  margin-top: 4px;
+}
+.erc-head-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.erc-head-title {
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+.erc-head-spacer {
+  flex: 1 1 auto;
+}
+.erc-info-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  font: 500 12px/16px var(--lg-font);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--label-2);
+  cursor: pointer;
+}
+.erc-info-btn:hover {
+  color: var(--label);
+}
+.erc-info-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.erc-info-pop {
+  gap: 8px;
+  max-width: min(320px, calc(100vw - 16px));
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label-2);
+}
+.erc-info-pop b {
+  color: var(--label);
+}
+.erc-info-pop .erc-legend {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+.erc-info-pop .erc-dot {
+  margin-top: 5px;
+}
+
+.erc-title {
+  font: 600 14.5px/20px var(--lg-font);
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+.erc-finding .erc-where {
+  font: 400 12.5px/17px var(--lg-font);
+  color: var(--label-2);
+}
+.erc-note {
+  font: 400 12.5px/17px var(--lg-font);
+  color: var(--label-2);
+}
+.erc-message.is-clamp-3,
+.erc-message.is-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.erc-message.is-clamp-3 {
+  -webkit-line-clamp: 3;
+}
+.erc-message.is-clamp-2 {
+  -webkit-line-clamp: 2;
+}
+.erc-finding .erc-message {
+  font-size: 13.5px;
+  color: var(--label-2);
+}
+.erc-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--fill-2);
+  font: 400 12.5px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.erc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 2px;
+}
+.erc-more {
+  margin: 0 0 0 auto;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  font: 500 13px/18px var(--lg-font);
+  color: var(--ios-blue);
+  cursor: pointer;
+}
+.erc-more:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.erc-finding.is-dim .erc-title,
+.erc-finding.is-dim .erc-message {
+  color: var(--label-3);
+}
+.lg-row.erc-group.is-toggle {
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.erc-group-chev {
+  display: flex;
+  margin-left: auto;
+  color: var(--label-3);
+}
+.erc-dot.is-ok {
+  background: var(--ios-green);
+}
+
+/* ==========================================================================
+   UX fix wave (IN-13 … IN-19): where-chips, folded rows, 「另 n 個」,
+   「執行後確認」 — Tier-S, no backdrop-filter.
+   ========================================================================== */
+
+/* where a problem is: each part / wire a chip that opens it */
+.erc-where-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.erc-where-chip {
+  margin: 0;
+  padding: 1px 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--fill-2);
+  font: 500 12.5px/18px var(--lg-font);
+  color: var(--label-2);
+  cursor: pointer;
+}
+.erc-where-chip:hover {
+  color: var(--label);
+  background: var(--fill);
+}
+.erc-where-chip:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.erc-where-more {
+  font: 500 12.5px/18px var(--lg-font);
+  color: var(--label-3);
+}
+/* rows folded under this one: hidden readings, consequences */
+.erc-folded {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 4px;
+}
+.erc-folded-head {
+  font-weight: 600;
+  color: var(--label);
+}
+.erc-folded-item {
+  padding-left: 10px;
+  text-indent: -10px;
+}
+.erc-folded-item::before {
+  content: '· ';
+}
+.erc-folded-item.is-more {
+  color: var(--label-3);
+}
+.erc-folded-item.is-more::before {
+  content: '';
+}
+/* compact list: 「另 n 個」 */
+.lg-row.erc-more-row {
+  min-height: 32px;
+  padding-top: 2px;
+  padding-bottom: 6px;
+}
+.erc-more.is-all {
+  margin-left: 18px;
+}
+.erc-group-title.is-pending {
+  color: var(--label-2);
+}
+
+/* the all-clear row names the board whose 執行狀態 card is above: wrap it */
+.erc-allclear .lg-row-title {
+  white-space: normal;
+  overflow: visible;
+}

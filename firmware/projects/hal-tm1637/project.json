@@ -1,0 +1,46 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "TM1637 4-digit display bit-banged on PB6 CLK / PB7 DIO (open drain, module pull-ups): 0000-9999 counter every 100 ms with a 1 Hz colon, ACK checked per byte",
+  "expect": "72 MHz. PB6 = CLK, PB7 = DIO, GPIO open-drain outputs released high (module 10 kOhm pull-ups; 5 V tolerant pins), about 4 us per half clock. USART1 PA9/PA10 115200 8N1. Prints 'TM1637 counter demo\\r\\n', waits 10 ms, sends the first frame: START 40h STOP, START C0h 3F BF 3F 3F STOP ('00:00'), START 8Ch STOP; bytes LSB first, DIO changed while CLK is low, the 9th clock reads the ACK (DIO low). Any missing ACK -> 'TM1637: no ACK (check CLK/DIO wiring and power)\\r\\n' and stop; otherwise 'TM1637 ready\\r\\n'. Then every 100 ms (deadline based) count = 1, 2, ... (mod 10000) as 4 digits with leading zeros (a..g = bit 0..6: 3F 06 5B 4F 66 6D 7D 07 7F 6F), colon (bit 7 of digit 2) on while count mod 10 < 5; at every count divisible by 10 'count N\\r\\n' on USART1 right after the frame.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 10k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no TM1637 on this bench: DIO stays high on the ACK clock (the counter is covered by tests/devices/displays-firmware.test.ts)"
+    ],
+    "pins": {
+      "PB6": "output-od",
+      "PB7": "output-od",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "TM1637 counter demo\r\nTM1637: no ACK (check CLK/DIO wiring and power)\r\n"
+    },
+    "idle": {
+      "PB6": 1,
+      "PB7": 1
+    }
+  }
+}

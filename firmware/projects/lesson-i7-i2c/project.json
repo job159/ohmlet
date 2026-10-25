@@ -1,0 +1,24 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart", "i2c"],
+  "description": "Lesson i7: I2C1 bus scan (PB6 SCL / PB7 SDA, 100 kHz) then an AT24C02 (0x50) page write of the inverted old contents with ACK polling and a verified read-back; report on USART1",
+  "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA) AF open-drain, 100 kHz (FREQ 36, CCR 180, TRISE 37); AT24C02 at 0x50 (A2-A0, WP at GND) with 4.7 kOhm pull-ups; USART1 PA9/PA10 115200 8N1. Once after reset: 'I2C1 scan 0x08-0x77\\r\\n', HAL_I2C_IsDeviceReady (1 trial, 2 ms) on 0x08..0x77 with 'found 0xNN\\r\\n' per acknowledging device, then 'scan done N\\r\\n'. Without pull-ups the bus never reads idle: 'bus busy at 0x08: SDA/SCL stuck low (pull-ups?)\\r\\nscan done 0\\r\\n' and stop; no device at 0x50: 'eeprom not found at 0x50\\r\\n' and stop. Else 'before: ' + the 8 bytes at 0x10 in hex (FF on an erased part; the EEPROM is non-volatile, so a second run sees 00 = the complement written by the first) + '\\r\\n'; the complement of those bytes is written as one page, ACK polling counts the NACKed probes during the 5 ms write cycle: 'wrote 8 bytes at 0x10, ready after P polls\\r\\n' (P about 45, 0 when WP is high and the write is ignored); the page is read back and compared: 'read 8 bytes ok\\r\\neeprom ok\\r\\n', or 'mismatch at 0xAA: wrote 0xWW read 0xRR\\r\\neeprom write failed\\r\\n'. A HAL failure prints '<step> error: HAL status S, ErrorCode 0xE\\r\\n'. Then WFI.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: AT24C02 (A2-A0, WP to GND) + 4.7k pull-ups to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PB6": "af-od", "PB7": "af-od", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": {
+      "USART1": {
+        "match": "^I2C1 scan 0x08-0x77\\r\\nfound 0x50\\r\\nscan done 1\\r\\nbefore: (?:(?:FF ){7}FF|(?:00 ){7}00)\\r\\nwrote 8 bytes at 0x10, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nread 8 bytes ok\\r\\neeprom ok\\r\\n$"
+      }
+    },
+    "idle": { "PB6": 1, "PB7": 1 }
+  }
+}

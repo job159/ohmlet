@@ -1,0 +1,22 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "DS18B20 1-Wire on PB12 (open drain + external 4.7k pull-up, DWT slot timing): READ ROM at boot, then CONVERT T / READ SCRATCHPAD with CRC8 every second; prints the temperature and the conversion time on USART1",
+  "expect": "72 MHz. PB12 open-drain output idling released, DWT->CYCCNT slot timing with interrupts masked per slot. USART1 PA9/PA10 115200 8N1. Boot: 'DS18B20 on PB12 (1-Wire, DWT timing)\\r\\n', then a reset (500 us low, presence sampled at 70 us, 430 us tail) and READ ROM: 'ROM 28-..-..-..-..-..-..-<crc> CRC ok\\r\\n'. Every 1000 ms (first right after boot): reset, SKIP ROM, CONVERT T, read slots until a 1 (12 bit: 750 ms), reset, SKIP ROM, READ SCRATCHPAD, 9 bytes, CRC8 over bytes 0-7 checked; prints 'T=[-]<C>.<dddd> C (conv <ms> ms)\\r\\n' with T = (int16)(b1 << 8 | b0) / 16. Before every reset the released line must read high: without the pull-up (or with DQ shorted low) it prints '1-Wire bus low: missing 4.7k pull-up?\\r\\n'; a pulled-up bus without a sensor prints 'no DS18B20 (no presence pulse)\\r\\n'; a bad CRC 'scratchpad CRC error\\r\\n'; a conversion that never ends 'conversion timeout\\r\\n'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB12: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no DS18B20 on the bus (tests/devices/sensors-firmware.test.ts wires one instead)"
+    ],
+    "pins": { "PB12": "output-od", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "DS18B20 on PB12 (1-Wire, DWT timing)\r\nno DS18B20 (no presence pulse)\r\nno DS18B20 (no presence pulse)\r\n" }
+  }
+}

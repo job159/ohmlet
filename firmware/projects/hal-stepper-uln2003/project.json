@@ -1,0 +1,54 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "28BYJ-48 on a ULN2003 board: IN1-IN4 = PB12-PB15, half-step sequence every 2 ms, 4096 half steps cw, 500 ms off, 4096 ccw, USART1 progress log",
+  "expect": "72 MHz; PB12-PB15 push-pull, written with one BSRR store per half step. USART1 PA9/PA10 115200 8N1: '28BYJ-48 half-step 1 rev each way\\r\\n'; PB15..PB12 start at 0001 (IN1), then every 2 ms (HAL_GetTick deadlines, no drift) the next half step of 1000, 1100, 0100, 0110, 0010, 0011, 0001, 1001 (IN1..IN4) ascending; 'cw 1024/4096\\r\\n' after 1024 half steps (2.048 s), 'cw 2048/4096\\r\\n', 'cw 3072/4096\\r\\n', 'cw 4096/4096\\r\\n' (one output revolution); all coils off for 500 ms; then descending with 'ccw 1024/4096\\r\\n' ... 'ccw 4096/4096\\r\\n'; off 500 ms; repeat. A 28BYJ-48 on the ULN2003 board (OUT1-4 = ORANGE, YELLOW, PINK, BLUE) turns one revolution clockwise and back.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB12-PB15: ULN2003 IN1-IN4 in the full circuit (motor position covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA9": "af-pp",
+      "PA10": "input-pullup",
+      "PB12": "output-pp",
+      "PB13": "output-pp",
+      "PB14": "output-pp",
+      "PB15": "output-pp"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "28BYJ-48 half-step 1 rev each way\r\n"
+    },
+    "signals": [
+      {
+        "pin": "PB13",
+        "square": [
+          6,
+          10
+        ],
+        "tolUs": 30
+      }
+    ],
+    "scenarios": []
+  }
+}

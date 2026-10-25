@@ -1,0 +1,37 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "HAL USART1 with DMA: TX by DMA1 channel 4, RX by DMA1 channel 5 into a circular 32-byte ring with IDLE detection (HAL_UARTEx_ReceiveToIdle_DMA); every received chunk is echoed as '<idle|ht|tc> <n>: <bytes>'",
+  "expect": "72 MHz, USART1 PA9/PA10 115200 8N1 (BRR 0x271). TX: HAL_UART_Transmit_DMA on DMA1 channel 4 (memory to peripheral, bytes, normal); the next line is formatted only after the previous transmission completed (TC interrupt). RX: DMA1 channel 5 (peripheral to memory, bytes, circular) into a 32-byte ring via HAL_UARTEx_ReceiveToIdle_DMA; reception events are the DMA half transfer (ring position 16), transfer complete (position 32, wrap) and USART IDLE (line idle one frame after a byte). First TX 'uart-dma ready\\r\\n'. Each event echoes the bytes received since the previous event as '<idle|ht|tc> <n>: <bytes>\\r\\n' (n = byte count), its first byte about 60 us + one frame after the event; lines follow each other with ~50 us gaps. From a fresh start: 'hello' -> 'idle 5: hello'; a 40-byte burst -> 'ht 16: <bytes 1-16>', 'tc 16: <bytes 17-32>', 'idle 8: <bytes 33-40>'. The ring position carries over between bursts.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)"],
+    "pins": { "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "uart-dma ready\r\n" },
+    "signals": [],
+    "scenarios": [
+      {
+        "name": "a short burst ends with an IDLE event",
+        "durationMs": 30,
+        "drive": [{ "at": 10, "uart": "USART1", "text": "hello" }],
+        "expect": [{ "at": [10.6, 10.8], "uart": "idle 5: hello\r\n" }],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "40 bytes: half transfer, transfer complete (wrap), then IDLE",
+        "durationMs": 30,
+        "drive": [{ "at": 10, "uart": "USART1", "text": "0123456789abcdefghijklmnopqrstuvwxyzABCD" }],
+        "expect": [
+          { "id": "ht", "at": [11.45, 11.65], "uart": "ht 16: 0123456789abcdef\r\n" },
+          { "id": "tc", "from": "ht", "at": [2.17, 2.3], "uart": "tc 16: ghijklmnopqrstuv\r\n" },
+          { "from": "tc", "at": [2.17, 2.3], "uart": "idle 8: wxyzABCD\r\n" }
+        ],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

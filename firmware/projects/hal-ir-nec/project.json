@@ -1,0 +1,19 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim", "uart"],
+  "description": "NEC IR remote decoder: VS1838B output on PB12 (pull-up, EXTI12 both edges), TIM2 free-running at 1 MHz times every burst and space; prints 'NEC addr=0x.. cmd=0x..' and 'NEC repeat' on USART1",
+  "expect": "72 MHz. TIM2 PSC 71 (1 MHz), ARR 0xFFFF, running from boot. PB12 input with pull-up, EXTI12 on both edges, priority 0. USART1 PA9/PA10 115200 8N1. Boot: 'NEC IR receiver on PB12 (EXTI12 + TIM2 1 MHz)\\r\\n'. Every edge is timestamped: a rising edge ends a burst (output low), a falling edge ends a space. A 9 ms burst (+-20 %) followed by a 4.5 ms space starts a frame, followed by a 2.25 ms space it is a repeat code ('NEC repeat\\r\\n'); in a frame each 562.5 us burst (+-40 %) is followed by a 562.5 us (bit 0) or 1687.5 us (bit 1) space, LSB first; after 32 bits the main loop prints 'NEC addr=0x<aa> cmd=0x<cc>\\r\\n' when bytes 2 and 4 are the inverses of 1 and 3, else 'NEC frame error <hex>\\r\\n'; any other timing aborts. Silent without IR input.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)", "no IR receiver on PB12 (tests/devices/sensors-firmware.test.ts wires a VS1838B instead)"],
+    "pins": { "PB12": "input-pullup", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "NEC IR receiver on PB12 (EXTI12 + TIM2 1 MHz)\r\n" },
+    "idle": { "PB12": 1 }
+  }
+}

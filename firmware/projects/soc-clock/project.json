@@ -1,0 +1,7 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "../soc-common/soc_common.c"],
+  "hal": ["uart"],
+  "description": "Clock switching HSI 8 MHz → PLL 72 MHz → HSI: prints SystemCoreClock over USART1 and pulses PA5 for HAL_Delay(10) in each phase",
+  "expect": "USART1 prints clk=8000000, clk=72000000, clk=8000000, done (BRR 0x45 / 0x271 / 0x45); the PA5 pulse is ~11 ms in every phase"
+}

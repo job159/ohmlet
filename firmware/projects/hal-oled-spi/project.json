@@ -1,0 +1,45 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "SSD1306 0.96\" 128x64 OLED (7-pin SPI module) on SPI1 (PA5 SCK, PA7 MOSI, 9 MHz) with PA4 CS, PB0 DC, PB1 RES: text + frame counter + progress bar redrawn every 200 ms",
+  "expect": "72 MHz. SPI1 master transmit-only, mode 0, MSB first, 8-bit, prescaler 8: SCK 9 MHz on PA5, MOSI PA7 (AF push-pull). GPIO push-pull: PA4 = CS (idle high), PB0 = DC, PB1 = RES (idle high). USART1 PA9/PA10 115200 8N1. Prints 'SSD1306 SPI OLED demo\\r\\n', waits 100 ms, pulses RES low (>= 3 us), waits 1 ms, sends the library init sequence (AEh, D5h 80h, A8h 3Fh, D3h 00h, 40h, 8Dh 14h, 20h 00h, A1h, C8h, DAh 12h, 81h CFh, D9h F1h, DBh 40h, A4h, A6h, 2Eh, AFh) with DC low inside one CS-low window and prints 'SSD1306 SPI ready\\r\\n' (SPI is write-only: no display detection). Every 200 ms (deadline based) frame N = 1, 2, ...: 21h 0..127 / 22h 0..7 with DC low, then the 1024 GDDRAM bytes with DC high, each inside its own CS-low window: border rectangle (0,0)-(127,63), 'Hello, ohmlet!' at (8,6), 'SSD1306 SPI' at (8,18), 'frame N' at (8,30), progress bar (8,44)-(99,53) filled by (N mod 100)*88/99 px from x = 10, circle r = 9 at (113,48). Every 5th frame 'frame N\\r\\n' on USART1.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA5, PA7, PA4, PB0, PB1: unconnected on this bench (OLED D0 / D1 / CS / DC / RES in the full circuit; the picture is covered by tests/devices/displays-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "af-pp",
+      "PA7": "af-pp",
+      "PA4": "output-pp",
+      "PB0": "output-pp",
+      "PB1": "output-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "SSD1306 SPI OLED demo\r\nSSD1306 SPI ready\r\n"
+    }
+  }
+}

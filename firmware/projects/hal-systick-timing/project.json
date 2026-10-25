@@ -1,0 +1,20 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": [],
+  "description": "HAL timing probe: PB13 toggled in SysTick_Handler (500 Hz), PB14 toggled around HAL_Delay(100) (101 ms half period)",
+  "expect": "72 MHz, SysTick LOAD 71999 (1 tick = 72000 HCLK cycles = 1.000 ms). PB13 push-pull toggles in every SysTick interrupt: 500 Hz, 1.000 ms high / 1.000 ms low (+-2 us). PB14 push-pull toggles, then HAL_Delay(100), which waits 100 + uwTickFreq = 101 ticks: edges exactly 101 ms apart (+-5 us; the first interval is 100-101 ms), 202 ms period = 4.950 Hz, each PB14 edge at most 10 us after a PB13 edge. No UART.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PB13, PB14: logic analyzer / scope probes (no load needed)"],
+    "pins": { "PB13": "output-pp", "PB14": "output-pp" },
+    "signals": [
+      { "pin": "PB13", "square": [1, 1], "tolUs": 2, "always": true },
+      { "pin": "PB14", "square": [101, 101], "tolUs": 5, "always": true },
+      { "pin": "PB14", "edgesAfter": "PB13", "maxLagUs": 10, "always": true }
+    ],
+    "scenarios": []
+  }
+}

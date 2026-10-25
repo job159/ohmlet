@@ -1,0 +1,23 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart", "i2c"],
+  "description": "GY-302 BH1750 on I2C1 (PB6 SCL / PB7 SDA, 0x23): power on, continuous H-resolution mode, prints lux = count / 1.2 every 200 ms on USART1",
+  "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz (the GY-302 brings its own pull-ups). USART1 PA9/PA10 115200 8N1. Boot: 'BH1750 on I2C1 (PB6 SCL / PB7 SDA)\\r\\n', instruction 0x01 (Power On) to 0x23: not acknowledged -> 'BH1750 not found at 0x23\\r\\n' and idle; otherwise 0x10 (Continuously H-Resolution Mode, 120 ms typ per measurement) and 'continuous H-resolution mode\\r\\n'. Every 200 ms (first 200 ms after that line) a 2-byte read prints 'lux=<n>.<d> (count <c>)\\r\\n' with count = MSB << 8 | LSB and lux = count / 1.2 rounded to 0.1 lx (count 600 -> 'lux=500.0').",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no BH1750 on the bus (tests/devices/sensors-firmware.test.ts wires a GY-302 module instead)"
+    ],
+    "pins": { "PB6": "af-od", "PB7": "af-od", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "BH1750 on I2C1 (PB6 SCL / PB7 SDA)\r\nBH1750 not found at 0x23\r\n" },
+    "idle": { "PB6": 1, "PB7": 1 }
+  }
+}

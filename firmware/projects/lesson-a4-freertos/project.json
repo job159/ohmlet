@@ -1,0 +1,67 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "freertos": { "port": "GCC/ARM_CM3", "heap": 4 },
+  "description": "Lesson a4: FreeRTOS V11.1.0 (GCC/ARM_CM3 port, clang) — tasks fast (prio 3, 100 ms) and blink (prio 2, 250 ms, PA5 LED) send to a queue, a logger task (prio 1) prints every message and 1 s statistics; PB12 EXTI -> xQueueSendFromISR",
+  "expect": "72 MHz, FreeRTOS-Kernel V11.1.0 (port GCC/ARM_CM3, heap_4 8 KiB, tick 1 kHz on SysTick shared with HAL_IncTick; SVC starts the first task, PendSV switches context, SysTick/PendSV at priority 15, configMAX_SYSCALL_INTERRUPT_PRIORITY 5). USART1 PA9/PA10 115200 8N1, written only by the logger task. Boot: 'FreeRTOS V11.1.0 on STM32F103C8, 72 MHz, tick 1000 Hz\\r\\n', 'tasks: fast prio 3 every 100 ms, blink prio 2 every 250 ms, logger prio 1; queue 8 x 8 B\\r\\n', 'heap free 5192 B, starting the scheduler\\r\\n' (the pending SysTick left over from the BASEPRI-masked boot is cleared, so tick 0 = scheduler start, about 16.7 ms after the first byte). Task fast (vTaskDelayUntil 100 ms) sends {seq, tick}; task blink (vTaskDelayUntil 250 ms) toggles PA5 (LED on at 250 ms, 2 Hz square wave) and sends {seq, level, tick}; the logger (lowest priority, blocked on the 8-entry queue) prints '[<tick %6u>] fast  #<n>' about 0.1 ms after each tick 100*n, '[<tick>] blink #<n> LED on|off' 0.19 ms (odd n) or 1.94 ms (even n, after the fast line of the same tick) after the PA5 edge, and after every 4th blink line '[<tick>] stats: <S> context switches, idle <I>%, queue peak <P>/8, stack free fast <a> blink <b> logger <c> words' (S = changes of the running task in the last second, 38 without button presses; I = idle task share of DWT->CYCCNT from the kernel run-time statistics, about 96-97 %). PB12 (pull-up, EXTI falling, NVIC priority 6): a falling edge at least 50 ms after the previously accepted one sends {seq, tick} by xQueueSendFromISR + portYIELD_FROM_ISR -> '[<tick>] button #<n> (EXTI ISR -> queue)' about 0.2 ms later. Experiments read at reset: PB13 tied to GND creates task hog (prio 4) that busy-loops from 1000 ms on — every other task starves, the output stops after the 900 ms line and PA5 stops toggling; PB14 tied to GND gives EXTI15_10 NVIC priority 2 (above the syscall limit) — the first press ends in 'configASSERT failed: port.c:805' (vPortValidateInterruptPriority) and the core stops with interrupts disabled.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA5: red LED + 220 ohm to GND",
+      "PB12: push-button to GND",
+      "PB13: open (the hog-task experiment jumper to GND is not placed)",
+      "PB14: open (the bad-interrupt-priority experiment jumper to GND is not placed)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "output-pp",
+      "PB12": "input-pullup",
+      "PB13": "input-pullup",
+      "PB14": "input-pullup",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "FreeRTOS V11.1.0 on STM32F103C8, 72 MHz, tick 1000 Hz\r\ntasks: fast prio 3 every 100 ms, blink prio 2 every 250 ms, logger prio 1; queue 8 x 8 B\r\nheap free 5192 B, starting the scheduler\r\n"
+    },
+    "idle": { "PB12": 1 },
+    "signals": [
+      { "pin": "PA5", "square": [250, 250], "tolUs": 30, "firstEdge": 1, "firstEdgeAt": [266.4, 267.0], "always": true },
+      { "uart": "USART1", "match": "^\\[ +\\d+\\] fast  #\\d+\\r\\n$", "firstAt": [116.6, 117.2], "everyMs": 100, "tolUs": 100, "always": true },
+      { "uart": "USART1", "match": "^\\[ +\\d+\\] blink #\\d+ LED (?:on|off)\\r\\n$", "firstAt": [266.6, 267.2], "everyMs": 250, "tolUs": 2000, "afterEdgeOf": "PA5", "lagMs": [0.1, 2.2], "always": true },
+      { "uart": "USART1", "match": "^\\[ +\\d+\\] stats: (?:3[0-9]|4[0-6]) context switches, idle 9[0-9]\\.\\d%, queue peak [1-3]/8, stack free fast \\d+ blink \\d+ logger \\d+ words\\r\\n$", "firstAt": [1021.0, 1022.5], "everyMs": 1000, "tolUs": 300 }
+    ],
+    "scenarios": [
+      {
+        "name": "a button press: EXTI ISR -> xQueueSendFromISR -> the logger prints it",
+        "durationMs": 400,
+        "drive": [
+          { "at": 150.2, "pin": "PB12", "level": 0 },
+          { "at": 250.2, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [{ "at": [150.25, 150.6], "uart": "[   133] button #1 (EXTI ISR -> queue)\r\n" }],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "contact bounce inside the 50 ms lock-out counts once",
+        "durationMs": 400,
+        "drive": [
+          { "at": 150.2, "pin": "PB12", "level": 0 },
+          { "at": 150.5, "pin": "PB12", "level": "open" },
+          { "at": 151.0, "pin": "PB12", "level": 0 },
+          { "at": 151.3, "pin": "PB12", "level": "open" },
+          { "at": 151.6, "pin": "PB12", "level": 0 },
+          { "at": 250.2, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [{ "at": [150.25, 150.6], "uart": "[   133] button #1 (EXTI ISR -> queue)\r\n" }],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

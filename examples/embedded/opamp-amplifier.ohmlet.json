@@ -1,0 +1,151 @@
+{
+  "format": "ohmlet-project",
+  "formatVersion": 1,
+  "app": {
+    "name": "ohmlet",
+    "version": "0.1.0"
+  },
+  "savedAt": "2026-10-10T00:00:00.000Z",
+  "layout": {
+    "version": 1,
+    "name": "運算放大器非反相放大（LM358）",
+    "description": "增益 = 1 + Rf ÷ Rg = 3：1 kHz 正弦波從 1.0 ± 0.5 V 放大成 3.0 ± 1.5 V，示波器雙通道比較\n\n非反相放大器把訊號接到運算放大器的 + 輸入，輸出經 Rf、Rg 分壓回授到 − 輸入。負回授讓兩個輸入電壓幾乎相等，於是 Vout × Rg ÷ (Rf + Rg) = Vin，增益 = 1 + Rf ÷ Rg。這裡 Rf = 20 kΩ、Rg = 10 kΩ，增益 3 倍，輸入阻抗很高、輸出和輸入同相位。\n\nLM358 是單電源運算放大器，以 9 V 供電，輸出大約只能擺到 0 V 與 VCC − 1.2 V 之間，所以輸入訊號帶有 1 V 直流偏移，放大後落在 1.5–4.5 V，不會被截掉。同一顆晶片的第二組運放沒有用到：好習慣是把它接成電壓隨耦器，+ 輸入接地，避免浮接振盪。\n\n試試看：把 FG1 的振幅調到 1.5 V，輸出頂到約 7.8 V 時被削平（飽和）；把 Rf 改成 90 kΩ（增益 10）；把頻率調高到 100 kHz 以上，觀察 LM358 有限的頻寬與迴轉率讓輸出變小、變形。",
+    "components": [
+      {
+        "id": "PS1",
+        "type": "power_supply",
+        "params": {
+          "voltage": 9
+        }
+      },
+      {
+        "id": "U1",
+        "type": "lm358",
+        "at": "f30"
+      },
+      {
+        "id": "RF",
+        "type": "resistor",
+        "holes": [
+          "g30",
+          "g36"
+        ],
+        "params": {
+          "resistance": 20000
+        }
+      },
+      {
+        "id": "RG",
+        "type": "resistor",
+        "holes": [
+          "i36",
+          "bot-30"
+        ],
+        "params": {
+          "resistance": 10000
+        }
+      },
+      {
+        "id": "FG1",
+        "type": "function_generator",
+        "params": {
+          "waveform": "sine",
+          "frequency": 1000,
+          "amplitude": 0.5,
+          "offset": 1
+        }
+      },
+      {
+        "id": "PRB1",
+        "type": "scope_probe",
+        "holes": [
+          "i32"
+        ],
+        "params": {
+          "channel": 1
+        }
+      },
+      {
+        "id": "PRB2",
+        "type": "scope_probe",
+        "holes": [
+          "i30"
+        ],
+        "params": {
+          "channel": 2
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "W1",
+        "from": "PS1:+",
+        "to": "top+0",
+        "color": "red"
+      },
+      {
+        "id": "W2",
+        "from": "PS1:-",
+        "to": "top-0",
+        "color": "black"
+      },
+      {
+        "id": "W3",
+        "from": "PS1:-",
+        "to": "bot-0",
+        "color": "black"
+      },
+      {
+        "id": "W4",
+        "from": "a30",
+        "to": "top+23",
+        "color": "red"
+      },
+      {
+        "id": "W5",
+        "from": "j33",
+        "to": "bot-25",
+        "color": "black"
+      },
+      {
+        "id": "W6",
+        "from": "c31",
+        "to": "c32",
+        "color": "white"
+      },
+      {
+        "id": "W7",
+        "from": "a33",
+        "to": "top-25",
+        "color": "black"
+      },
+      {
+        "id": "W8",
+        "from": "h31",
+        "to": "h36",
+        "color": "blue"
+      },
+      {
+        "id": "W9",
+        "from": "FG1:out",
+        "to": "j32",
+        "color": "yellow"
+      },
+      {
+        "id": "W10",
+        "from": "FG1:gnd",
+        "to": "bot-23",
+        "color": "black"
+      }
+    ]
+  },
+  "firmware": {},
+  "workspace": {
+    "v": 1,
+    "tray": {
+      "open": true,
+      "height": 340,
+      "tab": "scope"
+    }
+  }
+}

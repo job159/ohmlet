@@ -1,0 +1,6 @@
+{
+  "kind": "bare",
+  "sources": ["main.c"],
+  "description": "Register-level blink at 8 MHz HSI: SysTick 1 ms, PA5/PC13 toggle every 250 ms",
+  "expect": "PA5 and PC13 toggle every 250 ms (2 Hz square waves), PC13 = !PA5"
+}

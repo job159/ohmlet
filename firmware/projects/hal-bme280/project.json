@@ -1,0 +1,23 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart", "i2c"],
+  "description": "GY-BME280 / GY-BMP280 on I2C1 (PB6 SCL / PB7 SDA, 0x76): trimming read-out, forced-mode x16 conversions every 500 ms, Bosch integer compensation, prints T / P / H on USART1",
+  "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz (the module brings 10 kOhm pull-ups to its 3.3 V). USART1 PA9/PA10 115200 8N1. Boot: 'BME280 on I2C1 (PB6 SCL / PB7 SDA)\\r\\n', HAL_Delay(10) for the sensor start-up, chip id (0xD0) read from 0x76: no acknowledge or an id other than 0x60 / 0x58 -> 'no BME280/BMP280 at 0x76\\r\\n' and idle. Otherwise the trimming registers (0x88-0x9F, plus 0xA1 and 0xE1-0xE7 on a BME280) are read and 'id=0x<id> dig_T1=<u> dig_P1=<u> dig_H1=<u>\\r\\n' printed. Every 500 ms (first right after boot): ctrl_hum = 0x05 (BME280 only), ctrl_meas = 0xB5 (T x16, P x16, forced), status bit 3 polled every 1 ms (150 ms timeout -> 'conversion timeout'), burst read of 0xF7-0xFE (0xF7-0xFC on a BMP280) and the datasheet compensation (BME280_compensate_T_int32, BMP280_compensate_P_int64, bme280_compensate_H_int32) printed as 'T=<C>.<cc> P=<Pa>.<pp> H=<%>.<hh>\\r\\n' (no H on a BMP280; P and H fractions truncated to 0.01). A transfer error prints 'i2c error'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no BME280 on the bus: every address is NACKed (tests/devices/sensors-firmware.test.ts wires GY-BME280 / GY-BMP280 modules instead)"
+    ],
+    "pins": { "PB6": "af-od", "PB7": "af-od", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "BME280 on I2C1 (PB6 SCL / PB7 SDA)\r\nno BME280/BMP280 at 0x76\r\n" },
+    "idle": { "PB6": 1, "PB7": 1 }
+  }
+}

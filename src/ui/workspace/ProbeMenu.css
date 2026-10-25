@@ -1,0 +1,94 @@
+/* ==========================================================================
+   3D probe menu (ProbeMenu.tsx, contract K6) — `ws-probe-` prefix. Tier-S:
+   the UndoPill over-scene recipe (near-opaque gradient, inset slab shadows,
+   bent-light rim via kit tokens), NO backdrop-filter — the dock, capsule and
+   sheets already hold the ≤ 4 filter / ≤ 3 lens budget (DESIGN.md §7).
+   Kit tokens only. Springs in with transform/opacity (reduced motion: none).
+   ========================================================================== */
+
+.ws-probe-menu {
+  position: fixed;
+  z-index: 58; /* over the panels (40), pills (41/42), sheets (51) and dock (55); under toasts (60) */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px;
+  border-radius: 14px;
+  font-family: var(--lg-font);
+  color: var(--label);
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.96), rgba(34, 36, 46, 0.95));
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --lg-ink-shadow: 0 1px 2px rgba(8, 10, 14, 0.4);
+  text-shadow: var(--lg-ink-shadow);
+  user-select: none;
+  -webkit-user-select: none;
+  animation: ws-probe-in var(--lg-dur-control, 200ms) var(--lg-spring, ease-out);
+  transform-origin: top left;
+}
+
+@keyframes ws-probe-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ws-probe-head {
+  padding: 6px 10px 6px;
+  font: 600 13px/18px var(--lg-font);
+  color: var(--label-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 2px;
+}
+
+.ws-probe-item {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--label);
+  font: 500 14px/18px var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ws-probe-item:hover:not(:disabled),
+.ws-probe-item[data-pressed='true'] {
+  background: var(--fill-2);
+}
+.ws-probe-item:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+.ws-probe-item:disabled {
+  color: var(--label-3);
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-probe-menu {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ws-probe-menu {
+    background: linear-gradient(180deg, rgba(46, 50, 62, 0.99), rgba(30, 32, 42, 0.99));
+  }
+}

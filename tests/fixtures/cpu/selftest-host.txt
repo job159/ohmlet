@@ -1,0 +1,13 @@
+checksum ffd74018
+crc 414fa339 78825239
+sort 1 min -533790340 max 1595694429 med 28673
+div64 ok=1 fe9eee2c50567273
+mul64 13419a09cf3cc479 8000000000000000
+fmt64 -1234567890123 18446743897342710170 ffffffffffffff85
+div32 ee3145df
+bits a94cf967
+switch 2cac11a0
+struct 5d83a970
+recur fib20=6765 ack23=9 hanoi=17f88e5e
+fmt [  -42] [42   ] [00042] [beef] [BEEF] [10] [Z] [abc] [      hi] [%]
+sum ffd74018

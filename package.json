@@ -1,0 +1,45 @@
+{
+  "name": "ohmlet",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:firmware": "vitest run tests/firmware-checks.test.ts",
+    "test:docs": "vitest run tests/docs-",
+    "test:visual": "node scripts/visual-regression.mjs compare",
+    "audit:i18n": "node scripts/i18n-audit.mjs",
+    "fw:vendor": "node firmware/scripts/fetch-vendor.mjs",
+    "fw:build": "node firmware/build.mjs",
+    "fw:list": "node firmware/build.mjs --list",
+    "docs:support": "vite-node scripts/gen-support-matrix.mjs",
+    "docs:support:check": "vite-node scripts/gen-support-matrix.mjs --check",
+    "examples:build": "node scripts/build-examples.mjs",
+    "examples:check": "node scripts/build-examples.mjs --check",
+    "test:e2e": "node scripts/acceptance-e2e.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.170.0",
+    "three-gpu-pathtracer": "^0.0.23",
+    "three-mesh-bvh": "^0.7.8",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.170.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.60.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}

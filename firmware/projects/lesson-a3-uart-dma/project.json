@@ -1,0 +1,64 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "Lesson a3: USART1 reception by circular DMA (DMA1 ch5, 32 B ring) + IDLE line detection; USART2 TX (PA2, DMA1 ch7) plays the external device (wire PA2 -> PA10); every message is reported with its HT/TC/IDLE events, interrupt count and ISR time; PB0 is high while a reception interrupt runs. PB12 low = DMA normal mode never re-armed, PB13 low = RXNE interrupt per byte",
+  "expect": "72 MHz. USART1 PA9 (TX, AF push-pull) / PA10 (RX, input pull-up) 115200 8N1; USART2 PA2 TX only 115200 8N1 (the simulated external device, wired PA2 -> PA10 on the breadboard); PB0 push-pull output, high while the CPU is inside USART1_IRQHandler or DMA1_Channel5_IRQHandler; PB12 / PB13 inputs with pull-up read once at reset (experiment jumpers). Boot: 'UART DMA lesson a3: USART2 TX (PA2) -> USART1 RX (PA10), 115200 8N1\\r\\n' then 'RX: DMA1 ch5 circular, 32 B ring + IDLE line detection\\r\\n' ('PB12 low: RX DMA in NORMAL mode, not re-armed after the first message\\r\\n' or 'PB13 low: RX by interrupt, RXNE for every byte + IDLE\\r\\n' with a jumper). USART1 RX is started with HAL_UARTEx_ReceiveToIdle_DMA on a 32-byte ring (DMA1 channel 5, circular, peripheral to memory): reception events are the DMA half transfer (ring position 16), transfer complete (32 = wrap) and the USART IDLE line (one frame after the last byte). USART2 sends, by DMA1 channel 7, one message every 200 ms (the first 100 ms after boot) in turn: 'hello' (5 B), 'T=23.5C H=45% P=1013hPa' (23 B), '0123456789abcdefghijklmnopqrstuvwxyzABCD' (40 B). The main loop sleeps in WFI; at IDLE the ISR hands the assembled message to it, which prints 'msg #<n>: <len> B [<events>] irq=<k> isr=<us> us: <text>\\r\\n' (events in order, k = USART1 + DMA1 ch5 interrupts the message caused, isr = DWT cycles spent in those two handlers / 72). From a fresh start: msg #1 5 B [idle] irq=1, msg #2 23 B [ht idle] irq=2, msg #3 40 B [tc ht tc idle] irq=4 (the ring position carries over: 5, 28, 4 ...). PB13 low (RXNE + IDLE interrupts): irq = bytes + 1 (6, 24, 41) and several times the ISR time. PB12 low (DMA normal mode, not re-armed at IDLE): only msg #1 arrives, every later byte is lost.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA2 -> PA10: jumper wire",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "PB0: unconnected (reception-interrupt activity output)",
+      "PB12: open (the DMA-normal-mode experiment jumper to GND is not placed)",
+      "PB13: open (the RXNE-interrupt experiment jumper to GND is not placed)"
+    ],
+    "pins": {
+      "PA2": "af-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup",
+      "PB0": "output-pp",
+      "PB12": "input-pullup",
+      "PB13": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "UART DMA lesson a3: USART2 TX (PA2) -> USART1 RX (PA10), 115200 8N1\r\nRX: DMA1 ch5 circular, 32 B ring + IDLE line detection\r\n"
+    },
+    "idle": {
+      "PB12": 1,
+      "PB13": 1
+    },
+    "signals": [
+      {
+        "uart": "USART1",
+        "match": "^msg #\\d+: (?:5 B \\[(?:(?:ht|tc) )*idle\\] irq=[1-3] isr=\\d+\\.\\d us: hello|23 B \\[(?:(?:ht|tc) )*idle\\] irq=[1-4] isr=\\d+\\.\\d us: T=23\\.5C H=45% P=1013hPa|40 B \\[(?:(?:ht|tc) )+idle\\] irq=[3-5] isr=\\d+\\.\\d us: 0123456789abcdefghijklmnopqrstuvwxyzABCD)\\r\\n$",
+        "firstAt": [
+          100,
+          120
+        ],
+        "everyMs": 200,
+        "tolUs": 8000,
+        "always": true
+      }
+    ],
+    "scenarios": []
+  }
+}

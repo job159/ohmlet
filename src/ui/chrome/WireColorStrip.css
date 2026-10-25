@@ -1,0 +1,97 @@
+/* ==========================================================================
+   WireColorStrip — material retrofit for the swatch row (the strip shell is
+   `.lg-surface .lg-glass-clear .app-wire-strip`, laid out in src/app.css;
+   this file owns the SWATCHES so app.css stays Phase-E-mergeable).
+
+   Each swatch reads as a wire-colored GLASS BEAD: the pigment sits under a
+   top-lit meniscus highlight, a bright inner lip and a shaded base — bent
+   light, not a flat disc with a border. Selected = white ring + blue halo
+   (outer box-shadows, so the 34px geometry never shifts). Tier S: no
+   backdrop-filter anywhere here (DESIGN.md §7 budget).
+   ========================================================================== */
+
+.app-wire-strip .app-swatch {
+  border: none;
+  background:
+    /* meniscus: key-light entry top-left, falls off fast */
+    radial-gradient(
+      120% 95% at 32% 18%,
+      rgba(255, 255, 255, 0.5),
+      rgba(255, 255, 255, 0.12) 38%,
+      rgba(255, 255, 255, 0) 62%
+    ),
+    var(--swatch, #888c94);
+  box-shadow:
+    /* bright lip where light enters the bead */
+    inset 0 1px 1px rgba(255, 255, 255, 0.4),
+    /* shaded base — the bead has thickness */
+    inset 0 -2.5px 4px rgba(0, 0, 0, 0.38),
+    /* micro-rim keeps dark pigments (black wire) separated from the dimmer */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.app-wire-strip .app-swatch.is-active {
+  border-color: transparent;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.4),
+    inset 0 -2.5px 4px rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    /* selection: white ring + blue halo (outside — geometry unchanged) */
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 0 4.5px rgba(10, 132, 255, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* new chrome (UX wave SH-5): 「完成」 leaves wire mode — a text button after
+   a hairline divider, so the exit is visible */
+.app-wire-strip.has-done {
+  padding-right: 6px;
+}
+.app-wire-done {
+  position: relative;
+  min-height: 34px;
+  margin-left: 4px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.2);
+  color: #64b5ff;
+  font: 600 15px/20px var(--lg-font);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* one line, never squeezed (release QA SH-F5: a phone wrapped it to 「完／成」) */
+.app-wire-done {
+  white-space: nowrap;
+  flex: none;
+}
+.app-wire-done::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 7px;
+  bottom: 7px;
+  width: 0.5px;
+  background: rgba(255, 255, 255, 0.24);
+}
+.app-wire-done[data-pressed='true'] {
+  filter: brightness(1.2);
+}
+.app-wire-done:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+
+/* the narrowest phones (release QA SH-F5): six 34 px beads + 「完成」 need
+   ~344 px; below that (plus the 16 px gutters) the beads shrink to 30 px
+   with 6 px gaps — the 44 px hit areas (lg-hit) stay */
+@media (max-width: 375px) {
+  .app-wire-strip.has-done {
+    gap: 6px;
+  }
+  .app-wire-strip.has-done .app-swatch {
+    width: 30px;
+    height: 30px;
+  }
+}

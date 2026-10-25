@@ -1,0 +1,54 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "tim",
+    "uart"
+  ],
+  "description": "SG90 servo sweep: TIM2 CH1 PA0 50 Hz, 0.5-2.5 ms pulses, 0 -> 180 -> 0 deg in 30 deg steps every 500 ms, USART1 log",
+  "expect": "72 MHz; TIM2 PSC 71 (1 us per count), ARR 19999: a rising edge on PA0 (AF push-pull) every 20.000 ms (50 Hz), PWM mode 1, pulse = CCR1 us, preloaded. USART1 PA9/PA10 115200 8N1 sends 'SG90 sweep 0-180 deg\\r\\n' and 'servo 0 deg (500 us)\\r\\n', then every 500 ms (HAL_GetTick deadlines, no drift) the next 30 deg step 'servo <a> deg (<us> us)\\r\\n' with a = 30, 60, ..., 180, 150, ..., 0, 30, ... and us = 500 + a*2000/180 rounded (833, 1167, 1500, 1833, 2167, 2500). An SG90 on PA0 (VCC 5 V) follows: 0.5 ms = 0 deg, 2.5 ms = 180 deg, about 50 ms per 30 deg step at 4.8 V.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA0: SG90 SIG (or a logic analyzer probe); the servo angle itself is covered by tests/devices/motors-firmware.test.ts",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA0": "af-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "SG90 sweep 0-180 deg\r\nservo 0 deg (500 us)\r\n"
+    },
+    "signals": [
+      {
+        "uart": "USART1",
+        "match": "^servo (30|60|90|120|150|180|0) deg \\((500|833|1167|1500|1833|2167|2500) us\\)\\r\\n$",
+        "firstAt": [
+          497,
+          503
+        ],
+        "everyMs": 500,
+        "tolUs": 100
+      }
+    ],
+    "scenarios": []
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "kind": "bare",
+  "sources": ["main.c", "../cpu-selftest/selftest.c"],
+  "description": "CPU throughput benchmark: the cpu-selftest workload repeated 60 times (about 41 M instructions), then BKPT",
+  "expect": "halts on BKPT #0x43; bench_result = fold over i of acc*31 + (selftest checksum + i)"
+}

@@ -1,0 +1,57 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "tim",
+    "uart"
+  ],
+  "description": "TB6612FNG DC motor demo: PWMA = PA0 TIM2 1 kHz, AIN1/AIN2/STBY = PB0/PB1/PB12; cw 25-100 %, short brake, ccw 50/100 %, stop, standby, 400 ms each, USART1 log",
+  "expect": "72 MHz; TIM2 PSC 71, ARR 999: 1 kHz PWM on PA0 (AF push-pull), CCR1 = 10 x duty (preloaded); PB0 (AIN1), PB1 (AIN2), PB12 (STBY) push-pull, written with one BSRR store per phase. USART1 PA9/PA10 115200 8N1: 'TB6612 DC motor demo\\r\\n' then 'cw 25%\\r\\n'; every 400 ms (HAL_GetTick deadlines, no drift) the next phase: cw 25% / 50% / 75% / 100% (AIN1=1 AIN2=0 STBY=1), short brake (AIN1=AIN2=1, duty 100), ccw 50% / 100% (AIN1=0 AIN2=1), stop (AIN1=AIN2=0), standby (STBY=0, duty 0), then again (3.6 s per cycle). The motor speed follows duty x VM almost linearly (PWM low = short brake).",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA0, PB0, PB1, PB12: TB6612FNG PWMA / AIN1 / AIN2 / STBY in the full circuit (motor covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA0": "af-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup",
+      "PB0": "output-pp",
+      "PB1": "output-pp",
+      "PB12": "output-pp"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "TB6612 DC motor demo\r\ncw 25%\r\n"
+    },
+    "signals": [
+      {
+        "uart": "USART1",
+        "match": "^(cw (25|50|75|100)%|short brake|ccw (50|100)%|stop|standby)\\r\\n$",
+        "firstAt": [
+          397,
+          403
+        ],
+        "everyMs": 400,
+        "tolUs": 100
+      }
+    ],
+    "scenarios": []
+  }
+}

@@ -1,0 +1,276 @@
+/* ==========================================================================
+   效能診斷 overlay — `perf-ov` prefix (PerfOverlay.tsx).
+
+   MATERIAL — Tier S (DESIGN.md §1): the over-scene tint of the undo pill /
+   status pill / floating lesson coach (near-opaque gradient) + the
+   bent-light rim (lg-rim, nested energy) + slab inset shadows. NO
+   backdrop-filter — the ≤4 concurrent-blur budget stays with the dock,
+   capsule and sheets.
+
+   PLACEMENT — a corner, never the board centre. The scene frames the
+   circuit in the middle of the free scene area, so the overlay caps the
+   card's height (inline max-height, PerfOverlay placeCard) at that area's
+   horizontal centre line and keeps it folded when that leaves too little
+   room; .perf-ov-free is the invisible probe it measures the area with:
+     desktop (new chrome)  top-right corner of the scene (right of the run
+                           capsule); `.is-low` (set by the overlay when the
+                           capsule would overlap it) steps it below the
+                           capsule + status pill;
+     desktop workspace     the same corner of the FREE scene column — its
+                           right edge on the inspector panel's inset;
+     phones (< 600 px)     bottom-left above the undo pill / toast row,
+                           growing upward, height-capped (the circuit is
+                           framed high on phones).
+   z-index 41: above the canvas + workspace panels (40), with the pills;
+   below sheets (51), the capsule (55), toasts (60).
+   Motion: a transform/opacity spring-in only; reduced motion collapses it.
+   ========================================================================== */
+
+.perf-ov {
+  position: fixed;
+  z-index: 41;
+  top: calc(var(--lg-safe-top) + 10px);
+  right: calc(var(--lg-safe-right) + 12px);
+  display: flex;
+  flex-direction: column;
+  width: 288px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - var(--lg-safe-top) - var(--lg-safe-bottom) - 24px);
+  padding: 6px 8px 8px 12px;
+  border-radius: var(--lg-radius-surface);
+  color: var(--label);
+  font-family: var(--lg-font);
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.94), rgba(34, 36, 46, 0.92));
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5), inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+  --lg-rim-hi: 0.3;
+  --lg-rim-mid: 0.18;
+  --lg-rim-w: 1px;
+  --lg-ink-shadow: 0 1px 3px rgba(8, 10, 14, 0.55);
+  text-shadow: var(--lg-ink-shadow);
+  animation: perf-ov-in var(--lg-dur-control) var(--lg-spring);
+}
+.perf-ov.is-folded {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-radius: 999px;
+}
+@keyframes perf-ov-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* beside / below the run capsule (desktop) */
+@media (min-width: 600px) {
+  .perf-ov.is-low {
+    top: calc(var(--lg-safe-top) + 104px); /* capsule 10 + 38 + gap 10 + pill 36 + gap 10 */
+  }
+}
+
+/* desktop workspace: the top-right corner of the free scene column */
+body.ws-on .perf-ov {
+  right: var(--ws-inset-right);
+  max-width: calc(100vw - var(--ws-inset-left) - var(--ws-inset-right));
+  max-height: calc(100vh - var(--lg-safe-top) - var(--ws-inset-bottom) - 10px);
+}
+body.ws-on .perf-ov.is-low {
+  max-height: calc(100vh - var(--lg-safe-top) - var(--ws-inset-bottom) - 104px);
+}
+
+/* phones: bottom-left above the undo pill and the toast row, growing upward */
+@media (max-width: 599px) {
+  .perf-ov {
+    top: auto;
+    right: auto;
+    left: calc(var(--lg-safe-left) + 12px);
+    bottom: calc(var(--lg-safe-bottom) + 192px);
+    width: min(300px, calc(100vw - 24px));
+    max-height: 40vh;
+  }
+}
+
+/* the free scene area the card measures itself against (never shown) */
+.perf-ov-free {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+body.ws-on .perf-ov-free {
+  left: var(--ws-inset-left);
+  right: var(--ws-inset-right);
+  bottom: var(--ws-inset-bottom);
+}
+
+/* ---- header: title + summary · fold · close ------------------------------ */
+.perf-ov-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+}
+.perf-ov-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: var(--lg-font);
+  text-align: left;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+.perf-ov-title:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.perf-ov-name {
+  flex: 0 0 auto;
+  font: 600 14px/19px var(--lg-font);
+}
+.perf-ov-sum {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 12.5px/17px var(--lg-font);
+  font-variant-numeric: tabular-nums;
+  color: var(--label-2);
+}
+.perf-ov-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(120, 120, 128, 0.22);
+  color: var(--label-2);
+  cursor: pointer;
+}
+.perf-ov-btn::after {
+  /* 44px hit target (DESIGN.md §4) */
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.perf-ov-btn[aria-disabled='true'],
+.perf-ov-title[aria-disabled='true'] {
+  cursor: default;
+}
+.perf-ov-btn[aria-disabled='true'] {
+  opacity: 0.45;
+}
+.perf-ov-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+
+/* ---- body: sections of label / value rows -------------------------------- */
+.perf-ov-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-right: -4px;
+  padding-right: 4px;
+}
+.perf-ov-body[hidden] {
+  display: none;
+}
+/* capped height (never past the free area's centre line): more rows below */
+.perf-ov-body.has-more {
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent);
+}
+.perf-ov-sec + .perf-ov-sec {
+  margin-top: 4px;
+}
+.perf-ov-h {
+  margin: 4px 0 1px;
+  font: 600 12px/16px var(--lg-font);
+  color: var(--label-3);
+  letter-spacing: 0.02em;
+}
+.perf-ov-rows {
+  margin: 0;
+}
+.perf-ov-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 20px;
+  padding: 1px 0;
+}
+.perf-ov-row + .perf-ov-row {
+  border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+}
+.perf-ov-row dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 50%;
+  font: 500 12.5px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.perf-ov-row dd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font: 500 12.5px/18px var(--lg-font);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.perf-ov-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+.perf-ov-foot {
+  margin: 5px 0 0;
+  font: 500 12px/16px var(--lg-font);
+  color: var(--label-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perf-ov {
+    animation: none;
+  }
+}
+
+/* QA clarity PERF-ORDER-VERDICT: the answer to 「為什麼慢？」 under the title, before the figures */
+.perf-ov-verdict {
+  margin: 0 0 6px;
+  font: 500 13px/18px var(--lg-font);
+  color: var(--label);
+}
+.perf-ov-verdict[hidden] {
+  display: none;
+}
+.perf-ov-verdict[data-kind='sim'],
+.perf-ov-verdict[data-kind='render'],
+.perf-ov-verdict[data-kind='busy'] {
+  color: var(--ios-orange);
+}

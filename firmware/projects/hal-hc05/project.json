@@ -1,0 +1,36 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "HAL USART2 to an HC-05 Bluetooth module: AT dialogue at 38400 (EN held high by a pull-up at power-up), AT+RESET into data mode at 9600, 'hello phone' and an echo of every line from the paired phone; report on USART1",
+  "expect": "72 MHz. USART2 PA2 -> HC-05 RXD, PA3 <- HC-05 TXD; PB0 -> HC-05 EN with a 10 kOhm pull-up to 3.3 V (PB0 input after reset, so EN is high at power-up = AT mode); PB1 <- STATE (input pull-down); USART1 PA9 115200 8N1 report. After reset: 'HC-05 test\r\n', 120 ms start-up wait, then up to 3 'AT' at 38400 8N1 (20 ms answer timeout each). No answer: 'no answer from the HC-05 (EN high at power-up? 38400 8N1?)\r\n' and the core sleeps. Else 'AT ok (try N)\r\n' and one report line '<cmd> -> <answer>' for AT+VERSION?, AT+NAME=OHMLET, AT+NAME?, AT+UART=9600,0,0, AT+UART?, AT+ROLE?, AT+PSWD? (answer lines joined by a space, e.g. 'AT+NAME? -> +NAME:OHMLET OK'); then PB0 driven low, 'AT+RESET -> OK', USART2 re-initialised at 9600 8N1, wait up to 1 s for STATE high: 'phone connected (STATE high after T ms)\r\n' (T about 100 ms: the module restart) or 'no phone (STATE low)\r\n'. To the phone: 'hello phone\r\n'; every line the phone sends is answered with 'you said: <line>\r\n' and reported as 'phone: <line>\r\n'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "HC-05 module: not placed on this bench (the checks runner cannot place it; the AT dialogue and the phone link are covered by tests/devices/comm-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA2": "af-pp",
+      "PA3": "input-pullup",
+      "PA9": "af-pp",
+      "PB0": "input-floating",
+      "PB1": "input-pulldown"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 },
+      "USART2": { "tx": "PA2", "rx": "PA3", "baud": 38400, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "HC-05 test\r\nno answer from the HC-05 (EN high at power-up? 38400 8N1?)\r\n"
+    }
+  }
+}

@@ -1,0 +1,1079 @@
+[
+  {
+    "name": "extra-bp-desktop",
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-desktop-enhanced",
+    "mode": "enhanced",
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-closeup-usb",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      8.5,
+      8.5,
+      21,
+      16.5,
+      1.4,
+      8.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-closeup-chip",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      27,
+      10.5,
+      16.5,
+      22.5,
+      1.6,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-closeup-chip-enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "mode": "enhanced",
+    "cam": [
+      27,
+      10.5,
+      16.5,
+      22.5,
+      1.6,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-rotated-180",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      22,
+      17,
+      26,
+      20,
+      0.8,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill rotated",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "c29",
+          "rotation": 180
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-wired",
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill + LED + button",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        },
+        {
+          "id": "R1",
+          "type": "resistor",
+          "params": {
+            "resistance": 330
+          },
+          "holes": [
+            "b32",
+            "b36"
+          ]
+        },
+        {
+          "id": "D1",
+          "type": "led",
+          "params": {
+            "color": "red"
+          },
+          "holes": [
+            "d36",
+            "top-28"
+          ]
+        },
+        {
+          "id": "SW1",
+          "type": "pushbutton",
+          "at": "f40"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "bot+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS1:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w4",
+          "from": "j27",
+          "to": "bot+21",
+          "color": "red"
+        },
+        {
+          "id": "w5",
+          "from": "j28",
+          "to": "bot-22",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "a20",
+          "to": "a32",
+          "color": "yellow"
+        },
+        {
+          "id": "w7",
+          "from": "j14",
+          "to": "j40",
+          "color": "green"
+        },
+        {
+          "id": "w8",
+          "from": "a42",
+          "to": "top-34",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-bp-wired-closeup",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      22,
+      13,
+      25,
+      26,
+      0.8,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill + LED + button",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        },
+        {
+          "id": "R1",
+          "type": "resistor",
+          "params": {
+            "resistance": 330
+          },
+          "holes": [
+            "b32",
+            "b36"
+          ]
+        },
+        {
+          "id": "D1",
+          "type": "led",
+          "params": {
+            "color": "red"
+          },
+          "holes": [
+            "d36",
+            "top-28"
+          ]
+        },
+        {
+          "id": "SW1",
+          "type": "pushbutton",
+          "at": "f40"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "bot+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS1:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w4",
+          "from": "j27",
+          "to": "bot+21",
+          "color": "red"
+        },
+        {
+          "id": "w5",
+          "from": "j28",
+          "to": "bot-22",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "a20",
+          "to": "a32",
+          "color": "yellow"
+        },
+        {
+          "id": "w7",
+          "from": "j14",
+          "to": "j40",
+          "color": "green"
+        },
+        {
+          "id": "w8",
+          "from": "a42",
+          "to": "top-34",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-bp-wired-running-enhanced",
+    "mode": "enhanced",
+    "cam": [
+      11.5,
+      7.5,
+      19.5,
+      15.0,
+      1.4,
+      9.0
+    ],
+    "keys": [
+      "Space"
+    ],
+    "settle": 2500,
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill + LED + button",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        },
+        {
+          "id": "R1",
+          "type": "resistor",
+          "params": {
+            "resistance": 330
+          },
+          "holes": [
+            "b32",
+            "b36"
+          ]
+        },
+        {
+          "id": "D1",
+          "type": "led",
+          "params": {
+            "color": "red"
+          },
+          "holes": [
+            "d36",
+            "top-28"
+          ]
+        },
+        {
+          "id": "SW1",
+          "type": "pushbutton",
+          "at": "f40"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "bot+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS1:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w4",
+          "from": "j27",
+          "to": "bot+21",
+          "color": "red"
+        },
+        {
+          "id": "w5",
+          "from": "j28",
+          "to": "bot-22",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "a20",
+          "to": "a32",
+          "color": "yellow"
+        },
+        {
+          "id": "w7",
+          "from": "j14",
+          "to": "j40",
+          "color": "green"
+        },
+        {
+          "id": "w8",
+          "from": "a42",
+          "to": "top-34",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-logic-probes",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      15.5,
+      10.5,
+      -8.5,
+      22.5,
+      0.9,
+      5.0
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Logic probes",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        },
+        {
+          "id": "LA0",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D0"
+          },
+          "holes": [
+            "a21"
+          ]
+        },
+        {
+          "id": "LA1",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D1"
+          },
+          "holes": [
+            "a22"
+          ]
+        },
+        {
+          "id": "LA2",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D2"
+          },
+          "holes": [
+            "a23"
+          ]
+        },
+        {
+          "id": "LA3",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D3"
+          },
+          "holes": [
+            "a24"
+          ]
+        },
+        {
+          "id": "LA4",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D4"
+          },
+          "holes": [
+            "a25"
+          ]
+        },
+        {
+          "id": "LA5",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D13"
+          },
+          "holes": [
+            "a26"
+          ]
+        },
+        {
+          "id": "P1",
+          "type": "scope_probe",
+          "params": {
+            "channel": 1
+          },
+          "holes": [
+            "a28"
+          ]
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-logic-probes-enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "mode": "enhanced",
+    "cam": [
+      15.5,
+      10.5,
+      -8.5,
+      22.5,
+      0.9,
+      5.0
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Logic probes",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        },
+        {
+          "id": "LA0",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D0"
+          },
+          "holes": [
+            "a21"
+          ]
+        },
+        {
+          "id": "LA1",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D1"
+          },
+          "holes": [
+            "a22"
+          ]
+        },
+        {
+          "id": "LA2",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D2"
+          },
+          "holes": [
+            "a23"
+          ]
+        },
+        {
+          "id": "LA3",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D3"
+          },
+          "holes": [
+            "a24"
+          ]
+        },
+        {
+          "id": "LA4",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D4"
+          },
+          "holes": [
+            "a25"
+          ]
+        },
+        {
+          "id": "LA5",
+          "type": "logic_probe",
+          "params": {
+            "channel": "D13"
+          },
+          "holes": [
+            "a26"
+          ]
+        },
+        {
+          "id": "P1",
+          "type": "scope_probe",
+          "params": {
+            "channel": 1
+          },
+          "holes": [
+            "a28"
+          ]
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-dmm-psu",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      -3.5,
+      7,
+      19,
+      -6.8,
+      1.4,
+      5.2
+    ],
+    "layout": {
+      "version": 1,
+      "name": "DMM next to the PSU",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "DMM1",
+          "type": "multimeter",
+          "params": {
+            "mode": "V"
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "DMM1:IN",
+          "to": "top+2",
+          "color": "red"
+        },
+        {
+          "id": "w4",
+          "from": "DMM1:COM",
+          "to": "top-2",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-dmm-psu-enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "mode": "enhanced",
+    "cam": [
+      -3.5,
+      7,
+      19,
+      -6.8,
+      1.4,
+      5.2
+    ],
+    "layout": {
+      "version": 1,
+      "name": "DMM next to the PSU",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "DMM1",
+          "type": "multimeter",
+          "params": {
+            "mode": "V"
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "DMM1:IN",
+          "to": "top+2",
+          "color": "red"
+        },
+        {
+          "id": "w4",
+          "from": "DMM1:COM",
+          "to": "top-2",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-dmm-running",
+    "cam": [
+      -3.5,
+      7,
+      19,
+      -6.8,
+      1.4,
+      5.2
+    ],
+    "keys": [
+      "Space"
+    ],
+    "settle": 2000,
+    "layout": {
+      "version": 1,
+      "name": "DMM next to the PSU",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "DMM1",
+          "type": "multimeter",
+          "params": {
+            "mode": "V"
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "DMM1:IN",
+          "to": "top+2",
+          "color": "red"
+        },
+        {
+          "id": "w4",
+          "from": "DMM1:COM",
+          "to": "top-2",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-bp-beside-555",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      17,
+      17,
+      29,
+      25,
+      0,
+      7
+    ],
+    "layout": {
+      "version": 1,
+      "name": "555 blinker + Blue Pill",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "ne555",
+          "at": "f10"
+        },
+        {
+          "id": "R1",
+          "type": "resistor",
+          "params": {
+            "resistance": 10000
+          },
+          "holes": [
+            "c10",
+            "c11"
+          ]
+        },
+        {
+          "id": "R2",
+          "type": "resistor",
+          "params": {
+            "resistance": 43000
+          },
+          "holes": [
+            "b11",
+            "b12"
+          ]
+        },
+        {
+          "id": "C1",
+          "type": "capacitor",
+          "params": {
+            "capacitance": 1e-05,
+            "polarized": true
+          },
+          "holes": [
+            "a12",
+            "top-2"
+          ]
+        },
+        {
+          "id": "R3",
+          "type": "resistor",
+          "params": {
+            "resistance": 470
+          },
+          "holes": [
+            "g12",
+            "g15"
+          ]
+        },
+        {
+          "id": "D1",
+          "type": "led",
+          "params": {
+            "color": "red"
+          },
+          "holes": [
+            "h15",
+            "top-3"
+          ]
+        },
+        {
+          "id": "PR1",
+          "type": "scope_probe",
+          "params": {
+            "channel": 1
+          },
+          "holes": [
+            "i12"
+          ]
+        },
+        {
+          "id": "U2",
+          "type": "stm32_bluepill",
+          "at": "h22"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "b10",
+          "to": "top+1",
+          "color": "red"
+        },
+        {
+          "id": "w4",
+          "from": "g10",
+          "to": "top-1",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "g13",
+          "to": "top+2",
+          "color": "red"
+        },
+        {
+          "id": "w6",
+          "from": "g11",
+          "to": "c12",
+          "color": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "name": "extra-bp-edge-low",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      21,
+      2.2,
+      21.5,
+      19.5,
+      0.9,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-usb-front-enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "mode": "enhanced",
+    "cam": [
+      3.5,
+      4.2,
+      14.5,
+      10.2,
+      1.2,
+      8.6
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-boot-enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "mode": "enhanced",
+    "cam": [
+      21,
+      6.5,
+      15.5,
+      15.2,
+      1.6,
+      8.6
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-bp-workspace",
+    "workspace": true,
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h10"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "extra-workspace-empty",
+    "workspace": true,
+    "layout": {
+      "version": 1,
+      "name": "empty",
+      "components": [],
+      "wires": []
+    }
+  }
+]

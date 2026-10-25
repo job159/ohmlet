@@ -1,0 +1,18 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["adc", "uart"],
+  "description": "ACS712-05B current sensor: ADC1 IN0 (PA0) averaged over 16 conversions every 200 ms, I = (mV - 2500) / 0.185, prints 'I=<mA> mA (out <mV> mV)' on USART1",
+  "expect": "72 MHz, ADCCLK 12 MHz. ADC1 independent, single conversion, software start, channel 0 (PA0 analog) sampled 239.5 cycles, calibrated with HAL_ADCEx_Calibration_Start. USART1 PA9/PA10 115200 8N1. Boot: 'ACS712-05B on PA0: 2500 mV = 0 A, 185 mV/A\\r\\n'. Every 200 ms (first right after boot) 16 conversions are summed; mV = round(sum x 3300 / (16 x 4095)), I = round((mV - 2500) x 1000 / 185) mA, printed as 'I=<mA> mA (out <mV> mV)\\r\\n', with ' (ADC full scale)' appended when every sample read 4094 or more (OUT above 3.3 V: currents above about +4.3 A). PA0 at 0 V reads 'I=-13514 mA (out 0 mV)'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)", "PA0: 10k ohm pull-down to GND (tests/devices/sensors-firmware.test.ts wires an ACS712 module instead)"],
+    "pins": { "PA0": "analog", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "ACS712-05B on PA0: 2500 mV = 0 A, 185 mV/A\r\nI=-13514 mA (out 0 mV)\r\n" }
+  }
+}

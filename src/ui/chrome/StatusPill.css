@@ -1,0 +1,244 @@
+/* ==========================================================================
+   StatusPill — 「狀態提示列」 under the run capsule (UX wave SH-2).
+   Tier-S Liquid Glass (the UndoPill recipe): near-opaque over-scene tint +
+   the bent-light rim (lg-rim) + slab inset shadows. NO backdrop-filter —
+   dock + capsule (+ a sheet) keep the ≤4 concurrent-blur budget (DESIGN.md
+   §7). Springs in/out with transform + opacity only.
+   ========================================================================== */
+
+.app-status-pill {
+  position: fixed;
+  top: calc(var(--lg-safe-top) + 58px); /* capsule top 10 + 38 + gap 10 */
+  left: var(--app-pill-cx, 50%);
+  z-index: 41; /* above the canvas + workspace panels, below sheets (51) / capsule (55) */
+  display: flex;
+  align-items: center;
+  height: 36px;
+  max-width: min(var(--app-pill-maxw, 440px), calc(100vw - 32px));
+  padding: 0 4px 0 4px;
+  border-radius: 999px;
+  font-family: var(--lg-font);
+  color: var(--label);
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.94), rgba(34, 36, 46, 0.92));
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+  --lg-rim-hi: 0.3;
+  --lg-rim-mid: 0.18;
+  --lg-rim-w: 1px;
+  --lg-ink-shadow: 0 1px 3px rgba(8, 10, 14, 0.55);
+  text-shadow: var(--lg-ink-shadow);
+  /* spring in / out (reduced motion collapses the duration tokens in kit.css) */
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px) scale(0.96);
+  transition:
+    transform var(--lg-dur-control) var(--lg-spring),
+    opacity var(--lg-dur-control) var(--lg-spring);
+  will-change: transform, opacity;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.app-status-pill.is-in {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  pointer-events: auto;
+}
+/* the capsule's second line (AI / Studio / firmware flashes) takes 24 px more */
+body.app-capsule-expanded .app-status-pill.is-in:not(.is-beside) {
+  transform: translateX(-50%) translateY(24px) scale(1);
+}
+
+/* desktop workspace: centred on the free scene column, never wider than it */
+body.ws-on .app-status-pill:not(.is-beside) {
+  left: var(--ws-center-x);
+  max-width: min(440px, calc(100vw - var(--ws-inset-left) - var(--ws-inset-right) - 16px));
+}
+
+/* ---- body: dot · headline · "· 2 more" ---- */
+.app-pill-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: 600 14px/20px var(--lg-font);
+  text-shadow: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-pill-body.is-static {
+  cursor: default;
+  font-weight: 500;
+}
+.app-pill-body[data-pressed='true'],
+.app-pill-chevron[data-pressed='true'] {
+  background: var(--fill-2);
+}
+.app-pill-body:focus-visible,
+.app-pill-action:focus-visible,
+.app-pill-chevron:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .app-pill-body:not(.is-static):hover,
+  .app-pill-chevron:hover {
+    background: var(--fill-3, rgba(255, 255, 255, 0.06));
+  }
+}
+/* the dot's colour is the one state table's (H6 — --app-pill-dot, set by
+   the model: 未供電 red, 還沒有韌體 / 核心已停住 orange, ready = idle
+   neutral); the halo follows the severity */
+.app-pill-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--app-pill-dot, var(--label-3));
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+.app-status-pill.is-error .app-pill-dot {
+  box-shadow: 0 0 0 3px rgba(255, 69, 58, 0.22);
+}
+.app-status-pill.is-warning .app-pill-dot {
+  box-shadow: 0 0 0 3px rgba(255, 159, 10, 0.22);
+}
+.app-status-pill.is-neutral .app-pill-dot {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+.app-pill-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-pill-more {
+  flex: 0 0 auto;
+  font-weight: 400;
+  color: var(--label-2);
+}
+
+/* ---- the one-click fix ---- */
+.app-pill-action {
+  flex: 0 0 auto;
+  height: 28px;
+  margin-left: 2px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.22);
+  color: #64b5ff;
+  font: 600 13px/18px var(--lg-font);
+  text-shadow: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--lg-dur-press) linear;
+}
+.app-status-pill.is-error .app-pill-action {
+  background: rgba(255, 69, 58, 0.2);
+  color: #ffaba3; /* ≥ 4.5:1 on the red tint (N24 — was #ff8a80, ≈ 4.4:1) */
+}
+.app-status-pill.is-warning .app-pill-action {
+  background: rgba(255, 159, 10, 0.2);
+  color: #ffc163;
+}
+.app-status-pill.is-neutral .app-pill-action {
+  background: var(--ios-green);
+  color: #062b10;
+}
+.app-pill-action[data-pressed='true'] {
+  filter: brightness(1.2);
+}
+@media (hover: hover) {
+  .app-pill-action:hover {
+    filter: brightness(1.15);
+  }
+}
+
+/* ---- trailing › (open the problems list) ---- */
+.app-pill-chevron {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--label-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-pill-chevron svg {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(8, 10, 14, 0.45));
+}
+/* no action button: the chevron closes the pill's right end */
+.app-status-pill:not(:has(.app-pill-action)) .app-pill-body {
+  padding-right: 4px;
+}
+.app-status-pill.is-neutral .app-pill-body.is-static {
+  padding-right: 6px;
+}
+
+/* a finger's target (release QA SH-F8): the one-click fix keeps its 28 /
+   32 px pill, an invisible hit extension makes it ≥ 44 × 44 CSS px
+   (elementFromPoint 6 px outside its edge still lands on it) */
+@media (pointer: coarse) {
+  /* 4 px lower than on a desktop: the capsule's own 44 px hit area ends just
+     under the capsule, and the two finger targets must not overlap */
+  .app-status-pill {
+    top: calc(var(--lg-safe-top) + 62px);
+  }
+  .app-pill-action {
+    position: relative;
+    min-width: 44px;
+  }
+  .app-pill-action::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    min-height: 44px;
+    border-radius: 999px;
+  }
+  /* the body / › buttons beside it keep their own area (the extension only
+     takes the gaps, the static ready text and the space outside the pill) */
+  .app-pill-body:not(.is-static),
+  .app-pill-chevron {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+/* phones: a touch larger targets, still one line */
+@media (max-width: 899px) {
+  .app-status-pill {
+    height: 40px;
+  }
+  .app-pill-body {
+    height: 36px;
+    font-size: 14px;
+  }
+  .app-pill-action {
+    height: 32px;
+  }
+  .app-pill-chevron {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-status-pill {
+    background: linear-gradient(180deg, rgba(46, 50, 62, 0.99), rgba(30, 32, 42, 0.99));
+  }
+}

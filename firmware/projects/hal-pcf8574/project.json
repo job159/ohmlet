@@ -1,0 +1,39 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "i2c"
+  ],
+  "description": "HAL I2C1 (100 kHz) + PCF8574 I/O expander at 0x20: LED chaser on P0-P6 (LEDs from 3.3 V, active low) every 100 ms and a push-button on P7 read back from the port; press / release reported on USART1",
+  "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA) AF open drain, 100 kHz; PCF8574 module at 0x20 on 3.3 V (its 10 kOhm SDA/SCL pull-ups). P0..P6: LED + 330 Ohm from 3.3 V into the pin; P7: push-button to GND. USART1 PA9/PA10 115200 8N1 report. After reset: 'PCF8574 chaser P0-P6, button P7 (I2C1 0x20)\r\n'; HAL_I2C_IsDeviceReady (2 trials): no ACK -> 'no PCF8574 at 0x20\r\n' and the core sleeps. Else every 100 ms (deadline based) one write of ~(1 << step) & 0x7F | 0x80 (one LED lit, P0 first, 7-step cycle = 700 ms) followed by a one-byte read of the port; P7 read low prints 'P7 button pressed (port 0xNN)\r\n', high 'P7 button released (port 0xNN)\r\n' — only on a change (the first read reports 'released' with the button open). A read of P0..P6 that differs from the written outputs prints 'port mismatch: wrote 0xWW read 0xRR' once.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "PCF8574 module: not placed on this bench (the checks runner cannot place it; the chaser and the button are covered by tests/devices/comm-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PB6": "af-od",
+      "PB7": "af-od",
+      "PA9": "af-pp"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "PCF8574 chaser P0-P6, button P7 (I2C1 0x20)\r\nno PCF8574 at 0x20\r\n"
+    },
+    "idle": {
+      "PB6": 1,
+      "PB7": 1
+    }
+  }
+}

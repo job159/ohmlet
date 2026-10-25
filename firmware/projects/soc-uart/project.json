@@ -1,0 +1,7 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "../soc-common/soc_common.c"],
+  "hal": ["uart"],
+  "description": "HAL USART1 115200 8N1 @ 72 MHz: prints hello, then echoes received bytes (HAL_UART_Receive)",
+  "expect": "USART1 sends \"hello\\r\\n\" on PA9 (bit time 625 PCLK2 cycles = 8.68 us), then echoes every received byte and toggles PC13 per byte"
+}

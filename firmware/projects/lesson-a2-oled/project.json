@@ -1,0 +1,31 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart", "i2c"],
+  "description": "Lesson a2: SSD1306 128x64 OLED on I2C1 (PB6 SCL / PB7 SDA, 400 kHz) — 1 KiB frame buffer redrawn and sent every 200 ms; PB12 tied to GND at reset leaves out the charge-pump command 8Dh 14h (the panel ACKs everything but stays dark)",
+  "expect": "72 MHz. I2C1 PB6/PB7 AF open drain, 400 kHz fast mode (DUTY 2, CCR 30); the OLED module has its own 4.7 kOhm pull-ups and 3.3 V regulator. USART1 PA9/PA10 115200 8N1; PB12 input with pull-up (experiment jumper). Prints 'SSD1306 lesson a2 (I2C1 400 kHz, PB6 SCL / PB7 SDA)\\r\\n', waits 100 ms, probes 0x3C with HAL_I2C_IsDeviceReady (2 trials): HAL_BUSY -> 'I2C bus busy: SDA/SCL stuck low (pull-ups?)\\r\\n' and stops; no ACK -> 'SSD1306 not found at 0x3C (no ACK)\\r\\n' and stops. Otherwise the init sequence in ONE transfer with control byte 00h: AEh, D5h 80h, A8h 3Fh, D3h 00h, 40h, 8Dh 14h (left out when PB12 is low at reset), 20h 00h, A1h, C8h, DAh 12h, 81h CFh, D9h F1h, DBh 40h, A4h, A6h, 2Eh, AFh -> 'SSD1306 at 0x3C ready (charge pump on)\\r\\n' or '... ready (charge pump OFF: 8Dh 14h left out)\\r\\n'. Every 200 ms (deadline based) frame N = 1, 2, ...: the 1024-byte frame buffer (8 pages x 128 columns, bit 0 = top row of a page) is cleared and redrawn — border (0,0)-(127,63), 'STM32 + SSD1306' at (8,6), 'frame N' at (8,20) in a 5x7 font (6 px advance), bar outline (8,40)-(73,49) filled from x = 9 by N mod 64 px, circle r = 12 at (104,44) — then window 21h 0..127 / 22h 0..7 and control byte 40h + 1024 data bytes (about 23 ms on the bus). Frame 1 prints 'frame 1: 1024 B in <us> us, <P> px lit\\r\\n' (transfer time from DWT->CYCCNT), every 5th frame 'frame N: <P> px lit\\r\\n' (P = set bits of the frame buffer). A failed transfer prints 'I2C error <HAL error code>\\r\\n' and stops.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no OLED on this bench: the probe of 0x3C is not acknowledged (the frame buffer on the real panel is covered by tests/lessons/advanced.test.ts)"
+    ],
+    "pins": {
+      "PB6": "af-od",
+      "PB7": "af-od",
+      "PB12": "input-pullup",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "SSD1306 lesson a2 (I2C1 400 kHz, PB6 SCL / PB7 SDA)\r\nSSD1306 not found at 0x3C (no ACK)\r\n"
+    },
+    "idle": { "PB6": 1, "PB7": 1 }
+  }
+}

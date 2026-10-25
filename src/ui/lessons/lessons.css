@@ -1,0 +1,1693 @@
+/* ==========================================================================
+   Lessons — `lsn-` prefix (LessonBrowser.tsx, LessonOverlay.tsx,
+   CheckResults.tsx, LessonText.tsx, labels.tsx).
+
+   MATERIAL — Tier S only (DESIGN.md §1): lesson cards are the nested-glass
+   `lg-card` slab; the coach card floats over the scene with the UndoPill /
+   workspace-panel over-scene recipe (near-opaque dark glass, bent-light rim,
+   slab inset shadows). NOTHING here sets a backdrop-filter — the ≤4-blur
+   budget stays with dock + capsule + the sheet / panel the browser lives in.
+   Kit tokens only (--ios-*, --label*, --fill*, --lg-*). Animations are
+   transform / opacity; reduced motion honored.
+   ========================================================================== */
+
+/* ---- lesson text (the safe Markdown subset) ------------------------------ */
+
+.lsn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font: 400 14px/21px var(--lg-font);
+  color: var(--label);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lsn-text p {
+  margin: 0;
+}
+.lsn-text ul,
+.lsn-bullets {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lsn-text strong,
+.lsn-bullets strong {
+  font-weight: 650;
+  color: #fff;
+}
+.lsn-code {
+  padding: 0 4px;
+  border-radius: 5px;
+  background: rgba(16, 18, 26, 0.38);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  color: var(--ios-teal);
+  text-shadow: none;
+  white-space: nowrap;
+}
+/* a long literal (a firmware line) wraps inside its chip rather than running out of the card */
+.lsn-code.is-long {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.lsn-bullets {
+  font: 400 14px/21px var(--lg-font);
+  color: var(--label);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lsn-sub {
+  display: block;
+  margin-bottom: 6px;
+  font: 600 11px/14px var(--lg-font);
+  letter-spacing: 0.04em;
+  color: var(--label-3);
+}
+.lsn-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- badges, glyphs, links ------------------------------------------------ */
+
+.lsn-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font: 600 11px/14px var(--lg-font);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.lsn-badge.is-ready {
+  background: rgba(48, 209, 88, 0.16);
+  color: var(--ios-green);
+}
+.lsn-badge.is-partial {
+  background: rgba(255, 159, 10, 0.16);
+  color: var(--ios-orange);
+}
+.lsn-badge.is-not-yet {
+  background: rgba(142, 148, 166, 0.18);
+  color: var(--label-2);
+}
+
+.lsn-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--label-3);
+  color: #fff;
+}
+.lsn-glyph.is-pass {
+  background: var(--ios-green);
+  box-shadow: none;
+}
+.lsn-glyph.is-fail,
+.lsn-glyph.is-error {
+  background: var(--ios-red);
+  box-shadow: none;
+}
+.lsn-glyph.is-running {
+  box-shadow: inset 0 0 0 2px rgba(10, 132, 255, 0.28);
+  border-top: 2px solid var(--ios-blue);
+  box-sizing: border-box;
+  animation: lsn-spin 0.9s linear infinite;
+}
+@keyframes lsn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lsn-link {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--ios-blue);
+  font: 600 13px/18px var(--lg-font);
+  cursor: pointer;
+  text-shadow: none;
+}
+.lsn-link:hover {
+  text-decoration: underline;
+}
+.lsn-link:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.lsn-callout {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(120, 120, 128, 0.16);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label);
+}
+.lsn-callout strong {
+  font-weight: 650;
+}
+.lsn-callout.is-partial {
+  background: rgba(255, 159, 10, 0.12);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 159, 10, 0.3);
+}
+.lsn-callout.is-not-yet {
+  background: rgba(142, 148, 166, 0.14);
+}
+.lsn-callout.is-pass {
+  background: rgba(48, 209, 88, 0.13);
+  box-shadow: inset 0 0 0 0.5px rgba(48, 209, 88, 0.32);
+}
+.lsn-callout.is-fail,
+.lsn-callout.is-error {
+  background: rgba(255, 69, 58, 0.12);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 69, 58, 0.3);
+}
+.lsn-callout.is-focus {
+  background: rgba(10, 132, 255, 0.13);
+  box-shadow: inset 0 0 0 0.5px rgba(10, 132, 255, 0.3);
+}
+
+/* ---- run progress --------------------------------------------------------- */
+
+.lsn-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 4px;
+}
+.lsn-progress-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.lsn-progress-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.lsn-progress-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(120, 120, 128, 0.28);
+}
+.lsn-progress-fill {
+  height: 100%;
+  background: var(--ios-blue);
+  transform-origin: left center;
+  transition: transform 160ms linear;
+}
+
+/* ---- check lists ------------------------------------------------------------ */
+
+.lsn-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lsn-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lsn-checks.is-nested {
+  margin-top: 6px;
+  gap: 6px;
+}
+.lsn-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.lsn-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lsn-check-label {
+  font: 600 14px/19px var(--lg-font);
+  color: var(--label);
+}
+.lsn-check.is-pending .lsn-check-label {
+  font-weight: 500;
+  color: var(--label-2);
+}
+.lsn-check-detail {
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lsn-check.is-fail > .lsn-check-body > .lsn-check-detail,
+.lsn-check.is-error > .lsn-check-body > .lsn-check-detail {
+  color: #ff8a82;
+}
+/* what the check does itself while it runs (its stimulus): 「檢查時會自動操作：…」 */
+.lsn-check-stim {
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+.lsn-check-tech {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: rgba(16, 18, 26, 0.38);
+  font: 400 11px/15px ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--label-2);
+  text-shadow: none;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ---- the lesson list -------------------------------------------------------- */
+
+.lsn-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 12px;
+  text-align: center;
+}
+.lsn-empty-art {
+  color: var(--label-3);
+}
+.lsn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.lsn-list-intro {
+  padding: 2px 4px 0;
+}
+.lsn-level {
+  display: flex;
+  flex-direction: column;
+}
+.lsn-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lsn-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  padding: 11px 12px 12px;
+  border: none;
+  color: var(--label);
+  font-family: var(--lg-font);
+  text-align: left;
+  text-shadow: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lsn-card:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .lsn-card:hover {
+    background: linear-gradient(180deg, rgba(136, 141, 160, 0.24), rgba(105, 109, 128, 0.14));
+  }
+}
+.lsn-card.is-guiding {
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.lsn-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.lsn-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 600 15px/20px var(--lg-font);
+  color: var(--label);
+}
+.lsn-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ios-green);
+  color: #fff;
+  text-shadow: none;
+}
+.lsn-card-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.lsn-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.lsn-card-guiding {
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+.lsn-card-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-3);
+}
+
+/* ---- the lesson view -------------------------------------------------------- */
+
+.lsn-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: lsn-view-in 320ms var(--lg-spring);
+}
+@keyframes lsn-view-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lsn-view-nav {
+  display: flex;
+}
+.lsn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+  margin-left: -6px;
+  padding: 0 8px 0 2px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--ios-blue);
+  font: 400 15px/20px var(--lg-font);
+  cursor: pointer;
+  text-shadow: none;
+}
+.lsn-back:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.lsn-view-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lsn-view-title {
+  margin: 0;
+  font: 700 20px/26px var(--lg-font);
+  letter-spacing: -0.01em;
+  color: var(--label);
+}
+.lsn-done-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 6px;
+  background: rgba(48, 209, 88, 0.16);
+  color: var(--ios-green);
+  font: 600 11px/14px var(--lg-font);
+  text-shadow: none;
+}
+.lsn-view-summary {
+  margin: 0;
+  font: 400 14px/20px var(--lg-font);
+  color: var(--label-2);
+}
+
+.lsn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lsn-actions .lg-btn {
+  flex: 1 1 auto;
+}
+
+/* section tabs: nested-glass chips that WRAP (LS-6) — all seven stay
+   visible at a 280 px panel / 390 px phone (two rows), no hidden overflow */
+.lsn-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  row-gap: 6px;
+  margin: 0 -2px;
+  padding: 2px 2px 4px;
+  scroll-margin-top: 8px;
+}
+.lsn-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(130, 135, 152, 0.26), rgba(102, 106, 122, 0.16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 0.5px rgba(255, 255, 255, 0.07),
+    inset 0 -4px 8px -6px rgba(0, 0, 0, 0.35);
+  color: var(--label-2);
+  font: 600 13px/18px var(--lg-font);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lsn-tab.is-on {
+  background: var(--ios-blue);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  text-shadow: none;
+}
+.lsn-tab:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+.lsn-tab-count {
+  padding: 0 5px;
+  border-radius: 7px;
+  font: 700 10px/14px var(--lg-font);
+  font-variant-numeric: tabular-nums;
+}
+.lsn-tab-count.is-pass {
+  background: rgba(48, 209, 88, 0.22);
+  color: var(--ios-green);
+}
+.lsn-tab-count.is-fail {
+  background: rgba(255, 69, 58, 0.22);
+  color: #ff8a82;
+}
+.lsn-tab.is-on .lsn-tab-count {
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
+
+.lsn-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 60px;
+}
+
+.lsn-requires {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.lsn-requires-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lsn-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.22);
+  font: 500 12px/17px var(--lg-font);
+  color: var(--label);
+}
+
+.lsn-mistakes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lsn-mistake {
+  padding: 10px 12px;
+}
+.lsn-mistake-symptom {
+  font: 600 14px/20px var(--lg-font);
+  color: var(--label);
+}
+.lsn-mistake dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  margin: 6px 0 0;
+  font: 400 13px/19px var(--lg-font);
+}
+.lsn-mistake dt {
+  color: var(--label-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lsn-mistake dd {
+  margin: 0;
+  color: var(--label-2);
+}
+
+/* steps */
+.lsn-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lsn-step {
+  border-radius: 12px;
+}
+.lsn-step.is-current {
+  background: rgba(120, 120, 128, 0.14);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+}
+.lsn-step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--label);
+  font-family: var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+.lsn-step-head:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+.lsn-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(120, 120, 128, 0.32);
+  font: 700 12px/1 var(--lg-font);
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
+  text-shadow: none;
+}
+.lsn-step.is-current .lsn-step-num {
+  background: var(--ios-blue);
+  color: #fff;
+}
+.lsn-step.is-done .lsn-step-num {
+  background: var(--ios-green);
+  color: #fff;
+}
+.lsn-step-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 600 14px/19px var(--lg-font);
+}
+.lsn-step:not(.is-current) .lsn-step-title {
+  font-weight: 500;
+  color: var(--label-2);
+}
+.lsn-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 10px 10px 40px;
+}
+.lsn-step-check {
+  padding-top: 2px;
+}
+.lsn-step-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.lsn-step-nav .lg-btn-plain:last-child:not(:first-child) {
+  margin-left: auto;
+}
+.lsn-acceptance {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lsn-acceptance > .lg-caption {
+  margin: 0;
+}
+
+/* ---- the lessons sheet ------------------------------------------------------- */
+
+.lsn-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+.lsn-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 2px 0;
+}
+.lsn-sheet-head svg {
+  flex: 0 0 auto;
+  color: var(--ios-blue);
+}
+
+/* ---- step actions, 為什麼？, step tags (LS-1, LS-3) ------------------------- */
+
+/* one-click actions + 檢查此步驟: buttons wrap their (long) labels */
+.lsn-actrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.lsn-actrow .lg-btn,
+.lsn-pass-actions .lg-btn {
+  height: auto;
+  min-height: 32px;
+  padding: 5px 13px;
+  font-size: 14px;
+  line-height: 18px;
+  white-space: normal;
+  text-align: left;
+}
+.lsn-fw-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 4px;
+  font: 600 13px/17px var(--lg-font);
+  color: var(--ios-green);
+  text-shadow: none;
+}
+/* the run phase after 「已載入」 (LS-8): only 執行中 shares the green of the bound state */
+.lsn-fw-phase {
+  color: var(--label-2);
+  font-weight: 500;
+}
+.lsn-fw-state.is-running .lsn-fw-phase {
+  color: inherit;
+  font-weight: inherit;
+}
+.lsn-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: flex-start;
+  min-height: 26px;
+  padding: 2px 4px 2px 0;
+  border: none;
+  background: none;
+  color: var(--ios-blue);
+  font: 600 13px/18px var(--lg-font);
+  cursor: pointer;
+  text-shadow: none;
+}
+.lsn-disclosure:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.lsn-why {
+  display: flex;
+  flex-direction: column;
+}
+.lsn-why-text {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(120, 120, 128, 0.32);
+}
+.lsn-why-text,
+.lsn-coach .lsn-why-text {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--label-2);
+}
+.lsn-step-tag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(10, 132, 255, 0.18);
+  color: #5eb0ff;
+  font: 600 11px/15px var(--lg-font);
+  text-shadow: none;
+}
+.lsn-step-nav .lsn-next {
+  margin-left: auto;
+}
+
+/* a step check the learner has not tried yet: neutral, never red (LS-4) */
+.lsn-check.is-todo .lsn-check-label {
+  font-weight: 500;
+  color: var(--label-2);
+}
+.lsn-check-todo {
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-3);
+}
+
+/* ---- header: code, print, completion chips (LS-7) --------------------------- */
+
+.lsn-view-nav {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lsn-view-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lsn-head-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.2);
+  color: var(--label-2);
+  font: 600 13px/18px var(--lg-font);
+  cursor: pointer;
+  text-shadow: none;
+}
+.lsn-head-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+.lsn-view-code {
+  margin-bottom: -4px;
+  font: 600 12px/16px var(--lg-font);
+  letter-spacing: 0.02em;
+  color: #5eb0ff;
+  text-shadow: none;
+}
+.lsn-card-code {
+  color: var(--label-3);
+  font-weight: 600;
+}
+.lsn-done.is-solution {
+  background: rgba(142, 148, 166, 0.55);
+}
+.lsn-done-chip.is-solution {
+  background: rgba(142, 148, 166, 0.2);
+  color: var(--label-2);
+}
+.lsn-last-chip {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(255, 69, 58, 0.16);
+  color: #ff8a82;
+  font: 600 11px/14px var(--lg-font);
+  text-shadow: none;
+}
+
+/* ---- the receipt's 姓名／座號 (LS-15) ---- */
+
+.lsn-student-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+.lsn-student-label {
+  color: var(--label);
+  font: 600 13px/18px var(--lg-font);
+}
+.lsn-student-input {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(120, 120, 128, 0.24);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  color: var(--label);
+  font: 400 15px/20px var(--lg-font);
+}
+.lsn-student-input:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.lsn-student {
+  margin: 6px 0 0;
+}
+
+/* ---- ⋯ overflow of the lesson actions (LS-14): Tier-S, no backdrop-filter ---- */
+
+.lsn-more {
+  position: relative;
+  display: inline-flex;
+}
+.lsn-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.22);
+  color: var(--label);
+  cursor: pointer;
+}
+.lsn-more-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+.lsn-more-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: 5px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.97), rgba(34, 36, 46, 0.96));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+}
+.lsn-more-item {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--label);
+  font: 500 14px/19px var(--lg-font);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lsn-more-item:hover,
+.lsn-more-item:focus-visible {
+  background: rgba(120, 120, 128, 0.24);
+  outline: none;
+}
+
+/* ---- firmware pills (Wiring) ------------------------------------------------- */
+
+.lsn-fw-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 2px 3px 2px 10px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.22);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  color: var(--label);
+  font: 500 12px/17px var(--lg-font);
+  cursor: pointer;
+  text-shadow: none;
+}
+.lsn-fw-pill code {
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--ios-teal);
+}
+.lsn-fw-pill-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--ios-blue);
+  color: #fff;
+  font: 600 12px/16px var(--lg-font);
+}
+.lsn-fw-pill.is-on .lsn-fw-pill-act {
+  background: rgba(48, 209, 88, 0.2);
+  color: var(--ios-green);
+}
+.lsn-fw-pill:disabled {
+  cursor: default;
+}
+.lsn-fw-pill:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+.lsn-mistake > .lsn-actrow {
+  margin-top: 8px;
+}
+
+/* ---- hole / terminal chips in lesson text (LS-7) ---------------------------- */
+
+button.lsn-ref {
+  display: inline;
+  margin: 0;
+  border: none;
+  line-height: inherit;
+  vertical-align: baseline;
+  cursor: pointer;
+  text-decoration: underline dotted rgba(100, 210, 255, 0.55);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) {
+  button.lsn-ref:hover {
+    background: rgba(100, 210, 255, 0.18);
+  }
+}
+button.lsn-ref.is-on {
+  background: rgba(10, 132, 255, 0.36);
+  color: #fff;
+  text-decoration: none;
+}
+button.lsn-ref:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+
+/* ---- root cause first (LS-5) ------------------------------------------------- */
+
+.lsn-cause {
+  padding: 9px 11px 10px;
+  border-radius: 10px;
+  background: rgba(255, 159, 10, 0.11);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 159, 10, 0.34);
+}
+.lsn-cause-title {
+  margin-bottom: 6px;
+  font: 700 12px/16px var(--lg-font);
+  letter-spacing: 0.02em;
+  color: var(--ios-orange);
+  text-shadow: none;
+}
+.lsn-cause-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lsn-cause-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lsn-cause-item strong {
+  font-weight: 650;
+}
+.lsn-cause-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--ios-orange);
+}
+.lsn-cause-item.is-error .lsn-cause-dot {
+  background: var(--ios-red);
+}
+.lsn-cause-item.is-info .lsn-cause-dot {
+  background: var(--ios-blue);
+}
+.lsn-cause-item.is-mistake .lsn-cause-dot {
+  background: var(--label-2);
+}
+.lsn-link.is-inline {
+  display: inline;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+.lsn-callout.is-start {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(10, 132, 255, 0.12);
+  box-shadow: inset 0 0 0 0.5px rgba(10, 132, 255, 0.34);
+}
+.lsn-dependents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lsn-checks.is-dependent {
+  padding-left: 9px;
+  border-left: 2px solid rgba(120, 120, 128, 0.28);
+}
+
+/* ---- a passed acceptance: the next lesson (LS-4) ----------------------------- */
+
+.lsn-pass {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 11px 12px 12px;
+  border-radius: 12px;
+  background: rgba(48, 209, 88, 0.13);
+  box-shadow: inset 0 0 0 0.5px rgba(48, 209, 88, 0.34);
+}
+.lsn-pass-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lsn-pass-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ios-green);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(48, 209, 88, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: lsn-pop 560ms var(--lg-spring) both;
+}
+@keyframes lsn-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lsn-pass-text {
+  font: 650 14px/19px var(--lg-font);
+  color: var(--label);
+}
+.lsn-pass-note {
+  margin: 0;
+  font: 400 12.5px/17px var(--lg-font);
+  color: var(--label-2);
+}
+.lsn-pass-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.lsn-pass-actions .lg-btn {
+  justify-content: flex-start;
+}
+
+/* ---- the coach card ----------------------------------------------------------- */
+
+.lsn-coach {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--label);
+  font-family: var(--lg-font);
+}
+
+/* docked: an in-panel card in the workspace Library panel (#ws-coach-slot,
+   K8) — the panel's nested-glass card with a blue "guiding" rim; it never
+   covers the circuit */
+.lsn-coach.is-docked {
+  /* the card over the panel slab, opaque — what its sticky step bar shows (LS-F3) */
+  --lsn-coach-surface: linear-gradient(rgba(10, 132, 255, 0.09), rgba(10, 132, 255, 0.09)),
+    linear-gradient(rgba(112, 117, 134, 0.11), rgba(112, 117, 134, 0.11)), rgb(41, 44, 55);
+  padding: 9px 10px 10px 11px;
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.15), rgba(10, 132, 255, 0.06)),
+    linear-gradient(180deg, rgba(126, 131, 148, 0.16), rgba(99, 103, 120, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.42);
+  animation: lsn-dock-in 320ms var(--lg-spring);
+}
+@keyframes lsn-dock-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* floating: over the scene (panel collapsed, phone, classic chrome) */
+.lsn-coach.is-floating {
+  position: fixed;
+  z-index: 41; /* above the canvas + workspace panels (40), below sheets (51), dock (55), toasts (60) */
+  top: calc(var(--lg-safe-top) + 58px); /* below the status capsule */
+  left: calc(var(--lg-safe-left) + 12px);
+  right: calc(var(--lg-safe-right) + 12px);
+  max-width: 420px;
+  padding: 8px 10px 10px 12px;
+  border-radius: var(--lg-radius-surface);
+  /* the UndoPill / workspace-panel over-scene tint: near-opaque, NO blur */
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.94), rgba(34, 36, 46, 0.92));
+  /* the card's lower half, opaque — what its sticky step bar shows (LS-F3) */
+  --lsn-coach-surface: rgb(39, 42, 52);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5), inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+  --lg-ink-shadow: 0 1px 3px rgba(8, 10, 14, 0.55);
+  text-shadow: var(--lg-ink-shadow);
+  animation: lsn-coach-in var(--lg-dur-sheet) var(--lg-spring);
+}
+.lsn-coach.is-floating.is-folded {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+@keyframes lsn-coach-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (min-width: 900px) {
+  /* classic desktop chrome: right of the dock rail */
+  .lsn-coach.is-floating {
+    left: calc(var(--lg-safe-left) + 96px);
+    right: auto;
+    width: 340px;
+  }
+}
+/* desktop workspace, Library panel collapsed: the top-left corner of the free scene column */
+body.ws-on .lsn-coach.is-floating.is-ws {
+  left: var(--ws-inset-left);
+  right: auto;
+  width: min(340px, calc(100vw - var(--ws-inset-left) - var(--ws-inset-right) - 24px));
+}
+/* a phone sheet covers the scene: the card folds to its header above it (LS-14); only a tall sheet
+   that leaves no room hides it, like the pills */
+.lsn-coach.is-floating.is-under-sheet {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* phones: the coach carries the status pill's problem line (N8, LS-14) */
+.lsn-coach-problem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  margin: 0 -2px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 69, 58, 0.14);
+  color: var(--label);
+  font: 600 13px/18px var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+}
+.lsn-coach-problem.is-warning {
+  background: rgba(255, 159, 10, 0.14);
+}
+.lsn-coach-problem.is-info {
+  --lsn-dot: var(--ios-blue);
+  background: rgba(10, 132, 255, 0.12);
+  font-weight: 500;
+}
+.lsn-coach-problem-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lsn-dot, var(--ios-red));
+}
+.lsn-coach-problem-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lsn-coach-problem-more {
+  flex: 0 0 auto;
+  color: var(--label-2);
+  font-weight: 500;
+}
+
+.lsn-coach-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lsn-coach-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--ios-blue);
+}
+.lsn-coach-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font-family: var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+.lsn-coach-title:focus-visible {
+  outline: 2px solid var(--ios-blue);
+}
+.lsn-coach-step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font: 600 14px/19px var(--lg-font);
+  color: var(--label);
+}
+.lsn-coach-steptext {
+  min-width: 0;
+}
+.lsn-coach.is-folded .lsn-coach-steptext {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lsn-coach-lesson {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 11.5px/15px var(--lg-font);
+  color: var(--label-3);
+}
+.lsn-coach-done {
+  flex: 0 0 auto;
+  color: var(--ios-green);
+  font: 600 12px/16px var(--lg-font);
+}
+/* unfolded, a wrapping step title carries 已完成 at its end (not stranded beside the first line) */
+.lsn-coach:not(.is-folded) .lsn-coach-step {
+  display: block;
+}
+.lsn-coach:not(.is-folded) .lsn-coach-done {
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.lsn-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(120, 120, 128, 0.22);
+  color: var(--label-2);
+  cursor: pointer;
+}
+.lsn-icon-btn::after {
+  /* 44px hit target (DESIGN.md §4) */
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.lsn-icon-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.lsn-coach-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 「課程完成——下一課：…」 once the acceptance passes (LS-12) — shown folded or not */
+.lsn-coach-pass {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 2px 2px 0 26px;
+}
+.lsn-coach-pass-text {
+  color: var(--ios-green);
+  font: 600 13px/18px var(--lg-font);
+}
+.lsn-coach.is-floating .lsn-coach-body {
+  max-height: min(34vh, 280px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+@media (min-width: 900px) {
+  .lsn-coach.is-floating .lsn-coach-body {
+    max-height: min(44vh, 380px);
+  }
+}
+.lsn-coach .lsn-step-body {
+  gap: 8px;
+  padding: 0;
+}
+/* compact step navigation: one row (previous · next) — it stays at the bottom of the coach's scroller
+   (the docked #ws-coach-slot, the floating card's body) while the step's text scrolls under it
+   (release QA LS-F3: 上一步／下一步 never below the fold) */
+.lsn-coach .lsn-step-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding-block: 6px;
+  background: var(--lsn-coach-surface);
+}
+/* docked: the bar spans the card (its scroller is the slot around the card) */
+.lsn-coach.is-docked .lsn-step-nav {
+  margin-inline: -11px -10px;
+  padding-inline: 11px 10px;
+  box-shadow: 0 -10px 12px -12px rgba(0, 0, 0, 0.55);
+}
+.lsn-coach .lsn-step-nav .lg-btn {
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 14px;
+}
+.lsn-coach .lsn-text {
+  font-size: 13.5px;
+  line-height: 20px;
+}
+/* 「✓ 3 / 3 項條件成立 ›」: a passed step's sub-checks folded to one line (LS-F3) */
+.lsn-checks-folded {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 2px 6px 2px 2px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--label-2);
+  font: 500 13px/18px var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+.lsn-checks-folded:focus-visible {
+  outline: 2px solid var(--ios-blue);
+}
+.lsn-checks-folded-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ios-green);
+  color: #fff;
+}
+.lsn-step-check .lsn-checks-folded + .lsn-results {
+  margin-top: 4px;
+}
+/* 「模擬執行中，約 2 秒後自動檢查…」 under a measuring step's check (LS-F6) */
+.lsn-autocheck {
+  margin: 4px 0 0;
+  color: var(--label-2);
+  font: 500 12.5px/17px var(--lg-font);
+}
+/* 「載入起始電路」 on a check that failed for a missing part (LS-F10) */
+.lsn-check-load {
+  display: flex;
+  margin-top: 6px;
+}
+
+/* ---- the printable handout / receipt (LS-7) ----------------------------------- */
+
+.lsn-print-root {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm 12mm;
+  }
+  /* index.html pins html / body as a fixed, non-scrolling shell: let the
+     handout flow over as many pages as it needs */
+  html:has(body.lsn-printing),
+  body.lsn-printing {
+    position: static !important;
+    inset: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body.lsn-printing > *:not(.lsn-print-root) {
+    display: none !important;
+  }
+  body.lsn-printing > .lsn-print-root {
+    display: block;
+    position: static;
+  }
+  .lsn-print {
+    color: #111;
+    font: 9pt/1.38 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', var(--lg-font), sans-serif;
+    text-shadow: none;
+  }
+  .lsn-print h1 {
+    margin: 1pt 0 3pt;
+    font-size: 15pt;
+    line-height: 1.25;
+  }
+  .lsn-print h2 {
+    margin: 7pt 0 2.5pt;
+    padding-bottom: 1.5pt;
+    border-bottom: 0.6pt solid #9a9a9a;
+    font-size: 10.6pt;
+    break-after: avoid;
+  }
+  .lsn-print h3 {
+    margin: 5pt 0 2pt;
+    font-size: 9.6pt;
+  }
+  .lsn-print p,
+  .lsn-print ul,
+  .lsn-print ol {
+    margin: 0 0 3pt;
+  }
+  .lsn-print ul,
+  .lsn-print ol {
+    padding-left: 13pt;
+  }
+  .lsn-print .lsn-text {
+    gap: 2.5pt;
+    color: #111;
+    font: inherit;
+  }
+  .lsn-print .lsn-text ul {
+    gap: 1pt;
+  }
+  .lsn-print strong,
+  .lsn-print .lsn-text strong {
+    color: #000;
+  }
+  .lsn-print .lsn-code,
+  .lsn-print code {
+    padding: 0 2pt;
+    border-radius: 2pt;
+    background: #eef0f4;
+    box-shadow: none;
+    color: #0b4f8c;
+    font-size: 0.92em;
+    white-space: normal;
+  }
+  .lsn-print-head p {
+    margin: 3pt 0 0;
+  }
+  .lsn-print-eyebrow {
+    color: #0a63c2;
+    font-size: 8.6pt;
+    font-weight: 700;
+  }
+  .lsn-print-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8pt;
+    color: #444;
+    font-size: 8.8pt;
+  }
+  .lsn-print-note {
+    color: #8a5300;
+  }
+  /* what an acceptance check does itself (its stimulus, final round) */
+  .lsn-print-stim {
+    color: #444;
+    font-size: 0.92em;
+  }
+  .lsn-print-steps > li {
+    margin-bottom: 3pt;
+    break-inside: avoid;
+  }
+  .lsn-print-table {
+    width: 100%;
+    margin: 2pt 0 4pt;
+    border-collapse: collapse;
+    font-size: 8.4pt;
+    line-height: 1.3;
+  }
+  /* the reference circuit: parts and wires side by side */
+  .lsn-print-pair {
+    display: flex;
+    align-items: flex-start;
+    gap: 8pt;
+  }
+  .lsn-print-pair > .lsn-print-table {
+    flex: 1 1 0;
+    width: auto;
+  }
+  .lsn-print-table th,
+  .lsn-print-table td {
+    padding: 1.2pt 3.5pt;
+    border: 0.5pt solid #b9b9b9;
+    text-align: left;
+    vertical-align: top;
+  }
+  .lsn-print-table th {
+    background: #eef0f4;
+    font-weight: 700;
+  }
+  .lsn-print-table tr {
+    break-inside: avoid;
+  }
+  .lsn-print-box {
+    width: 12pt;
+    text-align: center;
+    font-size: 10.5pt;
+  }
+  .lsn-print-keep {
+    break-inside: avoid;
+  }
+  .lsn-print td.is-pass {
+    color: #137a2f;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .lsn-print td.is-fail {
+    color: #b3261e;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .lsn-print-small {
+    margin-top: 8pt;
+    color: #333;
+    font-size: 7.8pt;
+    word-break: break-all;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lsn-view,
+  .lsn-coach,
+  .lsn-coach.is-floating,
+  .lsn-coach.is-docked,
+  .lsn-pass-mark {
+    animation: none;
+  }
+  .lsn-glyph.is-running {
+    animation-duration: 2.4s;
+  }
+  .lsn-progress-fill {
+    transition: none;
+  }
+}
+
+/* CJK text never below 12 px on screen (H9 / SH-16) — the English classic
+   chrome keeps its sizes; the paper handout keeps its own pt scale. */
+@media screen {
+  :lang(zh) .lsn-badge,
+  :lang(zh) .lsn-sub,
+  :lang(zh) .lsn-done-chip,
+  :lang(zh) .lsn-last-chip,
+  :lang(zh) .lsn-step-tag,
+  :lang(zh) .lsn-coach-lesson {
+    font-size: 12px;
+  }
+  /* a terminal chip reads in Chinese (「DMM1 COM 端」): 0.9 em of 13 px text would be 11.7 px */
+  :lang(zh) .lsn-ref.is-terminal {
+    font-size: max(12px, 0.9em);
+  }
+}
+
+/* phones: the folded coach while the step's 「開始接線」 runs keeps its wiring button (final round) */
+.lsn-coach-wiring {
+  display: flex;
+  margin-top: 4px;
+}
+.lsn-coach-wiring .lg-btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}

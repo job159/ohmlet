@@ -1,0 +1,68 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "Lesson i8 mistake: hal-spi-595 with SPI_FIRSTBIT_LSB - the 74HC595 chaser runs backwards (QH ... QA)",
+  "expect": "72 MHz. SPI1 master mode 0, LSB FIRST (the only difference from hal-spi-595), 8-bit, SCK 72 MHz / 16 = 4.5 MHz on PA5, MOSI PA7 (AF push-pull); PA4 = 74HC595 RCLK (push-pull, low after init). 74HC595: SER = PA7, SRCLK = PA5, RCLK = PA4, SRCLR high, OE low, QA..QH -> LED + resistor to GND. USART1 PA9/PA10 115200 8N1 sends '74HC595 chaser 10 Hz\r\n' once. Then on the next HAL tick and every 100 ms after it (deadline based, no drift): RCLK low, one byte 1 << step clocked out (8 SCK pulses, 111 ns half period), RCLK high (rising edge = latch), step = 0..7 cyclically: because the bit sent first ends in QH, QH, QG, ... QA light one at a time for 100 ms each (800 ms cycle) - the chaser runs backwards. PA4 is high except for a pulse of about 5 us around each transfer.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA5, PA7, PA4: 74HC595 (SRCLK, SER, RCLK; SRCLR to 3V3, OE to GND), QA-QH: LED + 220 ohm to GND",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "af-pp",
+      "PA7": "af-pp",
+      "PA4": "output-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "74HC595 chaser 10 Hz\r\n"
+    },
+    "signals": [
+      {
+        "pin": "PA4",
+        "square": [
+          99.9951,
+          0.0049
+        ],
+        "tolUs": 20,
+        "firstEdge": 1,
+        "firstEdgeAt": [
+          1.8,
+          3
+        ]
+      },
+      {
+        "pin": "PA5",
+        "edgesAfter": "PA4",
+        "maxLagUs": 4500
+      },
+      {
+        "pin": "PA7",
+        "edgesAfter": "PA4",
+        "maxLagUs": 4500
+      }
+    ]
+  }
+}

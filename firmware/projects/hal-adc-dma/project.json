@@ -1,0 +1,30 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["adc", "uart"],
+  "description": "HAL ADC1 continuous scan of IN0-IN3 + temperature sensor + VREFINT into SRAM by DMA1 channel 1 (circular); values, VDDA, die temperature and scan count printed every 200 ms on USART1",
+  "expect": "72 MHz, ADCCLK = PCLK2/6 = 12 MHz. ADC1 scan + continuous, software start, right aligned, 6 ranks IN0 (PA0), IN1 (PA1), IN2 (PA2), IN3 (PA3) (analog mode), IN16 temperature sensor, IN17 VREFINT (TSVREFE), all sampled 239.5 cycles: 252 ADCCLK = 21 us per conversion, 126 us per scan, back to back. DMA1 channel 1 peripheral-to-memory, half-words, memory increment, circular, 6 items; the transfer-complete interrupt (end of each scan) snapshots the buffer and counts scans. Every 200 ms (deadline based, first 200 ms after start) USART1 PA9/PA10 115200 8N1 prints 'in0=<r> in1=<r> in2=<r> in3=<r> ts=<r> vref=<r> vdda=<mV> temp=<C.d> seq=<n>\\r\\n': r = round(V / VDDA x 4095); vdda = 1200 x 4095 / vref; temp = (1430 mV - ts x vdda / 4095) / 4.3 mV/C + 25 (DS5319 typical values); n = completed scans, +1587 (200 ms / 126 us) per line. At VDD = 3.3 V and 25 C: ts=1775 vref=1489 vdda=3300 temp=25.0; a pin tied to GND reads 0, tied to 3V3 reads 4095.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 250,
+    "circuit": [
+      "PA0-PA3: nothing connected (tests/mcu/stm32f1/adc-firmware.test.ts wires PA0 to a potentiometer wiper, PA1 to GND, PA2 to 3V3 and PA3 to a 10 k / 10 k divider)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PA0": "analog", "PA1": "analog", "PA2": "analog", "PA3": "analog", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": { "match": "^in0=\\d{1,4} in1=\\d{1,4} in2=\\d{1,4} in3=\\d{1,4} ts=17[67]\\d vref=14[89]\\d vdda=3\\d{3} temp=2[45]\\.\\d seq=158[67]\r\n$" } },
+    "signals": [
+      {
+        "uart": "USART1",
+        "match": "^in0=\\d{1,4} in1=\\d{1,4} in2=\\d{1,4} in3=\\d{1,4} ts=17[67]\\d vref=14[89]\\d vdda=3\\d{3} temp=2[45]\\.\\d seq=\\d+\r\n$",
+        "firstAt": [199.95, 200.05],
+        "everyMs": 200,
+        "tolUs": 20,
+        "always": true
+      }
+    ],
+    "scenarios": []
+  }
+}

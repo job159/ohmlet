@@ -1,0 +1,27 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim"],
+  "description": "Lesson i4 mistake: hal-tim-pwm with TIM1 started by CC1E + CEN only (BDTR.MOE never set) - PA0 and PA6 PWM work, PA8 stays silent",
+  "expect": "72 MHz; TIM2 CH1 PA0 1 kHz 25 % (250 us high / 750 us low) and TIM3 CH1 PA6 20 kHz 50 % (25 us / 25 us) exactly as in hal-tim-pwm. TIM1 is configured identically to hal-tim-pwm (PSC 71, ARR 499, CCR1 375, PWM mode 1) and its counter runs, but it is started with TIM1->CCER |= CC1E and TIM1->CR1 |= CEN only: BDTR.MOE stays 0, so the advanced timer's outputs stay disabled (RM0008 §14.4.18) and PA8 (AF push-pull) shows no PWM at all; the simulator logs a hint that TIM1 counts with an enabled channel but MOE = 0.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PA0, PA6, PA8: logic analyzer probes (no load needed)"],
+    "pins": { "PA0": "af-pp", "PA6": "af-pp", "PA8": "af-pp" },
+    "signals": [
+      { "pin": "PA0", "square": [0.25, 0.75], "tolUs": 0.02, "always": true },
+      { "pin": "PA6", "square": [0.025, 0.025], "tolUs": 0.02, "always": true }
+    ],
+    "scenarios": [
+      {
+        "name": "TIM1 CH1 on PA8 never toggles without MOE",
+        "durationMs": 50,
+        "drive": [],
+        "expect": [],
+        "quiet": ["PA8"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "../soc-common/soc_common.c"],
+  "hal": [],
+  "description": "HAL EXTI: falling edge on PB12 (pull-up) → HAL_GPIO_EXTI_Callback toggles PA5; WFI between interrupts",
+  "expect": "every falling edge on PB12 toggles PA5 a few microseconds later; rising edges do nothing"
+}

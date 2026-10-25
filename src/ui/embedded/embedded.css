@@ -1,0 +1,1212 @@
+/* ==========================================================================
+   Embedded-lab views (firmware panel, pinout, terminal, logic analyzer,
+   log) — `emb-` prefix. Shared by the phone sheets and the desktop
+   workspace. Additive to kit.css: kit tokens only (--ios-*, --label*,
+   --fill*, --separator, --lg-*), Tier-S materials only (nested-glass
+   slabs, recessed wells, the scope's dark instrument window) — NOTHING
+   here sets a backdrop-filter (DESIGN.md ≤4-filter budget). Animations:
+   transform/opacity only; reduced motion honored at the bottom.
+   ========================================================================== */
+
+:root {
+  /* monospace stack for addresses, pins, serial data and logs (the kit's
+     type scale had no mono token; inline stacks predate this one) */
+  --lg-font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+}
+
+.emb-mono {
+  font-family: var(--lg-font-mono);
+}
+
+.emb-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- tags + badges (tiny capsules, the prs-live / psh-card-meta family) -- */
+
+.emb-tag,
+.emb-support {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(126, 131, 148, 0.26), rgba(99, 103, 120, 0.16));
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+  font: 600 11px/14px var(--lg-font);
+  letter-spacing: 0.01em;
+  color: var(--label-2);
+  white-space: nowrap;
+  text-shadow: none;
+}
+.emb-tag.is-ft {
+  background: rgba(100, 210, 255, 0.14);
+  color: var(--ios-teal);
+}
+.emb-tag.is-mode {
+  background: rgba(10, 132, 255, 0.18);
+  color: #7cbcff;
+  font-family: var(--lg-font-mono);
+  font-weight: 500;
+}
+.emb-tag.is-on,
+.emb-tag.is-verified,
+.emb-support.is-full {
+  background: rgba(48, 209, 88, 0.16);
+  color: var(--ios-green);
+}
+.emb-tag.is-partial,
+.emb-support.is-partial {
+  background: rgba(255, 159, 10, 0.16);
+  color: var(--ios-orange);
+}
+.emb-tag.is-unsupported,
+.emb-support.is-visual {
+  background: rgba(142, 148, 166, 0.18);
+  color: var(--label-2);
+}
+.emb-support.is-dev {
+  background: rgba(191, 90, 242, 0.18);
+  color: #d49cf5;
+}
+
+/* MCU run-state capsule: dot + label tinted by --emb-state */
+.emb-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  padding: 3px 11px 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--emb-state) 15%, transparent);
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--emb-state) 35%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--emb-state);
+  font: 600 13px/18px var(--lg-font);
+  white-space: nowrap;
+}
+.emb-state-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--emb-state);
+  flex: 0 0 auto;
+}
+.emb-state.is-live .emb-state-dot {
+  animation: emb-pulse 1.5s var(--lg-spring) infinite;
+}
+@keyframes emb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+}
+
+/* ---- toolbar controls ------------------------------------------------- */
+
+.emb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.emb-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+/* capsule chips — the nested-glass slab; pressed toggles go filled blue
+   (Parts sheet category-chip recipe at toolbar scale) */
+.emb-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(130, 135, 152, 0.26), rgba(102, 106, 122, 0.16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.07),
+    inset 0 -4px 8px -6px rgba(0, 0, 0, 0.35);
+  color: var(--label-2);
+  font: 600 13px/18px var(--lg-font);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  transition: transform var(--lg-dur-press) var(--lg-spring),
+    opacity var(--lg-dur-press) var(--lg-spring);
+}
+.emb-chip[data-pressed='true'] {
+  transform: scale(0.96);
+  opacity: 0.75;
+}
+.emb-chip[aria-pressed='true'] {
+  background: linear-gradient(180deg, #3ea0ff, #0a84ff 52%, #0875e8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.2),
+    0 2px 8px rgba(10, 132, 255, 0.3);
+  color: #fff;
+}
+.emb-chip.is-destructive {
+  color: var(--ios-red);
+}
+.emb-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.emb-chip:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+/* vertical 44px hit slot (toolbar rows are single-line) */
+.emb-chip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* native select dressed as a recessed capsule well */
+.emb-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.emb-select select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 0 28px 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(16, 18, 26, 0.32);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.07),
+    0 0.5px 0 rgba(255, 255, 255, 0.06);
+  color: var(--label);
+  font: 500 13px/18px var(--lg-font);
+  text-overflow: ellipsis;
+  cursor: pointer;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.emb-select select:focus-visible {
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(10, 132, 255, 0.7);
+}
+.emb-select select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.emb-select option,
+.emb-select optgroup {
+  background: #24262f;
+  color: #f2f3f7;
+}
+.emb-select-chev {
+  position: absolute;
+  right: 10px;
+  color: var(--label-3);
+  pointer-events: none;
+}
+
+/* round icon buttons (zoom, debugger) */
+.emb-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--label);
+}
+.emb-icon-btn::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+.emb-icon-btn[data-pressed='true'],
+.emb-icon-btn:active {
+  background: var(--fill);
+}
+.emb-icon-btn svg {
+  display: block;
+}
+@media (hover: hover) {
+  .emb-icon-btn:not(:disabled):hover {
+    background: var(--fill-2);
+  }
+}
+
+/* recessed text field (pin filter, BIN address, terminal input) */
+.emb-field {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--lg-radius-field);
+  background: rgba(16, 18, 26, 0.32);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.07),
+    0 0.5px 0 rgba(255, 255, 255, 0.06);
+  color: var(--label);
+  font-size: 13px;
+  line-height: 18px;
+  outline: none;
+  caret-color: var(--ios-blue);
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.emb-field::placeholder {
+  color: var(--label-3);
+}
+.emb-field:focus-visible {
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(10, 132, 255, 0.7);
+}
+.emb-field.is-invalid {
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(255, 69, 58, 0.7);
+}
+.emb-field::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+/* ---- list-row helpers -------------------------------------------------- */
+
+.emb-row-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.emb-disclose {
+  display: flex;
+  color: var(--label-3);
+}
+.emb-ok {
+  display: flex;
+  color: var(--ios-green);
+}
+.emb-dot {
+  display: block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.emb-issue {
+  align-items: flex-start;
+  gap: 10px;
+}
+.emb-issue .emb-dot {
+  margin-top: 6px;
+}
+.emb-issue-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 14px/19px var(--lg-font);
+  color: var(--label);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.emb-support-detail {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 4px;
+}
+.emb-support-col ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.emb-mini-head {
+  font: 600 11px/14px var(--lg-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--label-3);
+}
+
+/* ---- pinout ------------------------------------------------------------- */
+
+.emb-pin-filter {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.emb-pin-filter .emb-field {
+  width: 100%;
+  border-radius: 999px;
+  font-family: var(--lg-font);
+}
+.emb-pin {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 36px;
+  padding: 7px 16px;
+  color: var(--label);
+  transition: background-color 160ms linear;
+}
+.emb-pin:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 0;
+  top: 0;
+  height: 0.5px;
+  background: var(--separator);
+  pointer-events: none;
+}
+.emb-pin.is-hot {
+  background: rgba(10, 132, 255, 0.18);
+}
+.emb-pin-num {
+  flex: 0 0 20px;
+  padding-top: 1px;
+  color: var(--label-3);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+}
+.emb-pin-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.emb-pin-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.emb-pin-label {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.emb-pin-label.is-power {
+  color: #ff7a70;
+}
+.emb-pin-label.is-ground {
+  color: var(--label-2);
+}
+.emb-pin-label.is-control {
+  color: var(--ios-orange);
+}
+.emb-pin-label.is-nc {
+  color: var(--label-3);
+}
+.emb-pin-name {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--label-3);
+}
+.emb-pin-hole {
+  margin-left: auto;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--label-3);
+}
+.emb-pin-fns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.emb-fn {
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--fill-2);
+  font: 500 11px/16px var(--lg-font-mono);
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.emb-pin-v {
+  flex: 0 0 auto;
+  min-width: 58px;
+  padding-top: 1px;
+  text-align: right;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ios-teal);
+}
+
+/* ---- firmware ----------------------------------------------------------- */
+
+.emb-fw {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: var(--lg-radius-card);
+  transition: box-shadow 160ms linear;
+}
+.emb-fw.is-dragover .lg-list {
+  box-shadow: inset 0 0 0 1.5px rgba(10, 132, 255, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.emb-fw-name {
+  font-size: 15px;
+}
+.emb-fw-desc {
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+.emb-fw-desc .emb-mono {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.emb-drop-row {
+  padding: 10px;
+}
+.emb-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 16px 12px 14px;
+  /* recessed well (the inverse of the card slab): the image drops INTO it */
+  border-radius: var(--lg-radius-field);
+  background: rgba(16, 18, 26, 0.32);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.07),
+    0 0.5px 0 rgba(255, 255, 255, 0.06);
+  outline: 1px dashed rgba(255, 255, 255, 0.16);
+  outline-offset: -6px;
+  text-align: center;
+}
+.emb-fw.is-dragover .emb-drop {
+  background: rgba(10, 132, 255, 0.14);
+  outline-color: rgba(10, 132, 255, 0.8);
+}
+.emb-drop-icon {
+  display: flex;
+  color: var(--ios-blue);
+}
+.emb-drop-title {
+  font: 600 15px/20px var(--lg-font);
+  color: var(--label);
+}
+.emb-drop-sub {
+  margin-bottom: 6px;
+  font: 400 12px/16px var(--lg-font-mono);
+  color: var(--label-3);
+}
+.emb-fw-base {
+  gap: 10px;
+}
+.emb-fw-base-label {
+  flex: 1 1 auto;
+  font: 400 15px/20px var(--lg-font);
+  color: var(--label);
+}
+.emb-fw-base-input {
+  flex: 0 0 auto;
+  width: 132px;
+  text-align: right;
+}
+
+/* ---- execution ---------------------------------------------------------- */
+
+.emb-run-head {
+  gap: 10px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.emb-run-note {
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-3);
+  white-space: nowrap;
+}
+.emb-run-ctl {
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 10px;
+}
+.lg-btn.emb-btn-flex {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.emb-run-dbg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* execution readouts: a 2-column grid of labelled values (PC spans both) */
+.emb-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+.emb-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.emb-stat.is-wide {
+  grid-column: 1 / -1;
+}
+.emb-stat-label {
+  font: 600 11px/14px var(--lg-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--label-3);
+}
+.emb-stat-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label);
+  white-space: nowrap;
+}
+/* Run = green (DESIGN.md §1 palette): a green wash with green ink — the
+   kit's tinted-button recipe, which keeps text contrast ≥ 4.5:1 where white
+   on #30D158 would not */
+.lg-btn.emb-btn-run {
+  background: linear-gradient(180deg, rgba(48, 209, 88, 0.26), rgba(48, 209, 88, 0.15));
+  color: var(--ios-green);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 0.5px rgba(120, 230, 150, 0.25),
+    inset 0 -6px 12px -8px rgba(0, 0, 0, 0.3);
+}
+.emb-pc-sym {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--ios-teal);
+}
+.lg-row-trailing .emb-mono {
+  font-size: 13px;
+}
+
+.emb-regs {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.emb-regs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 3px 12px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--label);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.emb-regs-fault {
+  padding-top: 6px;
+  border-top: 0.5px solid var(--separator);
+  color: #ff8a80;
+}
+.emb-reg-name {
+  display: inline-block;
+  width: 38px;
+  color: var(--label-3);
+}
+
+/* ---- peripherals --------------------------------------------------------- */
+
+.emb-periph {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.emb-periph-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.emb-periph-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--label);
+}
+.emb-periph-notes {
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+.emb-periph-notes.is-open {
+  display: block;
+}
+.emb-periph-tests {
+  font-size: 11px;
+  color: var(--label-3);
+}
+
+/* ---- instrument views (terminal / logic / log) ---------------------------- */
+
+.emb-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+/* phone: the Scope sheet hosts the views at a fixed comfortable height */
+.emb-sheet-view {
+  display: flex;
+  flex-direction: column;
+  height: clamp(280px, 54dvh, 620px);
+  min-height: 0;
+}
+.lg-panel .emb-sheet-view {
+  height: calc(100dvh - 210px);
+}
+
+/* the instrument window: the scope's recessed dark glass (asm-scope-body) */
+.emb-term-out,
+.emb-log-out,
+.emb-la-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  border-radius: var(--lg-radius-card);
+  background: #0a0c10;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.09),
+    0 0.5px 0 rgba(255, 255, 255, 0.07);
+  overscroll-behavior: contain;
+  text-shadow: none;
+}
+
+/* compact toolbar segmented: items sized by their labels (the kit's equal
+   flex:1 split lets a long label like "Warnings 12" spill into its
+   neighbour inside a shrink-wrapped track) */
+.emb-seg-sm .lg-seg-item {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 11px;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* terminal */
+.emb-term-out {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: #d9dee7;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  outline: none;
+}
+.emb-term-out:focus-visible {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(10, 132, 255, 0.7);
+}
+.emb-term-line {
+  position: relative;
+  display: block;
+  min-height: 18px;
+  padding-right: 4px;
+  border-radius: 6px;
+}
+.emb-term-line:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.emb-term-line.is-echo {
+  color: #7cbcff;
+}
+.emb-term-hex {
+  white-space: pre;
+}
+.emb-term-ts {
+  display: inline-block;
+  min-width: 70px;
+  margin-right: 10px;
+  color: #8e97a5;
+  font-variant-numeric: tabular-nums;
+}
+/* a firmware load / MCU reset (UX IS-8) */
+.emb-term-mark {
+  display: block;
+  margin: 4px 0;
+  color: #8e97a5;
+  font-family: var(--lg-font);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 「在邏輯分析儀中檢視」: shows on hover / keyboard focus of the line */
+.emb-term-reveal {
+  position: absolute;
+  top: -1px;
+  right: 2px;
+  min-height: 20px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.92);
+  color: #fff;
+  font: 600 12px/20px var(--lg-font);
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+}
+/* hover (mouse), or a tap that focuses the line (touch), or keyboard focus */
+.emb-term-line:hover .emb-term-reveal,
+.emb-term-line:focus-within .emb-term-reveal,
+.emb-term-reveal:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.emb-term-line:focus {
+  outline: none;
+  background: rgba(10, 132, 255, 0.12);
+}
+.emb-term-reveal:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+/* empty-state lines: body size, readable (UX IS-9: ~0.78 alpha) */
+.emb-term-dim {
+  color: rgba(235, 238, 245, 0.72);
+  font-family: var(--lg-font);
+  font-size: 13px;
+}
+.emb-term-send {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.emb-term-input {
+  flex: 1 1 auto;
+  border-radius: 999px;
+}
+.emb-select-eol select {
+  max-width: 150px;
+}
+
+/* logic analyzer */
+.emb-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+.emb-live-dot.is-on {
+  background: var(--ios-red);
+  opacity: 1;
+  animation: emb-pulse 1.5s var(--lg-spring) infinite;
+}
+.emb-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.emb-zoom-val {
+  min-width: 58px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--label);
+}
+.emb-readout {
+  font-size: 12px;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.emb-readout-delta {
+  color: #7cbcff;
+}
+.emb-select-add select {
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+/* label column: as wide as the longest name (104 px at least, UX IS-5), so
+   "PC13 板載 LED" is never cut to "PC13 板…"; capped so the plot keeps room */
+.emb-la-grid {
+  display: grid;
+  grid-template-columns: minmax(104px, max-content) 1fr;
+  min-height: 100%;
+}
+.emb-la-labels {
+  max-width: 220px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset -0.5px 0 0 rgba(255, 255, 255, 0.08);
+}
+.emb-la-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px 0 10px;
+  font: 500 13px/16px var(--lg-font);
+  color: #d5dbe4;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.04);
+}
+.emb-la-label.is-ann {
+  padding-left: 25px;
+  font-size: 12px;
+}
+.emb-la-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+/* two lines: the name (PA5 / the user's label), then where it comes from */
+.emb-la-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.emb-la-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eef1f5;
+}
+.emb-la-src {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--label-2);
+}
+/* a channel whose part was deleted (UX IS-8): muted, with its remove button showing */
+.emb-la-label.is-stale .emb-la-name {
+  color: var(--label-3);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+.emb-la-stale {
+  align-self: flex-start;
+  margin-top: 1px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 159, 10, 0.14);
+  color: #ffc56b;
+  font: 600 12px/18px var(--lg-font);
+  white-space: nowrap;
+}
+.emb-la-level {
+  margin-left: auto;
+  font-size: 12px;
+  color: #e8ecf2;
+}
+/* 20 px glyph, 28 px hit area (UX IS-9: ≥ 24 px) */
+.emb-la-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+.emb-la-remove > svg {
+  box-sizing: content-box;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--fill-2);
+}
+.emb-la-level + .emb-la-remove {
+  margin-left: 0;
+}
+.emb-la-remove:focus-visible {
+  outline: 2px solid var(--ios-blue);
+}
+@media (hover: hover) {
+  .emb-la-remove {
+    opacity: 0;
+    transition: opacity 120ms linear;
+  }
+  .emb-la-label:hover .emb-la-remove,
+  .emb-la-remove.is-visible,
+  .emb-la-remove:focus-visible {
+    opacity: 1;
+  }
+}
+.emb-la-plot {
+  position: relative;
+  min-width: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+.emb-la-canvas {
+  display: block;
+  width: 100%;
+}
+.emb-la-overlay {
+  position: absolute;
+  inset: 20px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 16, 0.72);
+  pointer-events: none;
+}
+.emb-la-overlay.is-soft {
+  background: none;
+}
+.emb-la-overflow {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  font: 500 11px/14px var(--lg-font);
+  color: var(--ios-orange);
+}
+
+/* log */
+.emb-log-out {
+  padding: 6px 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  user-select: text;
+  -webkit-user-select: text;
+  outline: none;
+}
+.emb-log-out:focus-visible {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(10, 132, 255, 0.7);
+}
+.emb-log-out > .emb-term-dim {
+  display: block;
+  padding: 6px 12px;
+}
+.emb-log-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 76px 8px minmax(60px, max-content) 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 12px;
+  color: #d9dee7;
+}
+.emb-log-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.emb-log-row:focus {
+  outline: none;
+  background: rgba(10, 132, 255, 0.12);
+}
+.emb-log-row .emb-term-reveal {
+  top: 0;
+  right: 8px;
+}
+.emb-log-row:hover .emb-term-reveal,
+.emb-log-row:focus-within .emb-term-reveal {
+  opacity: 1;
+  pointer-events: auto;
+}
+.emb-log-ts {
+  font-size: 12px;
+  color: #8e97a5;
+  white-space: nowrap;
+}
+.emb-log-lvl {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px; /* centred on the FIRST line of a wrapped message */
+  border-radius: 50%;
+  background: #4a5260;
+  align-self: start;
+}
+.emb-log-row.is-warning .emb-log-lvl {
+  background: var(--ios-orange);
+}
+.emb-log-row.is-error .emb-log-lvl {
+  background: var(--ios-red);
+}
+.emb-log-row.is-error .emb-log-msg {
+  color: #ff8a80;
+}
+.emb-log-src {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: #7d8694;
+}
+.emb-log-msg {
+  font-family: var(--lg-font);
+  overflow-wrap: anywhere;
+}
+
+/* empty / placeholder note */
+.emb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 18px 16px;
+  text-align: center;
+}
+/* readable empty states (UX IS-9: >= 4.5:1 on the panel) */
+.emb-empty-title {
+  font: 600 15px/20px var(--lg-font);
+  color: var(--label);
+}
+.emb-empty-body {
+  max-width: 440px;
+  font: 400 13px/18px var(--lg-font);
+  color: rgba(255, 255, 255, 0.78);
+  text-wrap: balance;
+}
+
+/* touch: ≥ 16px text in fields (iOS zooms the page on focusing smaller
+   text) and taller wells/chips toward the 44px target (DESIGN.md §4) */
+@media (pointer: coarse) {
+  .emb-field,
+  .emb-select select {
+    font-size: 16px;
+  }
+  .emb-field {
+    min-height: 40px;
+  }
+  .emb-select select {
+    min-height: 36px;
+  }
+  .emb-chip {
+    min-height: 34px;
+  }
+  .emb-la-grid {
+    grid-template-columns: minmax(104px, max-content) 1fr;
+  }
+}
+.emb-la-short,
+.emb-zoom-short {
+  display: none;
+}
+/* phone (UX IS-9): a 72 px label column — the short name (PA5) only, the
+   full label + source in the title; the remove button only for a channel
+   whose source is gone; the zoom shows the window length */
+@media (max-width: 600px) {
+  .emb-la-grid {
+    grid-template-columns: 72px 1fr;
+  }
+  .emb-la-labels {
+    max-width: 72px;
+  }
+  .emb-la-label {
+    padding: 0 0 0 7px;
+    gap: 5px;
+  }
+  .emb-la-label .emb-la-src,
+  .emb-la-label .emb-la-level,
+  .emb-la-label .emb-la-name,
+  .emb-la-label:not(.is-stale) .emb-la-remove,
+  .emb-zoom-full {
+    display: none;
+  }
+  .emb-la-short,
+  .emb-zoom-short {
+    display: inline;
+  }
+  .emb-la-short {
+    font-size: 13px;
+    font-weight: 600;
+    color: #eef1f5;
+  }
+  .emb-la-label.is-stale .emb-la-stale {
+    font-size: 11px;
+    padding: 0 5px;
+  }
+  .lai-export {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emb-state.is-live .emb-state-dot,
+  .emb-live-dot.is-on {
+    animation: none;
+  }
+}
+
+/* CJK text never below 12 px (H9 / IS-20) — English classic keeps its sizes */
+:lang(zh) .emb-tag,
+:lang(zh) .emb-support,
+:lang(zh) .emb-mini-head,
+:lang(zh) .emb-stat-label,
+:lang(zh) .emb-periph-tests,
+:lang(zh) .emb-la-overflow,
+:lang(zh) .emb-log-src,
+:lang(zh) .emb-la-label.is-stale .emb-la-stale,
+:lang(zh) .lai-tag,
+:lang(zh) .lai-note,
+:lang(zh) .sco-k,
+:lang(zh) .sco-status {
+  font-size: 12px;
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": [],
+  "description": "HAL blinky: 72 MHz HSE+PLL, HAL_Delay(500) toggles PA5 and PC13 (on-board LED)",
+  "expect": "PA5 and PC13 toggle every 501 ms (HAL v1.1.9 HAL_Delay(500) waits 500 + uwTickFreq ticks), PC13 = !PA5"
+}

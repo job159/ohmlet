@@ -1,0 +1,52 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "HAL USART2 to an ESP-01 (ESP8266) at 115200: PB0 enables CH_PD, the boot ROM banner (74880 baud) is skipped up to 'ready', then ATE0, AT, AT+GMR, AT+CWMODE? and AT+CWJAP (ERROR: the lab has no Wi-Fi); report on USART1",
+  "expect": "72 MHz. USART2 PA2 -> ESP-01 RXD, PA3 <- ESP-01 TXD, 115200 8N1 (PCLK1 36 MHz: BRR 19 + 8/16 = 115384.6 baud, +0.16 %, as on real silicon); PB0 -> CH_PD (push-pull, low after reset); ESP-01 VCC 3.3 V; USART1 PA9 115200 8N1 report. After reset: 'ESP-01 test (USART2 115200 8N1, CH_PD on PB0)\r\n', PB0 high, then every received line is discarded until 'ready' (the 74880-baud ROM banner arrives as garbage at 115200), up to 1.5 s: none -> 'no ready from the ESP-01 (CH_PD high? 3.3 V?)\r\n' and the core sleeps. Else 'ready after T ms\r\n' (T about 250 ms: the module boot), then one line per command (200 ms answer timeout): 'ATE0 -> OK', 'AT -> OK', 'AT+GMR -> AT version:1.7.4.0(...)' (first line of the version), 'AT+CWMODE? -> +CWMODE:1 OK', 'AT+CWJAP -> ERROR' (joining a network fails: Wi-Fi is not simulated), then 'esp01 ok\r\n' when every answer matched, else 'esp01 FAILED\r\n', then WFI.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "ESP-01 module: not placed on this bench (the checks runner cannot place it; the AT dialogue is covered by tests/devices/comm-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA2": "af-pp",
+      "PA3": "input-pullup",
+      "PA9": "af-pp",
+      "PB0": "output-pp"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      },
+      "USART2": {
+        "tx": "PA2",
+        "rx": "PA3",
+        "baud": 115384.6,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "ESP-01 test (USART2 115200 8N1, CH_PD on PB0)\r\n"
+    },
+    "idle": {
+      "PB0": 1
+    }
+  }
+}

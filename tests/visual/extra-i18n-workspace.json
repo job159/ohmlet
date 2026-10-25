@@ -1,0 +1,62 @@
+[
+  {
+    "name": "i18n-ws-empty",
+    "workspace": true,
+    "lang": "zh-TW",
+    "layout": { "version": 1, "name": "empty", "components": [], "wires": [] }
+  },
+  {
+    "name": "i18n-ws-bluepill",
+    "workspace": true,
+    "lang": "zh-TW",
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill",
+      "components": [{ "id": "U1", "type": "stm32_bluepill", "at": "h10" }],
+      "wires": []
+    }
+  },
+  {
+    "name": "i18n-ws-bp-wired",
+    "workspace": true,
+    "lang": "zh-TW",
+    "layout": {
+      "version": 1,
+      "name": "Blue Pill + LED + button",
+      "components": [
+        { "id": "PS1", "type": "power_supply", "params": { "voltage": 5 } },
+        { "id": "U1", "type": "stm32_bluepill", "at": "h10" },
+        { "id": "R1", "type": "resistor", "params": { "resistance": 330 }, "holes": ["b32", "b36"] },
+        { "id": "D1", "type": "led", "params": { "color": "red" }, "holes": ["d36", "top-28"] },
+        { "id": "SW1", "type": "pushbutton", "at": "f40" }
+      ],
+      "wires": [
+        { "id": "w1", "from": "PS1:+", "to": "bot+0", "color": "red" },
+        { "id": "w2", "from": "PS1:-", "to": "top-0", "color": "black" },
+        { "id": "w3", "from": "PS1:-", "to": "bot-0", "color": "black" },
+        { "id": "w4", "from": "j27", "to": "bot+21", "color": "red" },
+        { "id": "w5", "from": "j28", "to": "bot-22", "color": "black" },
+        { "id": "w6", "from": "a20", "to": "a32", "color": "yellow" },
+        { "id": "w7", "from": "j14", "to": "j40", "color": "green" },
+        { "id": "w8", "from": "a42", "to": "top-34", "color": "black" }
+      ]
+    }
+  },
+  {
+    "name": "i18n-ws-led-no-resistor",
+    "workspace": true,
+    "lang": "zh-TW",
+    "layout": {
+      "version": 1,
+      "name": "LED without resistor",
+      "components": [
+        { "id": "PS1", "type": "power_supply", "params": { "voltage": 5 } },
+        { "id": "D1", "type": "led", "params": { "color": "green" }, "holes": ["top+5", "top-5"] }
+      ],
+      "wires": [
+        { "id": "w1", "from": "PS1:+", "to": "top+0", "color": "red" },
+        { "id": "w2", "from": "PS1:-", "to": "top-0", "color": "black" }
+      ]
+    }
+  }
+]

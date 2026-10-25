@@ -1,0 +1,41 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim", "uart"],
+  "description": "HAL PWM input: TIM3 CH1 PA6 generates 2 kHz/30 %, 5 kHz/50 %, 1.25 kHz/75 % (1 s each); TIM2 CH1 PA0 measures it (jumper PA6 -> PA0), prints 'f=<Hz> d=<permille>'",
+  "expect": "72 MHz; USART1 PA9 115200 8N1. Bench: a jumper from PA6 to PA0. First TX: 'PWM input: TIM3 CH1 PA6 -> TIM2 CH1 PA0\\r\\n'. TIM3 CH1 (PA6, PWM mode 1, PSC 0) outputs 2000 Hz 30 % (ARR 35999, CCR1 10800) for the first second after start, then 5000 Hz 50 % (14399 / 7200), then 1250 Hz 75 % (57599 / 43200), repeating every 3 s; ARR and CCR1 are preloaded so each change applies at an update event. TIM2 (PSC 0) in PWM input mode: IC1 = TI1FP1 rising -> CCR1, IC2 = TI1FP2 falling -> CCR2, slave reset on TI1FP1; period = CCR1 + 1 and high time = CCR2 + 1 counts (the capture latches the counter before the reset, RM0008 Figure 113); URS = 1, so only a real overflow (no rising edge for 65536 counts) raises the update interrupt, which clears the measurement. Every 250 ms (first 125 ms after start, never at a switch) it prints 'f=<72 MHz / period> d=<1000 x high / period>' rounded: 'f=2000 d=300' (4 lines), 'f=5000 d=500' (4 lines), 'f=1250 d=750' (4 lines), repeating. Without the jumper PA0 sees no edge and every line is 'f=0 d=0'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA6 -> PA0: jumper wire",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PA0": "input-floating", "PA6": "af-pp", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "PWM input: TIM3 CH1 PA6 -> TIM2 CH1 PA0\r\n" },
+    "signals": [
+      { "uart": "USART1", "match": "^f=(?:2000 d=300|5000 d=500|1250 d=750)\\r\\n$", "firstAt": [126, 132], "everyMs": 250, "tolUs": 20 },
+      { "pin": "PA0", "sameAs": "PA6", "skewUs": 0.1 }
+    ],
+    "scenarios": [
+      {
+        "name": "generator steps 2 kHz / 5 kHz / 1.25 kHz",
+        "durationMs": 2140,
+        "expect": [
+          { "at": [126, 132], "uart": "f=2000 d=300\r\n" },
+          { "at": [376, 382], "uart": "f=2000 d=300\r\n" },
+          { "at": [626, 632], "uart": "f=2000 d=300\r\n" },
+          { "at": [876, 882], "uart": "f=2000 d=300\r\n" },
+          { "at": [1126, 1132], "uart": "f=5000 d=500\r\n" },
+          { "at": [1376, 1382], "uart": "f=5000 d=500\r\n" },
+          { "at": [1626, 1632], "uart": "f=5000 d=500\r\n" },
+          { "at": [1876, 1882], "uart": "f=5000 d=500\r\n" },
+          { "at": [2126, 2132], "uart": "f=1250 d=750\r\n" }
+        ],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "i2c"
+  ],
+  "description": "HAL I2C1 + AT24C02 EEPROM (0x50): 16 bytes written across two page boundaries with ACK polling, read back blocking (N = 16/1/2) and with interrupts, 'eeprom ok' on USART1",
+  "expect": "72 MHz. I2C1 PB6/PB7 AF open-drain, 100 kHz, event+error interrupts; AT24C02 at 0x50 (A2-A0 and WP at GND) with 4.7 kOhm pull-ups; USART1 PA9/PA10 115200 8N1. Once after reset: 'AT24C02 test\r\n'; no ACK from 0x50 (IsDeviceReady, 3 trials) -> 'eeprom not found at 0x50\r\n' and stop. Else 'before: ' + the 16 bytes at 0x1C as hex (FF on an erased part; A0..AF after an earlier run: the EEPROM is non-volatile) + '\r\n'; then A0+i is written to 0x1C+i in page-aligned pieces, each followed by ACK polling through the 5 ms write cycle: 'wrote 4 bytes at 0x1C, ready after P polls\r\n', 'wrote 8 bytes at 0x20, ...', 'wrote 4 bytes at 0x28, ...' (P about 45: one NACKed poll takes about 112 us); then 'read 16 ok\r\n' (Mem_Read 16 bytes), 'read 1 ok\r\n' (1 byte at 0x1C), 'read 2 ok\r\n' (2 bytes at 0x1D, POS procedure), 'read 16 (IT) ok\r\n' (Mem_Read_IT) and 'eeprom ok\r\n'; then WFI. A wrong byte prints 'mismatch at 0xAA: wrote 0xWW read 0xRR (<mode>)\r\n', a HAL failure '<step> error: HAL status S, ErrorCode 0xE\r\n', and the program stops there.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: AT24C02 (A2-A0, WP to GND) + 4.7k pull-ups to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PB6": "af-od",
+      "PB7": "af-od",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": {
+        "match": "^AT24C02 test\\r\\nbefore: (?:(?:FF ){15}FF|A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 AA AB AC AD AE AF)\\r\\nwrote 4 bytes at 0x1C, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nwrote 8 bytes at 0x20, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nwrote 4 bytes at 0x28, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nread 16 ok\\r\\nread 1 ok\\r\\nread 2 ok\\r\\nread 16 \\(IT\\) ok\\r\\neeprom ok\\r\\n$"
+      }
+    },
+    "idle": {
+      "PB6": 1,
+      "PB7": 1
+    }
+  }
+}

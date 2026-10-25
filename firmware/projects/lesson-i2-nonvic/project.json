@@ -1,0 +1,35 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "Lesson i2 mistake: hal-button-exti without HAL_NVIC_EnableIRQ(EXTI15_10_IRQn) - the EXTI line is pending but the interrupt never runs",
+  "expect": "72 MHz, like hal-button-exti (PB12 input pull-up + EXTI12 falling, PA5 push-pull low, USART1 PA9/PA10 115200 8N1) except that EXTI15_10_IRQn is never enabled in the NVIC: a press sets EXTI_PR.PR12 but EXTI15_10_IRQHandler never runs, so no press is ever accepted - PA5 stays low and USART1 stays silent however often PB12 is pulled low.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": [
+      "PB12: push-button to GND, no external resistor",
+      "PA5: LED + 330 ohm to GND",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PB12": "input-pullup", "PA5": "output-pp", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "" },
+    "idle": { "PB12": 1, "PA5": 0 },
+    "scenarios": [
+      {
+        "name": "two clean presses are never seen",
+        "durationMs": 400,
+        "drive": [
+          { "at": 0, "pin": "PB12", "level": 0 },
+          { "at": 100, "pin": "PB12", "level": "open" },
+          { "at": 200, "pin": "PB12", "level": 0 },
+          { "at": 300, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [{ "at": [0, 400], "pin": "PA5", "level": 0 }],
+        "quiet": ["PA5", "USART1"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "HAL SPI1 (9 MHz, mode 0, CS PA4) + W25Q32 NOR flash: JEDEC ID, 4 KiB sector erase with BUSY polling, 64-byte page program, read back with 03h and 0Bh, 'w25q ok' on USART1",
+  "expect": "72 MHz. SPI1 master mode 0, MSB first, 8-bit, SCK 72 MHz / 8 = 9 MHz on PA5, MISO PA6 (input pull-up), MOSI PA7; PA4 = CS (push-pull, high when idle). W25Q32 at 3.3 V with WP and HOLD tied high. USART1 PA9/PA10 115200 8N1 report. After reset: 'W25Q32 test (SPI1 9 MHz mode 0, CS PA4)\r\n'; 9Fh JEDEC ID: anything but EF 40 16 prints 'no W25Q32: JEDEC ID xx xx xx\r\n' and the core sleeps (no chip: MISO pulled up, 'FF FF FF'). Else 'JEDEC ID EF 40 16', 'SR1 0x00', 'before: <16 bytes at 0x001000>' (FF on an erased part), 06h + 20h 0x001000 with 05h polled every millisecond: 'sector erase: busy T ms' (T about 45, the typical tSE), 06h + 02h 64 bytes (i*3+1): 'page program 64 bytes: busy for N status reads', read back with 03h and with 0Bh: 'read back ok', 'w25q ok' (or 'mismatch at 0xAAAAAA: wrote WW read RR' and 'w25q FAILED').",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "W25Q32: not placed on this bench (the checks runner cannot place it; the erase / program / read-back sequence is covered by tests/devices/comm-firmware.test.ts)",
+      "PA4, PA5, PA6, PA7: unconnected (SPI1 + CS)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA4": "output-pp",
+      "PA5": "af-pp",
+      "PA6": "input-pullup",
+      "PA7": "af-pp",
+      "PA9": "af-pp"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "W25Q32 test (SPI1 9 MHz mode 0, CS PA4)\r\nno W25Q32: JEDEC ID FF FF FF\r\n"
+    },
+    "idle": {
+      "PA4": 1
+    }
+  }
+}

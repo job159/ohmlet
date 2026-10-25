@@ -1,0 +1,56 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "tim",
+    "uart"
+  ],
+  "description": "L298N DC motor demo: ENA = PA0 TIM2 1 kHz PWM, IN1/IN2 = PB0/PB1; fwd 25/50/75/100 %, brake, rev 50/100 %, coast, 400 ms each, USART1 log",
+  "expect": "72 MHz; TIM2 PSC 71, ARR 999: 1 kHz PWM on PA0 (AF push-pull), CCR1 = 10 x duty (preloaded), PB0/PB1 push-pull, both written with one BSRR store per phase. USART1 PA9/PA10 115200 8N1: 'L298N DC motor demo\\r\\n' then the first phase 'fwd 25%\\r\\n'; every 400 ms (HAL_GetTick deadlines, no drift) the next phase and its log line: fwd 25% (PB0=1 PB1=0, duty 25), fwd 50%, fwd 75%, fwd 100%, brake (PB0=PB1=0, duty 100), rev 50% (PB0=0 PB1=1), rev 100%, coast (duty 0), then again from fwd 25% (3.2 s per cycle). With an L298N (ENA jumper removed, VS 7.5 V) and a 130-size motor on OUT1/OUT2 the motor speeds up in four steps, brakes, runs in reverse and coasts down (PWM on ENA = drive / coast: an unloaded motor already turns fast at low duty).",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA0, PB0, PB1: L298N ENA / IN1 / IN2 in the full circuit (motor speed covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA0": "af-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup",
+      "PB0": "output-pp",
+      "PB1": "output-pp"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "L298N DC motor demo\r\nfwd 25%\r\n"
+    },
+    "signals": [
+      {
+        "uart": "USART1",
+        "match": "^(fwd (25|50|75|100)%|brake|rev (50|100)%|coast)\\r\\n$",
+        "firstAt": [
+          397,
+          403
+        ],
+        "everyMs": 400,
+        "tolUs": 100
+      }
+    ],
+    "scenarios": []
+  }
+}

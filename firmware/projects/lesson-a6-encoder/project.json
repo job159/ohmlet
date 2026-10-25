@@ -1,0 +1,99 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim", "uart"],
+  "description": "Lesson a6: KY-040 rotary encoder on TIM4 encoder mode 3 (PB6 CLK / PB7 DT, input filter 15), 4 counts per detent, 'pos=<n>' at every new detent, debounced push switch on PB12; PB13 low at reset also prints every raw count",
+  "expect": "72 MHz. TIM4 encoder mode 3 (TI12: every edge of CLK and DT counts, up while CLK leads DT), IC1F = IC2F = 15 (an edge must hold 256 timer clocks = 3.6 us; shorter glitches are ignored), ARR 65535. PB6 / PB7 floating inputs (the KY-040 has 10 kOhm pull-ups), PB12 input with pull-up (SW, the module has no pull-up), PB13 input with pull-up read once at reset (experiment jumper). USART1 PA9/PA10 115200 8N1. Boot: 'KY-040 lesson a6: TIM4 encoder CLK PB6 / DT PB7, filter 15, SW PB12\\r\\n' ('PB13 low: raw TIM4 count on every edge (4 per detent)\\r\\n' with the jumper) then 'pos=0\\r\\n'. The main loop wakes every SysTick (WFI) and prints 'pos=<CNT/4>\\r\\n' whenever the signed 16-bit count is a multiple of 4 and differs from the last report (one detent clockwise: CLK falls, DT falls, CLK rises, DT rises -> 'pos=1'; counter-clockwise -> 'pos=-1'; half a detent and back counts +2 -2 and prints nothing); with the PB13 jumper also 'cnt=<count>\\r\\n' for every change of the count. PB12 low for 20 ms prints 'SW pressed\\r\\n', back high for 20 ms 'SW released\\r\\n' (contact bounce restarts the 20 ms).",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "PB6, PB7: 10k ohm pull-up to 3V3",
+      "PB12: push-button to GND",
+      "PB13: open (the raw-count experiment jumper to GND is not placed)"
+    ],
+    "pins": {
+      "PB6": "input-floating",
+      "PB7": "input-floating",
+      "PB12": "input-pullup",
+      "PB13": "input-pullup",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "KY-040 lesson a6: TIM4 encoder CLK PB6 / DT PB7, filter 15, SW PB12\r\npos=0\r\n"
+    },
+    "idle": { "PB6": 1, "PB7": 1, "PB12": 1 },
+    "signals": [],
+    "scenarios": [
+      {
+        "name": "one detent clockwise (CLK leads DT) reports pos=1",
+        "durationMs": 60,
+        "drive": [
+          { "at": 10, "pin": "PB6", "level": 0 },
+          { "at": 20, "pin": "PB7", "level": 0 },
+          { "at": 30, "pin": "PB6", "level": "open" },
+          { "at": 40, "pin": "PB7", "level": "open" }
+        ],
+        "expect": [{ "at": [40, 42], "uart": "pos=1\r\n" }],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "one detent counter-clockwise (DT leads CLK) reports pos=-1",
+        "durationMs": 60,
+        "drive": [
+          { "at": 10, "pin": "PB7", "level": 0 },
+          { "at": 20, "pin": "PB6", "level": 0 },
+          { "at": 30, "pin": "PB7", "level": "open" },
+          { "at": 40, "pin": "PB6", "level": "open" }
+        ],
+        "expect": [{ "at": [40, 42], "uart": "pos=-1\r\n" }],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "half a detent and back counts +2 -2: no report",
+        "durationMs": 60,
+        "drive": [
+          { "at": 10, "pin": "PB6", "level": 0 },
+          { "at": 20, "pin": "PB7", "level": 0 },
+          { "at": 30, "pin": "PB7", "level": "open" },
+          { "at": 40, "pin": "PB6", "level": "open" }
+        ],
+        "expect": [],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "a 2 us glitch on CLK is shorter than the input filter: no count",
+        "durationMs": 30,
+        "drive": [
+          { "at": 10, "pin": "PB6", "level": 0 },
+          { "at": 10.002, "pin": "PB6", "level": "open" }
+        ],
+        "expect": [],
+        "quiet": ["USART1"]
+      },
+      {
+        "name": "a bouncing press counts once, 19-20 ms after the last edge (1 ms tick); the release too",
+        "durationMs": 160,
+        "drive": [
+          { "at": 10, "pin": "PB12", "level": 0 },
+          { "at": 10.3, "pin": "PB12", "level": "open" },
+          { "at": 10.6, "pin": "PB12", "level": 0 },
+          { "at": 10.9, "pin": "PB12", "level": "open" },
+          { "at": 11.2, "pin": "PB12", "level": 0 },
+          { "at": 100, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [
+          { "at": [30.2, 32.4], "uart": "SW pressed\r\n" },
+          { "at": [119, 121.4], "uart": "SW released\r\n" }
+        ],
+        "quiet": ["USART1"]
+      }
+    ]
+  }
+}

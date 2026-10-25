@@ -1,0 +1,20 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim"],
+  "description": "HAL PWM on three timers: TIM2 CH1 PA0 1 kHz 25 %, TIM3 CH1 PA6 20 kHz 50 %, TIM1 CH1 PA8 2 kHz 75 % (MOE via HAL_TIM_PWM_Start)",
+  "expect": "72 MHz; TIM2/TIM3 count TIMXCLK1 = 72 MHz (APB1 36 MHz x2), TIM1 TIMXCLK2 = 72 MHz. PWM mode 1, active high, every period starts with a rising edge at the update event. PA0 (TIM2 CH1, PSC 71, ARR 999, CCR1 250): 1 kHz, 250 us high / 750 us low. PA6 (TIM3 CH1, PSC 0, ARR 3599, CCR1 1800): 20 kHz, 25 us high / 25 us low. PA8 (TIM1 CH1, PSC 71, ARR 499, CCR1 375): 2 kHz, 375 us high / 125 us low - only because HAL_TIM_PWM_Start sets TIM1_BDTR.MOE. Edges are exact multiples of the 13.9 ns timer clock (no jitter, no drift); the three outputs are independent (each timer is started separately). The CPU sleeps in __WFI(). No UART.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PA0, PA6, PA8: logic analyzer probes (no load needed)"],
+    "pins": { "PA0": "af-pp", "PA6": "af-pp", "PA8": "af-pp" },
+    "signals": [
+      { "pin": "PA0", "square": [0.25, 0.75], "tolUs": 0.02, "always": true },
+      { "pin": "PA6", "square": [0.025, 0.025], "tolUs": 0.02, "always": true },
+      { "pin": "PA8", "square": [0.375, 0.125], "tolUs": 0.02, "always": true }
+    ],
+    "scenarios": []
+  }
+}

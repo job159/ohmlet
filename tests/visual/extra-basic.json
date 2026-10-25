@@ -1,0 +1,565 @@
+[
+  {
+    "name": "basic-overview",
+    "layout": {
+      "version": 1,
+      "name": "Basic parts",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "battery_9v"
+        },
+        {
+          "id": "BT2",
+          "type": "battery_aa2"
+        },
+        {
+          "id": "I1",
+          "type": "current_source",
+          "params": {
+            "current": 10,
+            "compliance": 12
+          }
+        },
+        {
+          "id": "D1",
+          "type": "rgb_led",
+          "holes": [
+            "i3",
+            "i4",
+            "i5",
+            "i6"
+          ]
+        },
+        {
+          "id": "Q1",
+          "type": "pmos",
+          "holes": [
+            "i9",
+            "i10",
+            "i11"
+          ]
+        },
+        {
+          "id": "Q2",
+          "type": "irlz44n",
+          "holes": [
+            "i14",
+            "i15",
+            "i16"
+          ]
+        },
+        {
+          "id": "U1",
+          "type": "lm7805",
+          "holes": [
+            "i20",
+            "i21",
+            "i22"
+          ]
+        },
+        {
+          "id": "U2",
+          "type": "ams1117_33",
+          "holes": [
+            "i26",
+            "i27",
+            "i28"
+          ]
+        },
+        {
+          "id": "S1",
+          "type": "toggle_switch",
+          "holes": [
+            "i31",
+            "i32",
+            "i33"
+          ]
+        },
+        {
+          "id": "Z1",
+          "type": "zener",
+          "holes": [
+            "c4",
+            "c8"
+          ]
+        },
+        {
+          "id": "TH1",
+          "type": "ntc_10k",
+          "holes": [
+            "c11",
+            "c13"
+          ]
+        },
+        {
+          "id": "Y1",
+          "type": "crystal_hc49",
+          "holes": [
+            "c17",
+            "c19"
+          ]
+        },
+        {
+          "id": "U3",
+          "type": "pc817",
+          "at": "f37"
+        },
+        {
+          "id": "K1",
+          "type": "relay_5v",
+          "at": "d43"
+        },
+        {
+          "id": "U4",
+          "type": "level_shifter_4ch",
+          "at": "g53"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "BT1:+",
+          "to": "bot+2",
+          "color": "red"
+        },
+        {
+          "id": "w4",
+          "from": "BT1:-",
+          "to": "bot-2",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "basic-closeup-semis",
+    "cam": [
+      17.5,
+      17,
+      35,
+      17.5,
+      1.0,
+      8.0
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Basic semis",
+      "components": [
+        {
+          "id": "D1",
+          "type": "rgb_led",
+          "holes": [
+            "i3",
+            "i4",
+            "i5",
+            "i6"
+          ]
+        },
+        {
+          "id": "Q1",
+          "type": "pmos",
+          "holes": [
+            "i9",
+            "i10",
+            "i11"
+          ]
+        },
+        {
+          "id": "Q2",
+          "type": "irlz44n",
+          "holes": [
+            "i14",
+            "i15",
+            "i16"
+          ]
+        },
+        {
+          "id": "U1",
+          "type": "lm7805",
+          "holes": [
+            "i20",
+            "i21",
+            "i22"
+          ]
+        },
+        {
+          "id": "U2",
+          "type": "ams1117_33",
+          "holes": [
+            "i25",
+            "i26",
+            "i27"
+          ]
+        },
+        {
+          "id": "S1",
+          "type": "toggle_switch",
+          "holes": [
+            "i30",
+            "i31",
+            "i32"
+          ]
+        },
+        {
+          "id": "Z1",
+          "type": "zener",
+          "holes": [
+            "c3",
+            "c6"
+          ]
+        },
+        {
+          "id": "TH1",
+          "type": "ntc_10k",
+          "holes": [
+            "c8",
+            "c10"
+          ]
+        },
+        {
+          "id": "Y1",
+          "type": "crystal_hc49",
+          "holes": [
+            "c12",
+            "c14"
+          ]
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "basic-closeup-modules",
+    "cam": [
+      45.5,
+      13.5,
+      28,
+      46.5,
+      1.2,
+      8.0
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Basic modules",
+      "components": [
+        {
+          "id": "U3",
+          "type": "pc817",
+          "at": "f37"
+        },
+        {
+          "id": "K1",
+          "type": "relay_5v",
+          "at": "d43"
+        },
+        {
+          "id": "U4",
+          "type": "level_shifter_4ch",
+          "at": "g53"
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "basic-instruments",
+    "cam": [
+      -19,
+      12.5,
+      23,
+      -19,
+      1.0,
+      2.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Basic sources",
+      "components": [
+        {
+          "id": "BT1",
+          "type": "battery_9v",
+          "pos": {
+            "x": -30,
+            "z": 2
+          }
+        },
+        {
+          "id": "BT2",
+          "type": "battery_aa2",
+          "pos": {
+            "x": -22,
+            "z": 2
+          }
+        },
+        {
+          "id": "I1",
+          "type": "current_source",
+          "params": {
+            "current": 10,
+            "compliance": 12
+          },
+          "pos": {
+            "x": -14,
+            "z": 2
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w3",
+          "from": "I1:+",
+          "to": "a5",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "I1:-",
+          "to": "a9",
+          "color": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "name": "basic-rgb-lit",
+    "cam": [
+      11,
+      8.5,
+      19.5,
+      11,
+      1.4,
+      10
+    ],
+    "keys": [
+      "Space"
+    ],
+    "settle": 2500,
+    "layout": {
+      "version": 1,
+      "name": "RGB LED mix",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "D1",
+          "type": "rgb_led",
+          "holes": [
+            "f6",
+            "f7",
+            "f8",
+            "f9"
+          ],
+          "params": {
+            "common": "cathode"
+          }
+        },
+        {
+          "id": "R1",
+          "type": "resistor",
+          "holes": [
+            "bot+6",
+            "j6"
+          ],
+          "params": {
+            "resistance": 220
+          }
+        },
+        {
+          "id": "R3",
+          "type": "resistor",
+          "holes": [
+            "bot+11",
+            "j9"
+          ],
+          "params": {
+            "resistance": 150
+          }
+        },
+        {
+          "id": "D2",
+          "type": "rgb_led",
+          "holes": [
+            "f13",
+            "f14",
+            "f15",
+            "f16"
+          ],
+          "params": {
+            "common": "cathode"
+          }
+        },
+        {
+          "id": "R4",
+          "type": "resistor",
+          "holes": [
+            "bot+13",
+            "j13"
+          ],
+          "params": {
+            "resistance": 330
+          }
+        },
+        {
+          "id": "R5",
+          "type": "resistor",
+          "holes": [
+            "bot+15",
+            "j15"
+          ],
+          "params": {
+            "resistance": 150
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "bot+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "h7",
+          "to": "bot-7",
+          "color": "black"
+        },
+        {
+          "id": "w4",
+          "from": "h14",
+          "to": "bot-14",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "basic-closeup-semis-enhanced",
+    "mode": "enhanced",
+    "cam": [
+      17.5,
+      17,
+      35,
+      17.5,
+      1.0,
+      8.0
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Basic semis",
+      "components": [
+        {
+          "id": "D1",
+          "type": "rgb_led",
+          "holes": [
+            "i3",
+            "i4",
+            "i5",
+            "i6"
+          ]
+        },
+        {
+          "id": "Q1",
+          "type": "pmos",
+          "holes": [
+            "i9",
+            "i10",
+            "i11"
+          ]
+        },
+        {
+          "id": "Q2",
+          "type": "irlz44n",
+          "holes": [
+            "i14",
+            "i15",
+            "i16"
+          ]
+        },
+        {
+          "id": "U1",
+          "type": "lm7805",
+          "holes": [
+            "i20",
+            "i21",
+            "i22"
+          ]
+        },
+        {
+          "id": "U2",
+          "type": "ams1117_33",
+          "holes": [
+            "i25",
+            "i26",
+            "i27"
+          ]
+        },
+        {
+          "id": "S1",
+          "type": "toggle_switch",
+          "holes": [
+            "i30",
+            "i31",
+            "i32"
+          ]
+        },
+        {
+          "id": "Z1",
+          "type": "zener",
+          "holes": [
+            "c3",
+            "c6"
+          ]
+        },
+        {
+          "id": "TH1",
+          "type": "ntc_10k",
+          "holes": [
+            "c8",
+            "c10"
+          ]
+        },
+        {
+          "id": "Y1",
+          "type": "crystal_hc49",
+          "holes": [
+            "c12",
+            "c14"
+          ]
+        }
+      ],
+      "wires": []
+    }
+  }
+]

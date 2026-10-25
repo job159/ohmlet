@@ -1,0 +1,53 @@
+ohmlet embedded lab — source package
+====================================
+
+A 3D breadboard circuit simulator (web app) extended into an embedded-systems
+lab: real STM32F103C8 "Blue Pill" firmware (ELF / BIN / HEX) runs in lockstep
+with the analog + digital circuit simulation; UART terminal, logic analyzer
+with protocol decoders, oscilloscope, multimeters, an electrical rule checker,
+guided lessons and an example library. The interface is Traditional Chinese
+(Taiwan) by default; English: More -> Settings -> Interface language, or ?lang=en.
+
+以瀏覽器執行的 3D 麵包板模擬器，擴充成可以執行真實 STM32 韌體的嵌入式實驗室。
+說明文件（繁體中文）：README.md、docs/user-guide.md、docs/firmware-guide.md、docs/developer-guide.md。
+
+QUICK START (Node.js 20 or newer)
+  npm install
+  npm run dev        # http://localhost:5173  (Edge or Chrome recommended)
+
+OTHER COMMANDS
+  npm run build          # production build into dist/
+  npm run preview        # serve the built bundle
+  npm run typecheck      # tsc --noEmit
+  npm test               # vitest: the whole suite (CPU, peripherals, real firmware, lessons, docs ...)
+  npm run test:firmware  # every firmware project's 'checks' contract
+  npm run test:docs      # docs stay in sync with the code
+  npm run docs:support   # regenerate docs/support-matrix.md from the code
+  npm run fw:vendor      # fetch ST HAL / CMSIS / FreeRTOS (pinned) to rebuild firmware
+  npm run fw:build       # rebuild firmware/dist with clang + lld (LLVM >= 17)
+  npm run test:visual    # visual regression (Playwright, needs a running server)
+  npm run audit:i18n     # "fully Chinese" UI audit (Playwright, needs a running server)
+  npm run test:e2e       # 12-step acceptance walkthrough (Playwright)
+
+FIRMWARE
+  Prebuilt images are committed in firmware/dist/, so running the app and the
+  tests needs no ARM toolchain. Your own STM32CubeIDE project: target
+  STM32F103C8Tx, SYS -> Debug = Serial Wire, 72 MHz (HSE 8 MHz x PLL 9); drop
+  Debug/<project>.elf onto the 3D view. A raw .bin loads at 0x08000000.
+
+AI CIRCUIT ASSISTANT (upstream feature)
+  More -> Settings -> paste an Anthropic API key. The key is stored only in
+  your browser (localStorage) and is sent only to api.anthropic.com. Then
+  More -> AI circuit assistant. It builds circuits, not firmware.
+
+DOCS
+  README.md / README.en.md  — overview, quick start, support summary, licenses
+  docs/                     — user guide, firmware guide, developer guide,
+                              support matrix (generated), third-party notices
+  ARCHITECTURE.md           — system design (English)
+  DESIGN.md                 — UI design language (Liquid Glass material spec)
+  CHANGELOG.md              — phases and UX rounds
+  firmware/README.md        — firmware projects, toolchain, 'checks' contract
+
+NOT INCLUDED (regenerated / large): node_modules/, dist/, firmware/vendor/,
+firmware/build/, shots/ (screenshots), tests/visual/current/.

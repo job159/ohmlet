@@ -1,0 +1,63 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "HAL GPIO mode fixture: PB6/PB7 open-drain 10 Hz in opposite phase; PA1 pull-up, PA2 pull-down, PA3 floating reported every 200 ms on USART1",
+  "expect": "72 MHz. PB6/PB7 open-drain (PB6 starts released/Hi-Z, PB7 low), both toggled by ONE BSRR write every 50 ms: 10 Hz square waves (50 ms / 50 ms, +-20 us), PB7 = !PB6 always (needs external pull-ups to read high). PA1 input pull-up, PA2 input pull-down, PA3 floating input. USART1 PA9/PA10 115200 8N1: 'PA1=x PA2=y PA3=z\\r\\n' (x, y, z = 0/1, one sample per line) right after init, then exactly every 200 ms (+-20 us), each line starting right after a PB6/PB7 toggle. Unconnected: PA1=1 PA2=0, PA3 undefined.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7 kohm pull-up to 3V3 each (released open-drain outputs only read high with one)",
+      "PA1, PA2, PA3: unconnected unless a scenario drives them (PA3 then floats)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PB6": "output-od",
+      "PB7": "output-od",
+      "PA1": "input-pullup",
+      "PA2": "input-pulldown",
+      "PA3": "input-floating",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": { "match": "^PA1=1 PA2=0 PA3=[01]\r\n$" } },
+    "idle": { "PA1": 1, "PA2": 0 },
+    "signals": [
+      { "pin": "PB6", "square": [50, 50], "tolUs": 20, "firstEdge": 0, "firstEdgeAt": [48.85, 49.95], "always": true },
+      { "pin": "PB7", "invertOf": "PB6", "skewUs": 0.1, "always": true },
+      {
+        "uart": "USART1",
+        "match": "^PA1=[01] PA2=[01] PA3=[01]\r\n$",
+        "firstAt": [198.95, 200.05],
+        "everyMs": 200,
+        "tolUs": 20,
+        "afterEdgeOf": "PB6",
+        "lagMs": [0.08, 0.15],
+        "always": true
+      }
+    ],
+    "scenarios": [
+      {
+        "name": "internal pulls, PA3 tied low",
+        "durationMs": 450,
+        "drive": [{ "at": 0, "pin": "PA3", "level": 0 }],
+        "expect": [{ "at": [0.08, 200.2], "uart": "PA1=1 PA2=0 PA3=0\r\n" }],
+        "quiet": []
+      },
+      {
+        "name": "external drive overrides the pulls",
+        "durationMs": 450,
+        "drive": [
+          { "at": 0, "pin": "PA1", "level": 0 },
+          { "at": 0, "pin": "PA2", "level": 1 },
+          { "at": 0, "pin": "PA3", "level": 1 }
+        ],
+        "expect": [{ "at": [0.08, 200.2], "uart": "PA1=0 PA2=1 PA3=1\r\n" }],
+        "quiet": []
+      }
+    ]
+  }
+}

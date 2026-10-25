@@ -1,0 +1,1960 @@
+[
+  {
+    "name": "comm-overview",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "comm-closeup-ch340-hc05",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      27.0,
+      25.0,
+      47.0,
+      36.0,
+      7.0,
+      5.0
+    ]
+  },
+  {
+    "name": "comm-closeup-485-flash",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      50.0,
+      15.5,
+      31.0,
+      53.0,
+      1.5,
+      8.0
+    ]
+  },
+  {
+    "name": "comm-closeup-sd-pcf",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      73.0,
+      17.0,
+      34.0,
+      74.0,
+      1.5,
+      9.5
+    ]
+  },
+  {
+    "name": "comm-closeup-esp-can",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      95.0,
+      16.0,
+      32.0,
+      97.0,
+      2.5,
+      7.5
+    ]
+  },
+  {
+    "name": "comm-closeup-485-flash-enhanced",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "mode": "enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "cam": [
+      50.0,
+      15.5,
+      31.0,
+      53.0,
+      1.5,
+      8.0
+    ]
+  },
+  {
+    "name": "comm-running",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "cam": [
+      23.5,
+      9.5,
+      9.5,
+      29.8,
+      1.8,
+      -1.6
+    ],
+    "keys": [
+      "Space"
+    ],
+    "settle": 2500
+  },
+  {
+    "name": "comm-ws-zh",
+    "layout": {
+      "version": 1,
+      "name": "Communication modules",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 3.3
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h4"
+        },
+        {
+          "id": "CH1",
+          "type": "usb_uart_ch340",
+          "at": "a28",
+          "params": {
+            "logic": "3.3V"
+          }
+        },
+        {
+          "id": "BT1",
+          "type": "hc05_bt",
+          "at": "e37"
+        },
+        {
+          "id": "M1",
+          "type": "max485_module",
+          "at": "h46"
+        },
+        {
+          "id": "F1",
+          "type": "w25q32_flash",
+          "at": "f60",
+          "rotation": 180
+        },
+        {
+          "id": "SD1",
+          "type": "sd_card_spi",
+          "at": "e66"
+        },
+        {
+          "id": "X1",
+          "type": "pcf8574_module",
+          "at": "h78",
+          "params": {
+            "address": "0x21"
+          }
+        },
+        {
+          "id": "E1",
+          "type": "esp01",
+          "at": "f97",
+          "rotation": 180
+        },
+        {
+          "id": "C1",
+          "type": "can_tja1050",
+          "at": "c102",
+          "rotation": 180
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "bot+0",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "top-1",
+          "to": "bot-1",
+          "color": "black"
+        },
+        {
+          "id": "w6",
+          "from": "j23",
+          "to": "bot+18",
+          "color": "orange"
+        },
+        {
+          "id": "w7",
+          "from": "j22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w8",
+          "from": "e28",
+          "to": "top-18",
+          "color": "black"
+        },
+        {
+          "id": "w11",
+          "from": "d41",
+          "to": "top+31",
+          "color": "red"
+        },
+        {
+          "id": "w12",
+          "from": "d40",
+          "to": "top-30",
+          "color": "black"
+        },
+        {
+          "id": "w13",
+          "from": "a46",
+          "to": "top+36",
+          "color": "red"
+        },
+        {
+          "id": "w14",
+          "from": "a49",
+          "to": "top-39",
+          "color": "black"
+        },
+        {
+          "id": "w15",
+          "from": "i47",
+          "to": "i48",
+          "color": "blue"
+        },
+        {
+          "id": "w16",
+          "from": "g53",
+          "to": "bot+42",
+          "color": "orange"
+        },
+        {
+          "id": "w17",
+          "from": "g54",
+          "to": "bot+43",
+          "color": "orange"
+        },
+        {
+          "id": "w18",
+          "from": "g57",
+          "to": "bot-45",
+          "color": "black"
+        },
+        {
+          "id": "w19",
+          "from": "g58",
+          "to": "bot+46",
+          "color": "orange"
+        },
+        {
+          "id": "w20",
+          "from": "d66",
+          "to": "top-53",
+          "color": "black"
+        },
+        {
+          "id": "w21",
+          "from": "d67",
+          "to": "top+54",
+          "color": "red"
+        },
+        {
+          "id": "w22",
+          "from": "a79",
+          "to": "top-63",
+          "color": "black"
+        },
+        {
+          "id": "w23",
+          "from": "a80",
+          "to": "top+64",
+          "color": "red"
+        },
+        {
+          "id": "w24",
+          "from": "g90",
+          "to": "bot+73",
+          "color": "orange"
+        },
+        {
+          "id": "w25",
+          "from": "g92",
+          "to": "bot+75",
+          "color": "orange"
+        },
+        {
+          "id": "w26",
+          "from": "g97",
+          "to": "bot-79",
+          "color": "black"
+        },
+        {
+          "id": "w27",
+          "from": "a100",
+          "to": "top+81",
+          "color": "red"
+        },
+        {
+          "id": "w28",
+          "from": "a99",
+          "to": "top-80",
+          "color": "black"
+        }
+      ]
+    },
+    "workspace": true,
+    "lang": "zh-TW"
+  }
+]

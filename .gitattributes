@@ -1,0 +1,5 @@
+firmware/dist/*.elf binary
+firmware/dist/*.bin binary
+firmware/dist/*.hex -text
+tests/fixtures/** -text
+*.png binary

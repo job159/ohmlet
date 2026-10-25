@@ -1,0 +1,10 @@
+/** Barrel for the app-shell chrome (owned by the app-shell agent). */
+export { StatusBar, formatSimTime, pushRenderProgress, renderProgressText, runCapsuleText } from './StatusBar'
+export { StatusPill, statusPillModel, pillProblem, openProblemsPanel, type PillModel } from './StatusPill'
+export { ShortcutsSheet } from './ShortcutsSheet'
+export { WireColorStrip } from './WireColorStrip'
+export { EmptyState, type EmptyStateProps } from './EmptyState'
+export { Onboarding, needsOnboarding, markOnboarded, ONBOARDED_KEY } from './Onboarding'
+export { hintForMode, placedAgainHint, placementRefusedHint } from './hints'
+export { isLegacyChrome, isWorkspaceShowing, useLegacyChrome } from './legacy'
+export { getSimPhase, runOrResume, toggleRun, useSimPhase, type SimPhase } from './run-control'

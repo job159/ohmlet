@@ -1,0 +1,41 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "Two MAX485 RS-485 modules on one bus, driven by USART1 (node A, DE/RE on PA8) and USART3 (node B, DE/RE on PB12) of one Blue Pill: 3 rounds of PING / PONG with half-duplex direction control; report on USART2",
+  "expect": "72 MHz. Node A: USART1 PA9 -> MAX485 #1 DI, PA10 <- RO, PA8 -> DE+RE. Node B: USART3 PB10 -> MAX485 #2 DI, PB11 <- RO, PB12 -> DE+RE. Modules on 5 V, A-A and B-B joined, R7 (120 Ohm) fitted on both (the two bus ends). RO is 5 V, so both RX pins are 5 V tolerant (PA10, PB11). USART1/USART3 115200 8N1 (USART3 on PCLK1 36 MHz: BRR 19 + 8/16 = 115384.6 baud, +0.16 %, as on real silicon; USART2 likewise) with RXNE interrupts into 64-byte rings; DE/RE outputs low (receive) after init. USART2 PA2 115200 8N1 report: 'RS-485 ping-pong: A=USART1 (DE PA8) <-> B=USART3 (DE PB12), 115200 8N1\r\n', then for i = 1..3: A raises DE, sends 'PING i\r\n' (blocking, until TC), lowers DE; B waits up to 20 ms for the line and answers 'PONG i\r\n' the same way; A waits up to 20 ms: 'round i: B got 'PING i', A got 'PONG i''. A missing line prints 'round i: B heard nothing' (or '..., A heard nothing'). Finally 'rs485 ok\r\n' (all rounds matched) or 'rs485 FAILED\r\n', then WFI. Without the modules (nothing on the bus) every round reports 'B heard nothing'.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART2",
+    "settleMs": 150,
+    "circuit": [
+      "MAX485 modules: not placed on this bench (the checks runner cannot place them; the ping-pong on a real two-module bus is covered by tests/devices/comm-firmware.test.ts)",
+      "USART2: virtual terminal on PA2 (TX) / PA3 (RX)"
+    ],
+    "pins": {
+      "PA8": "output-pp",
+      "PB12": "output-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup",
+      "PB10": "af-pp",
+      "PB11": "input-pullup"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 },
+      "USART2": { "tx": "PA2", "rx": "PA3", "baud": 115384.6, "dataBits": 8, "parity": "none", "stopBits": 1 },
+      "USART3": { "tx": "PB10", "rx": "PB11", "baud": 115384.6, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART2": "RS-485 ping-pong: A=USART1 (DE PA8) <-> B=USART3 (DE PB12), 115200 8N1\r\nround 1: B heard nothing\r\nround 2: B heard nothing\r\nround 3: B heard nothing\r\nrs485 FAILED\r\n"
+    },
+    "idle": {
+      "PB12": 0
+    }
+  }
+}

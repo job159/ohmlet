@@ -1,0 +1,44 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart"
+  ],
+  "description": "HD44780 LCD1602 in 4-bit mode (RS PB10, RW PB11, E PB1, D4-D7 PB12-PB15) with busy-flag polling: text, two CGRAM characters and a counter updated every 250 ms",
+  "expect": "72 MHz. LCD1602 (5 V) 4-bit bus on 5 V tolerant GPIOB: RS = PB10, RW = PB11, E = PB1, D4..D7 = PB12..PB15 (push-pull outputs, floating inputs while the busy flag is read); D0..D3 unconnected. USART1 PA9/PA10 115200 8N1. Prints 'LCD1602 4-bit demo\\r\\n'; initialization by instruction: 50 ms, nibble 3h, 5 ms, 3h, 150 us, 3h, 150 us, 2h, 150 us (busy loops), then every instruction / data write first reads BF (RS 0, RW 1, two E pulses >= 450 ns, D7 of the first nibble) until 0 (10 ms timeout -> 'LCD busy timeout\\r\\n', stop): 28h, 08h, 01h, 06h, 0Ch. Prints 'LCD ready, BF polls during clear: N\\r\\n' (N = reads with BF = 1 during the 1.52 ms clear; without an LCD the inputs float and the count is whatever the pins read). CGRAM char 0 = heart (00 0A 1F 1F 0E 04 00 00), char 1 = smiley (00 0A 0A 00 11 0E 00 00); DDRAM 00h 'Hello, ohmlet!', 40h char 0 + ' count:', 4Eh char 1. Every 250 ms (deadline based) count = 0, 1, 2, ... written right-aligned in 5 digits at 48h; every 4th update 'count N\\r\\n' on USART1.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB1, PB10, PB11, PB12-PB15: unconnected on this bench (LCD E / RS / RW / D4-D7 in the full circuit; the DDRAM / CGRAM contents are covered by tests/devices/displays-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PB1": "output-pp",
+      "PB10": "output-pp",
+      "PB11": "output-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": {
+        "match": "^LCD1602 4-bit demo\r\n(LCD ready, BF polls during clear: \\d+|LCD busy timeout)\r\n"
+      }
+    }
+  }
+}

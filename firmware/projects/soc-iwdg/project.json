@@ -1,0 +1,7 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "../soc-common/soc_common.c"],
+  "hal": ["uart", "iwdg"],
+  "description": "IWDG reset: boots counted in BKP_DR1, reset flags printed over USART1, two watchdog resets then done",
+  "expect": "USART1 prints boot 1 (POR PIN), starving, boot 2 (IWDG PIN), starving, boot 3 (IWDG PIN), done; each IWDG reset 100 ms after the last refresh"
+}

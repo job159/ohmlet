@@ -1,0 +1,24 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": [],
+  "description": "Lesson i1 mistake: hal-blink with __HAL_RCC_GPIOA_CLK_ENABLE() forgotten - PA5 never becomes an output, only PC13 blinks",
+  "expect": "72 MHz, like hal-blink, but RCC_APB2ENR.IOPAEN is never set: every GPIOA register access is ignored (gated clock, reads 0; the simulator logs it), so PA5 stays in its reset state (input floating) and an LED on PA5 stays dark. GPIOC is clocked: PC13 (on-board LED, active low) is a push-pull square wave, 501 ms high / 501 ms low (HAL_Delay(500) waits 501 ticks).",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PA5: LED + 330 ohm to GND", "PC13: on-board LED"],
+    "pins": { "PA5": "input-floating", "PC13": "output-pp" },
+    "signals": [{ "pin": "PC13", "square": [501, 501], "tolUs": 20, "always": true }],
+    "scenarios": [
+      {
+        "name": "PA5 is never driven while PC13 keeps blinking",
+        "durationMs": 1200,
+        "drive": [],
+        "expect": [{ "at": [0, 1200], "pin": "PC13", "every": 501 }],
+        "quiet": ["PA5"]
+      }
+    ]
+  }
+}

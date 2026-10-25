@@ -1,0 +1,20 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim"],
+  "description": "HAL TIM4 update interrupt as a 1 kHz time base: PB12 toggled every 1 ms, PC13 heartbeat 1 Hz",
+  "expect": "72 MHz; TIM4 PSC 71, ARR 999 on TIMXCLK1 = 72 MHz: an update event every 72000 cycles = 1.000 ms (UIF cleared before HAL_TIM_Base_Start_IT, so the first interrupt comes one period after the start). Each TIM4 interrupt (IRQ 30, HAL_TIM_PeriodElapsedCallback) toggles PB12 push-pull: 500 Hz, 1.000 ms high / 1.000 ms low, no drift (+-0.2 us interrupt-latency jitter). Every 500th interrupt also toggles PC13 (on-board LED, active low, starts off): 1 Hz, 500 ms on / 500 ms off, each PC13 edge less than 2 us after a PB12 edge. The CPU sleeps in __WFI(). No UART.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PB12: logic analyzer probe (no load needed)", "PC13: on-board LED"],
+    "pins": { "PB12": "output-pp", "PC13": "output-pp" },
+    "signals": [
+      { "pin": "PB12", "square": [1, 1], "tolUs": 0.2, "always": true },
+      { "pin": "PC13", "square": [500, 500], "tolUs": 0.2, "always": true },
+      { "pin": "PC13", "edgesAfter": "PB12", "maxLagUs": 2, "always": true }
+    ],
+    "scenarios": []
+  }
+}

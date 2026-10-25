@@ -1,0 +1,178 @@
+# ohmlet CI — see docs/developer-guide.md §13 (zh-TW).
+#
+#   test        every push / pull request: typecheck, the whole vitest suite
+#               (incl. the docs tests), the examples check and the production
+#               build on Ubuntu and Windows × Node 20 / 22.
+#   firmware    optional: rebuilds firmware/ with LLVM 21 and checks that the
+#               committed firmware/dist (.bin, .hex, manifest.json) is
+#               reproducible. Runs when a change touches firmware/, or on a
+#               manual run with "firmware" ticked.
+#   i18n-audit  optional, manual ("browser" ticked): the "fully Chinese" UI
+#   visual      audit and the visual regression in a real browser. The visual
+#               baselines are shot on Windows + Edge + GPU, so the hosted
+#               runner's software rendering is informational only.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master, embedded-platform]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      firmware:
+        description: Rebuild firmware/ with LLVM 21 and check firmware/dist is reproducible
+        type: boolean
+        default: false
+      browser:
+        description: Run the browser jobs (i18n audit, visual regression)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests (vitest, incl. firmware contracts and docs)
+        run: npm test
+      - name: Examples are up to date
+        run: npm run examples:check
+      - name: Build
+        run: npm run build
+
+  firmware:
+    name: firmware reproducibility (LLVM 21)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    if: github.event_name != 'workflow_dispatch' || inputs.firmware
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Does this change touch firmware/?
+        id: changes
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then base="origin/${{ github.base_ref }}"; else base="${{ github.event.before }}"; fi
+          # a new branch has no usable base: check it
+          if [ -z "$base" ] || ! git rev-parse --verify -q "$base^{commit}" > /dev/null; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git diff --name-only "$base" HEAD -- firmware/ | grep -q .; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.run == 'true'
+        with:
+          node-version: 22
+      - name: Install LLVM 21 (clang, ld.lld, llvm-objcopy) from apt.llvm.org
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          sudo apt-get install -y clang-21 lld-21 llvm-21
+          echo "OHMLET_CLANG_DIR=/usr/lib/llvm-21/bin" >> "$GITHUB_ENV"
+          /usr/lib/llvm-21/bin/clang --version
+      - name: Fetch ST HAL, CMSIS and FreeRTOS (pinned tags)
+        if: steps.changes.outputs.run == 'true'
+        run: npm run fw:vendor
+      - name: Rebuild every firmware project
+        if: steps.changes.outputs.run == 'true'
+        run: npm run fw:build
+      - name: firmware/dist is reproducible (.bin, .hex, manifest.json)
+        if: steps.changes.outputs.run == 'true'
+        shell: bash
+        run: |
+          # .elf files carry absolute paths in their debug info, so only the programmed bytes are compared
+          git diff --stat --exit-code -- 'firmware/dist/*.bin' 'firmware/dist/*.hex' firmware/dist/manifest.json
+          untracked=$(git status --porcelain --untracked-files=all -- firmware/dist | grep -E '\.(bin|hex|elf)$' | grep '^??' || true)
+          if [ -n "$untracked" ]; then echo "images built but not committed:"; echo "$untracked"; exit 1; fi
+
+  i18n-audit:
+    name: i18n audit (Playwright Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch' && inputs.browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Serve the build and run the audit
+        shell: bash
+        env:
+          I18N_URL: http://localhost:4173/
+          I18N_OUT: ${{ github.workspace }}/i18n-audit/report.json
+          VR_CHANNEL: bundled
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          node -e "const t0=Date.now();(async function w(){try{const r=await fetch('http://localhost:4173/');if(r.ok)return}catch{}if(Date.now()-t0>60000){console.error('preview did not start');process.exit(1)}setTimeout(w,500)})()"
+          npm run audit:i18n
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: i18n-audit
+          path: i18n-audit/
+
+  visual:
+    name: visual regression (Edge, informational)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch' && inputs.browser
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Dev server without hot reload + compare
+        shell: bash
+        env:
+          VR_URL: http://localhost:5173/
+          VR_CHANNEL: msedge
+          VR_OUT: ${{ github.workspace }}/vr-current
+        run: |
+          # the project's vite.config.ts + a server without hot reload (a reload mid-run breaks the harness)
+          cat > vr.vite.config.mjs <<'EOF'
+          import { defineConfig } from 'vite'
+          import react from '@vitejs/plugin-react'
+          export default defineConfig({
+            plugins: [react()],
+            worker: { format: 'es' },
+            server: { port: 5173, strictPort: true, hmr: false, watch: null },
+          })
+          EOF
+          npx vite --config vr.vite.config.mjs > vite.log 2>&1 &
+          node -e "const t0=Date.now();(async function w(){try{const r=await fetch('http://localhost:5173/');if(r.ok)return}catch{}if(Date.now()-t0>60000){console.error('dev server did not start');process.exit(1)}setTimeout(w,500)})()"
+          npm run test:visual
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-regression
+          path: vr-current/

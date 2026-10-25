@@ -1,0 +1,20 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": [],
+  "description": "Lesson i1: hal-blink with PA5 as an OPEN-DRAIN output (GPIO_MODE_OUTPUT_OD) - sinks only, needs a pull-up or an LED from 3V3",
+  "expect": "72 MHz, PA5 open-drain output (starts sinking: ODR 0) and PC13 push-pull (starts high, on-board LED off), both toggled every 501 ms (HAL_Delay(500) waits 501 ticks), PA5 first. While ODR5 = 1 the pin is released (high impedance): with a pull-up to 3V3 PA5 reads high, with only an LED + resistor to GND it stays near 0 V and the LED never lights; an LED + resistor from 3V3 into PA5 lights while PA5 sinks. With a 10 kOhm pull-up PA5 is a 501 ms / 501 ms square wave and PC13 = !PA5 (a few us apart: two separate toggles).",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PA5: 10k ohm pull-up to 3V3", "PC13: on-board LED"],
+    "pins": { "PA5": "output-od", "PC13": "output-pp" },
+    "signals": [
+      { "pin": "PA5", "square": [501, 501], "tolUs": 20, "always": true },
+      { "pin": "PC13", "square": [501, 501], "tolUs": 20, "always": true },
+      { "pin": "PC13", "invertOf": "PA5", "skewUs": 10, "always": true }
+    ],
+    "scenarios": []
+  }
+}

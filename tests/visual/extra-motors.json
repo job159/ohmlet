@@ -1,0 +1,690 @@
+[
+  {
+    "name": "motors-bench",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      28,
+      25,
+      55,
+      28,
+      0,
+      26
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Motors bench",
+      "components": [
+        {
+          "id": "M1",
+          "type": "dc_motor",
+          "pos": {
+            "x": 9,
+            "z": 23
+          }
+        },
+        {
+          "id": "S1",
+          "type": "sg90_servo",
+          "pos": {
+            "x": 18,
+            "z": 23
+          }
+        },
+        {
+          "id": "M2",
+          "type": "stepper_28byj48",
+          "pos": {
+            "x": 27,
+            "z": 23
+          }
+        },
+        {
+          "id": "M3",
+          "type": "nema17_stepper",
+          "pos": {
+            "x": 41,
+            "z": 23
+          }
+        },
+        {
+          "id": "D1",
+          "type": "uln2003_board",
+          "pos": {
+            "x": 9,
+            "z": 31.5
+          }
+        },
+        {
+          "id": "D2",
+          "type": "l298n_module",
+          "pos": {
+            "x": 37,
+            "z": 31.5
+          }
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "motors-bench-closeup",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      15.5,
+      10,
+      34,
+      15.5,
+      1,
+      21.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Motors bench",
+      "components": [
+        {
+          "id": "M1",
+          "type": "dc_motor",
+          "pos": {
+            "x": 8,
+            "z": 23
+          }
+        },
+        {
+          "id": "S1",
+          "type": "sg90_servo",
+          "pos": {
+            "x": 17,
+            "z": 23
+          }
+        },
+        {
+          "id": "M2",
+          "type": "stepper_28byj48",
+          "pos": {
+            "x": 26,
+            "z": 23
+          }
+        },
+        {
+          "id": "M3",
+          "type": "nema17_stepper",
+          "pos": {
+            "x": 40,
+            "z": 23
+          }
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "motors-steppers-closeup",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      36,
+      12,
+      37,
+      36,
+      1.2,
+      21.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Motors bench",
+      "components": [
+        {
+          "id": "M1",
+          "type": "dc_motor",
+          "pos": {
+            "x": 8,
+            "z": 23
+          }
+        },
+        {
+          "id": "S1",
+          "type": "sg90_servo",
+          "pos": {
+            "x": 17,
+            "z": 23
+          }
+        },
+        {
+          "id": "M2",
+          "type": "stepper_28byj48",
+          "pos": {
+            "x": 26,
+            "z": 23
+          }
+        },
+        {
+          "id": "M3",
+          "type": "nema17_stepper",
+          "pos": {
+            "x": 40,
+            "z": 23
+          }
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "motors-modules-closeup",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      21,
+      14,
+      45,
+      21,
+      0.8,
+      29.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Driver modules",
+      "components": [
+        {
+          "id": "D1",
+          "type": "uln2003_board",
+          "pos": {
+            "x": 12,
+            "z": 31.5
+          }
+        },
+        {
+          "id": "D2",
+          "type": "l298n_module",
+          "pos": {
+            "x": 24,
+            "z": 31.5
+          }
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "motors-modules-enhanced",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      21,
+      14,
+      45,
+      21,
+      0.8,
+      29.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Driver modules",
+      "components": [
+        {
+          "id": "D1",
+          "type": "uln2003_board",
+          "pos": {
+            "x": 12,
+            "z": 31.5
+          }
+        },
+        {
+          "id": "D2",
+          "type": "l298n_module",
+          "pos": {
+            "x": 24,
+            "z": 31.5
+          }
+        }
+      ],
+      "wires": []
+    },
+    "mode": "enhanced"
+  },
+  {
+    "name": "motors-carriers",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      34,
+      28,
+      36,
+      34,
+      0,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Motor drivers",
+      "components": [
+        {
+          "id": "U1",
+          "type": "tb6612fng_module",
+          "at": "h12"
+        },
+        {
+          "id": "U2",
+          "type": "drv8833_module",
+          "at": "g22"
+        },
+        {
+          "id": "U3",
+          "type": "a4988_driver",
+          "at": "g30"
+        },
+        {
+          "id": "U4",
+          "type": "drv8825_driver",
+          "at": "g40"
+        },
+        {
+          "id": "U5",
+          "type": "tmc2209_driver",
+          "at": "d56",
+          "rotation": 180
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "motors-carriers-enhanced",
+    "lang": "zh-TW",
+    "mode": "enhanced",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      34,
+      28,
+      36,
+      34,
+      0,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Motor drivers",
+      "components": [
+        {
+          "id": "U1",
+          "type": "tb6612fng_module",
+          "at": "h12"
+        },
+        {
+          "id": "U2",
+          "type": "drv8833_module",
+          "at": "g22"
+        },
+        {
+          "id": "U3",
+          "type": "a4988_driver",
+          "at": "g30"
+        },
+        {
+          "id": "U4",
+          "type": "drv8825_driver",
+          "at": "g40"
+        },
+        {
+          "id": "U5",
+          "type": "tmc2209_driver",
+          "at": "d56",
+          "rotation": 180
+        }
+      ],
+      "wires": []
+    }
+  },
+  {
+    "name": "motors-l298n-running",
+    "lang": "zh-TW",
+    "keys": [
+      "Space"
+    ],
+    "settle": 2500,
+    "tone": "settle",
+    "cam": [
+      0,
+      19,
+      35,
+      0,
+      0.5,
+      23.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "L298N + DC motor",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 7.5
+          },
+          "pos": {
+            "x": -16,
+            "z": 24.5
+          }
+        },
+        {
+          "id": "M1",
+          "type": "dc_motor",
+          "pos": {
+            "x": -6.5,
+            "z": 24.5
+          }
+        },
+        {
+          "id": "D2",
+          "type": "l298n_module",
+          "pos": {
+            "x": 2,
+            "z": 24.5
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "D2:+12V",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "D2:GND",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "D2:IN1",
+          "to": "D2:+5V",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "D2:IN2",
+          "to": "D2:GND",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "D2:OUT1",
+          "to": "M1:M+",
+          "color": "yellow"
+        },
+        {
+          "id": "w6",
+          "from": "D2:OUT2",
+          "to": "M1:M-",
+          "color": "green"
+        }
+      ]
+    }
+  },
+  {
+    "name": "motors-uln2003-running",
+    "lang": "zh-TW",
+    "keys": [
+      "Space"
+    ],
+    "settle": 2500,
+    "tone": "settle",
+    "cam": [
+      -3,
+      19,
+      35,
+      -3,
+      0.5,
+      23.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "ULN2003 + 28BYJ-48",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          },
+          "pos": {
+            "x": -22,
+            "z": 24.5
+          }
+        },
+        {
+          "id": "M1",
+          "type": "stepper_28byj48",
+          "pos": {
+            "x": -12.5,
+            "z": 24.5
+          }
+        },
+        {
+          "id": "D1",
+          "type": "uln2003_board",
+          "pos": {
+            "x": 3.5,
+            "z": 24.5
+          }
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "D1:VCC",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "D1:GND",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "D1:IN1",
+          "to": "D1:VCC",
+          "color": "white"
+        },
+        {
+          "id": "w4",
+          "from": "D1:IN2",
+          "to": "D1:VCC",
+          "color": "white"
+        },
+        {
+          "id": "w5",
+          "from": "D1:OUT1",
+          "to": "M1:ORANGE",
+          "color": "orange"
+        },
+        {
+          "id": "w6",
+          "from": "D1:OUT2",
+          "to": "M1:YELLOW",
+          "color": "yellow"
+        },
+        {
+          "id": "w7",
+          "from": "D1:OUT3",
+          "to": "M1:PINK",
+          "color": "pink"
+        },
+        {
+          "id": "w8",
+          "from": "D1:OUT4",
+          "to": "M1:BLUE",
+          "color": "blue"
+        },
+        {
+          "id": "w9",
+          "from": "M1:RED",
+          "to": "D1:VCC",
+          "color": "red"
+        }
+      ]
+    }
+  },
+  {
+    "name": "motors-shelf-default",
+    "lang": "zh-TW",
+    "keys": [
+      "Shift"
+    ],
+    "tone": "settle",
+    "cam": [
+      -2,
+      64,
+      50,
+      -6,
+      0,
+      23
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Default shelf: deep driver boards",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 7.5
+          }
+        },
+        {
+          "id": "PS2",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "D2",
+          "type": "l298n_module",
+          "params": {
+            "jumper5v": false
+          }
+        },
+        {
+          "id": "M1",
+          "type": "dc_motor"
+        },
+        {
+          "id": "D1",
+          "type": "uln2003_board"
+        },
+        {
+          "id": "M2",
+          "type": "stepper_28byj48"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "D2:+12V",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "D2:GND",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "PS2:+",
+          "to": "D2:+5V",
+          "color": "orange"
+        },
+        {
+          "id": "w4",
+          "from": "PS2:-",
+          "to": "D2:GND",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "D2:OUT1",
+          "to": "M1:M+",
+          "color": "yellow"
+        },
+        {
+          "id": "w6",
+          "from": "D2:OUT2",
+          "to": "M1:M-",
+          "color": "green"
+        },
+        {
+          "id": "w7",
+          "from": "PS2:+",
+          "to": "D1:VCC",
+          "color": "orange"
+        },
+        {
+          "id": "w8",
+          "from": "PS2:-",
+          "to": "D1:GND",
+          "color": "black"
+        },
+        {
+          "id": "w9",
+          "from": "D1:OUT1",
+          "to": "M2:ORANGE",
+          "color": "orange"
+        },
+        {
+          "id": "w10",
+          "from": "D1:OUT2",
+          "to": "M2:YELLOW",
+          "color": "yellow"
+        },
+        {
+          "id": "w11",
+          "from": "D1:OUT3",
+          "to": "M2:PINK",
+          "color": "white"
+        },
+        {
+          "id": "w12",
+          "from": "D1:OUT4",
+          "to": "M2:BLUE",
+          "color": "blue"
+        },
+        {
+          "id": "w13",
+          "from": "M2:RED",
+          "to": "D1:VCC",
+          "color": "red"
+        }
+      ]
+    }
+  }
+]

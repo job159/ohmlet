@@ -1,0 +1,57 @@
+
+
+Disassembly of section .text:
+
+08000040 <reset>:
+ 8000040:      	mov	r0, sp
+ 8000042:      	movw	r12, #0x4
+ 8000046:      	movt	r12, #0x4000
+ 800004a:      	str.w	r0, [r12]
+ 800004e:      	movw	r12, #0xed14
+ 8000052:      	movt	r12, #0xe000
+ 8000056:      	ldr.w	r3, [r12]
+ 800005a:      	movw	r12, #0x4
+ 800005e:      	movt	r12, #0x4000
+ 8000062:      	str.w	r3, [r12]
+ 8000066:      	svc	#0x0
+ 8000068:      	mov	r0, sp
+ 800006a:      	movw	r12, #0x4
+ 800006e:      	movt	r12, #0x4000
+ 8000072:      	str.w	r0, [r12]
+ 8000076:      	movw	r12, #0xed14
+ 800007a:      	movt	r12, #0xe000
+ 800007e:      	movw	r3, #0x200
+ 8000082:      	movt	r3, #0x0
+ 8000086:      	str.w	r3, [r12]
+ 800008a:      	svc	#0x0
+ 800008c:      	mov	r0, sp
+ 800008e:      	movw	r12, #0x4
+ 8000092:      	movt	r12, #0x4000
+ 8000096:      	str.w	r0, [r12]
+ 800009a:      	movw	r12, #0xed14
+ 800009e:      	movt	r12, #0xe000
+ 80000a2:      	movw	r3, #0x0
+ 80000a6:      	movt	r3, #0x0
+ 80000aa:      	str.w	r3, [r12]
+ 80000ae:      	svc	#0x0
+ 80000b0:      	mov	r0, sp
+ 80000b2:      	movw	r12, #0x4
+ 80000b6:      	movt	r12, #0x4000
+ 80000ba:      	str.w	r0, [r12]
+ 80000be:      	bkpt	#0x0
+
+080000c0 <SVC_Handler>:
+ 80000c0:      	mov	r0, sp
+ 80000c2:      	movw	r12, #0x4
+ 80000c6:      	movt	r12, #0x4000
+ 80000ca:      	str.w	r0, [r12]
+ 80000ce:      	ldr	r0, [sp, #0x1c]
+ 80000d0:      	movw	r12, #0x4
+ 80000d4:      	movt	r12, #0x4000
+ 80000d8:      	str.w	r0, [r12]
+ 80000dc:      	bx	lr
+
+080000de <unexpected>:
+ 80000de:      	bkpt	#0xee
+ 80000e0:      	b	0x80000de <unexpected>  @ imm = #-0x6
+ 80000e2:      	bmi	0x800008e <reset+0x4e>  @ imm = #-0x58

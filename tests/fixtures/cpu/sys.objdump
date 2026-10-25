@@ -1,0 +1,180 @@
+
+
+Disassembly of section .text:
+
+08000040 <reset>:
+ 8000040:      	movw	r8, #0x0
+ 8000044:      	movt	r8, #0x2000
+ 8000048:      	movw	r1, #0x0
+ 800004c:      	movt	r1, #0xf800
+ 8000050:      	msr	apsr_nzcvq, r1
+ 8000054:      	mrs	r0, apsr
+ 8000058:      	str	r0, [r8], #4
+ 800005c:      	mrs	r0, xpsr
+ 8000060:      	str	r0, [r8], #4
+ 8000064:      	mrs	r0, ipsr
+ 8000068:      	str	r0, [r8], #4
+ 800006c:      	mrs	r0, epsr
+ 8000070:      	str	r0, [r8], #4
+ 8000074:      	mrs	r0, iapsr
+ 8000078:      	str	r0, [r8], #4
+ 800007c:      	mrs	r0, eapsr
+ 8000080:      	str	r0, [r8], #4
+ 8000084:      	mrs	r0, iepsr
+ 8000088:      	str	r0, [r8], #4
+ 800008c:      	movw	r1, #0x0
+ 8000090:      	movt	r1, #0x5000
+ 8000094:      	msr	apsr_nzcvq, r1
+ 8000098:      	mrs	r0, apsr
+ 800009c:      	str	r0, [r8], #4
+ 80000a0:      	cpsid i
+ 80000a2:      	mrs	r0, primask
+ 80000a6:      	str	r0, [r8], #4
+ 80000aa:      	cpsie i
+ 80000ac:      	mrs	r0, primask
+ 80000b0:      	str	r0, [r8], #4
+ 80000b4:      	movs	r1, #0x1
+ 80000b6:      	msr	primask, r1
+ 80000ba:      	mrs	r0, primask
+ 80000be:      	str	r0, [r8], #4
+ 80000c2:      	movs	r1, #0x0
+ 80000c4:      	msr	primask, r1
+ 80000c8:      	mrs	r0, primask
+ 80000cc:      	str	r0, [r8], #4
+ 80000d0:      	cpsid f
+ 80000d2:      	mrs	r0, faultmask
+ 80000d6:      	str	r0, [r8], #4
+ 80000da:      	cpsie f
+ 80000dc:      	mrs	r0, faultmask
+ 80000e0:      	str	r0, [r8], #4
+ 80000e4:      	movs	r1, #0x3
+ 80000e6:      	msr	faultmask, r1
+ 80000ea:      	mrs	r0, faultmask
+ 80000ee:      	str	r0, [r8], #4
+ 80000f2:      	movs	r1, #0x0
+ 80000f4:      	msr	faultmask, r1
+ 80000f8:      	mrs	r0, faultmask
+ 80000fc:      	str	r0, [r8], #4
+ 8000100:      	movs	r1, #0x45
+ 8000102:      	msr	basepri, r1
+ 8000106:      	mrs	r0, basepri
+ 800010a:      	str	r0, [r8], #4
+ 800010e:      	movs	r1, #0x80
+ 8000110:      	msr	basepri_max, r1
+ 8000114:      	mrs	r0, basepri
+ 8000118:      	str	r0, [r8], #4
+ 800011c:      	movs	r1, #0x20
+ 800011e:      	msr	basepri_max, r1
+ 8000122:      	mrs	r0, basepri_max
+ 8000126:      	str	r0, [r8], #4
+ 800012a:      	movs	r1, #0x0
+ 800012c:      	msr	basepri_max, r1
+ 8000130:      	mrs	r0, basepri
+ 8000134:      	str	r0, [r8], #4
+ 8000138:      	msr	basepri, r1
+ 800013c:      	mrs	r0, basepri
+ 8000140:      	str	r0, [r8], #4
+ 8000144:      	movs	r1, #0x3f
+ 8000146:      	msr	basepri_max, r1
+ 800014a:      	mrs	r0, basepri
+ 800014e:      	str	r0, [r8], #4
+ 8000152:      	movs	r1, #0x0
+ 8000154:      	msr	basepri, r1
+ 8000158:      	mrs	r0, msp
+ 800015c:      	str	r0, [r8], #4
+ 8000160:      	movw	r1, #0x3003
+ 8000164:      	movt	r1, #0x2000
+ 8000168:      	msr	psp, r1
+ 800016c:      	mrs	r0, psp
+ 8000170:      	str	r0, [r8], #4
+ 8000174:      	mrs	r0, control
+ 8000178:      	str	r0, [r8], #4
+ 800017c:      	movs	r1, #0x2
+ 800017e:      	msr	control, r1
+ 8000182:      	isb	sy
+ 8000186:      	mrs	r0, control
+ 800018a:      	str	r0, [r8], #4
+ 800018e:      	mov	r0, sp
+ 8000190:      	str	r0, [r8], #4
+ 8000194:      	push	{r1}
+ 8000196:      	mrs	r0, psp
+ 800019a:      	str	r0, [r8], #4
+ 800019e:      	mrs	r0, msp
+ 80001a2:      	str	r0, [r8], #4
+ 80001a6:      	pop	{r1}
+ 80001a8:      	movs	r1, #0x0
+ 80001aa:      	msr	control, r1
+ 80001ae:      	isb	sy
+ 80001b2:      	mov	r0, sp
+ 80001b4:      	str	r0, [r8], #4
+ 80001b8:      	mrs	r0, psp
+ 80001bc:      	str	r0, [r8], #4
+ 80001c0:      	movw	r1, #0x4ff6
+ 80001c4:      	movt	r1, #0x2000
+ 80001c8:      	msr	msp, r1
+ 80001cc:      	mov	r0, sp
+ 80001ce:      	str	r0, [r8], #4
+ 80001d2:      	movw	r1, #0x5000
+ 80001d6:      	movt	r1, #0x2000
+ 80001da:      	msr	msp, r1
+ 80001de:      	movs	r1, #0x1
+ 80001e0:      	msr	control, r1
+ 80001e4:      	isb	sy
+ 80001e8:      	mrs	r0, control
+ 80001ec:      	str	r0, [r8], #4
+ 80001f0:      	movs	r1, #0x1
+ 80001f2:      	msr	primask, r1
+ 80001f6:      	mrs	r0, primask
+ 80001fa:      	str	r0, [r8], #4
+ 80001fe:      	cpsid i
+ 8000200:      	mrs	r0, primask
+ 8000204:      	str	r0, [r8], #4
+ 8000208:      	movs	r1, #0x40
+ 800020a:      	msr	basepri, r1
+ 800020e:      	mrs	r0, basepri
+ 8000212:      	str	r0, [r8], #4
+ 8000216:      	mrs	r0, msp
+ 800021a:      	str	r0, [r8], #4
+ 800021e:      	movs	r1, #0x0
+ 8000220:      	msr	control, r1
+ 8000224:      	mrs	r0, control
+ 8000228:      	str	r0, [r8], #4
+ 800022c:      	movw	r1, #0x0
+ 8000230:      	movt	r1, #0x1000
+ 8000234:      	msr	apsr_nzcvq, r1
+ 8000238:      	mrs	r0, apsr
+ 800023c:      	str	r0, [r8], #4
+ 8000240:      	svc	#0x5
+ 8000242:      	mrs	r0, control
+ 8000246:      	str	r0, [r8], #4
+ 800024a:      	nop
+ 800024c:      	nop.w
+ 8000250:      	yield
+ 8000252:      	yield.w
+ 8000256:      	dmb	sy
+ 800025a:      	dsb	sy
+ 800025e:      	isb	sy
+ 8000262:      	clrex
+ 8000266:      	pld	[r8]
+ 800026a:      	pli	[r8]
+ 800026e:      	sev
+ 8000270:      	wfe
+ 8000272:      	sev.w
+ 8000276:      	wfe.w
+ 800027a:      	movw	r0, #0xffee
+ 800027e:      	movt	r0, #0xc0
+ 8000282:      	str	r0, [r8], #4
+ 8000286:      	bkpt	#0x0
+
+08000288 <svc_handler>:
+ 8000288:      	mrs	r0, ipsr
+ 800028c:      	str	r0, [r8], #4
+ 8000290:      	mrs	r0, control
+ 8000294:      	bic	r0, r0, #0x1
+ 8000298:      	msr	control, r0
+ 800029c:      	bx	lr
+
+0800029e <unexpected>:
+ 800029e:      	bkpt	#0xee
+ 80002a0:      	b	0x800029e <unexpected>  @ imm = #-0x6
+ 80002a2:      	bmi	0x800024e <reset+0x20e> @ imm = #-0x58

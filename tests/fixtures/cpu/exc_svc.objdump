@@ -1,0 +1,164 @@
+
+
+Disassembly of section .text:
+
+080000ec <reset>:
+ 80000ec:      	movw	r4, #0x100e
+ 80000f0:      	movt	r4, #0x0
+ 80000f4:      	mov	lr, r4
+ 80000f6:      	movw	r4, #0x0
+ 80000fa:      	movt	r4, #0x9000
+ 80000fe:      	msr	apsr_nzcvq, r4
+ 8000102:      	movw	r0, #0x1000
+ 8000106:      	movt	r0, #0x0
+ 800010a:      	movw	r1, #0x1001
+ 800010e:      	movt	r1, #0x0
+ 8000112:      	movw	r2, #0x1002
+ 8000116:      	movt	r2, #0x0
+ 800011a:      	movw	r3, #0x1003
+ 800011e:      	movt	r3, #0x0
+ 8000122:      	movw	r12, #0x100c
+ 8000126:      	movt	r12, #0x0
+ 800012a:      	svc	#0x2a
+
+0800012c <svc_ret>:
+ 800012c:      	movw	r12, #0x4
+ 8000130:      	movt	r12, #0x4000
+ 8000134:      	str.w	r0, [r12]
+ 8000138:      	movw	r12, #0x4
+ 800013c:      	movt	r12, #0x4000
+ 8000140:      	str.w	r1, [r12]
+ 8000144:      	movw	r12, #0xed04
+ 8000148:      	movt	r12, #0xe000
+ 800014c:      	movw	r3, #0x0
+ 8000150:      	movt	r3, #0x1000
+ 8000154:      	str.w	r3, [r12]
+ 8000158:      	movw	r12, #0x4
+ 800015c:      	movt	r12, #0x4000
+ 8000160:      	movw	r3, #0x2000
+ 8000164:      	movt	r3, #0x0
+ 8000168:      	str.w	r3, [r12]
+ 800016c:      	movw	r12, #0xed1c
+ 8000170:      	movt	r12, #0xe000
+ 8000174:      	movw	r3, #0x0
+ 8000178:      	movt	r3, #0x4000
+ 800017c:      	str.w	r3, [r12]
+ 8000180:      	movw	r12, #0xed20
+ 8000184:      	movt	r12, #0xe000
+ 8000188:      	movw	r3, #0x0
+ 800018c:      	movt	r3, #0xc0
+ 8000190:      	str.w	r3, [r12]
+ 8000194:      	svc	#0x1
+ 8000196:      	movw	r12, #0x4
+ 800019a:      	movt	r12, #0x4000
+ 800019e:      	movw	r3, #0x3000
+ 80001a2:      	movt	r3, #0x0
+ 80001a6:      	str.w	r3, [r12]
+ 80001aa:      	movw	r12, #0xed20
+ 80001ae:      	movt	r12, #0xe000
+ 80001b2:      	movw	r3, #0x0
+ 80001b6:      	movt	r3, #0x0
+ 80001ba:      	str.w	r3, [r12]
+ 80001be:      	svc	#0x2
+ 80001c0:      	movw	r12, #0x4
+ 80001c4:      	movt	r12, #0x4000
+ 80001c8:      	movw	r3, #0x4000
+ 80001cc:      	movt	r3, #0x0
+ 80001d0:      	str.w	r3, [r12]
+ 80001d4:      	bkpt	#0x0
+
+080001d6 <SVC_Handler>:
+ 80001d6:      	mrs	r0, ipsr
+ 80001da:      	movw	r12, #0x4
+ 80001de:      	movt	r12, #0x4000
+ 80001e2:      	str.w	r0, [r12]
+ 80001e6:      	movw	r12, #0x4
+ 80001ea:      	movt	r12, #0x4000
+ 80001ee:      	str.w	lr, [r12]
+ 80001f2:      	ldr	r1, [sp, #0x18]
+ 80001f4:      	ldrb	r2, [r1, #-2]
+ 80001f8:      	movw	r12, #0x4
+ 80001fc:      	movt	r12, #0x4000
+ 8000200:      	str.w	r2, [r12]
+ 8000204:      	cmp	r2, #0x2a
+ 8000206:      	bne	0x8000280 <SVC_Handler+0xaa> @ imm = #0x76
+ 8000208:      	ldr	r0, [sp]
+ 800020a:      	movw	r12, #0x4
+ 800020e:      	movt	r12, #0x4000
+ 8000212:      	str.w	r0, [r12]
+ 8000216:      	ldr	r0, [sp, #0x4]
+ 8000218:      	movw	r12, #0x4
+ 800021c:      	movt	r12, #0x4000
+ 8000220:      	str.w	r0, [r12]
+ 8000224:      	ldr	r0, [sp, #0x8]
+ 8000226:      	movw	r12, #0x4
+ 800022a:      	movt	r12, #0x4000
+ 800022e:      	str.w	r0, [r12]
+ 8000232:      	ldr	r0, [sp, #0xc]
+ 8000234:      	movw	r12, #0x4
+ 8000238:      	movt	r12, #0x4000
+ 800023c:      	str.w	r0, [r12]
+ 8000240:      	ldr	r0, [sp, #0x10]
+ 8000242:      	movw	r12, #0x4
+ 8000246:      	movt	r12, #0x4000
+ 800024a:      	str.w	r0, [r12]
+ 800024e:      	ldr	r0, [sp, #0x14]
+ 8000250:      	movw	r12, #0x4
+ 8000254:      	movt	r12, #0x4000
+ 8000258:      	str.w	r0, [r12]
+ 800025c:      	ldr	r0, [sp, #0x18]
+ 800025e:      	movw	r12, #0x4
+ 8000262:      	movt	r12, #0x4000
+ 8000266:      	str.w	r0, [r12]
+ 800026a:      	ldr	r0, [sp, #0x1c]
+ 800026c:      	movw	r12, #0x4
+ 8000270:      	movt	r12, #0x4000
+ 8000274:      	str.w	r0, [r12]
+ 8000278:      	ldr	r0, [sp]
+ 800027a:      	adds	r0, #0x1
+ 800027c:      	str	r0, [sp]
+ 800027e:      	bx	lr
+ 8000280:      	movw	r12, #0xed04
+ 8000284:      	movt	r12, #0xe000
+ 8000288:      	movw	r3, #0x0
+ 800028c:      	movt	r3, #0x1000
+ 8000290:      	str.w	r3, [r12]
+ 8000294:      	movw	r12, #0x4
+ 8000298:      	movt	r12, #0x4000
+ 800029c:      	movw	r3, #0x5100
+ 80002a0:      	movt	r3, #0x0
+ 80002a4:      	str.w	r3, [r12]
+ 80002a8:      	cmp	r2, #0x1
+ 80002aa:      	bne	0x80002c4 <SVC_Handler+0xee> @ imm = #0x16
+ 80002ac:      	movw	r12, #0x18
+ 80002b0:      	movt	r12, #0x4000
+ 80002b4:      	ldr.w	r0, [r12]
+ 80002b8:      	movw	r12, #0x4
+ 80002bc:      	movt	r12, #0x4000
+ 80002c0:      	str.w	r0, [r12]
+ 80002c4:      	bx	lr
+
+080002c6 <PendSV_Handler>:
+ 80002c6:      	movw	r12, #0x18
+ 80002ca:      	movt	r12, #0x4000
+ 80002ce:      	ldr.w	r0, [r12]
+ 80002d2:      	movw	r12, #0x4
+ 80002d6:      	movt	r12, #0x4000
+ 80002da:      	str.w	r0, [r12]
+ 80002de:      	movw	r12, #0x4
+ 80002e2:      	movt	r12, #0x4000
+ 80002e6:      	movw	r3, #0xe0
+ 80002ea:      	movt	r3, #0x0
+ 80002ee:      	str.w	r3, [r12]
+ 80002f2:      	mrs	r0, ipsr
+ 80002f6:      	movw	r12, #0x4
+ 80002fa:      	movt	r12, #0x4000
+ 80002fe:      	str.w	r0, [r12]
+ 8000302:      	movw	r12, #0x4
+ 8000306:      	movt	r12, #0x4000
+ 800030a:      	str.w	lr, [r12]
+ 800030e:      	bx	lr
+
+08000310 <unexpected>:
+ 8000310:      	bkpt	#0xee
+ 8000312:      	b	0x8000310 <unexpected>  @ imm = #-0x6

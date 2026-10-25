@@ -1,0 +1,20 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim"],
+  "description": "Lesson i3 mistake: hal-tim-irq with PSC 72 / ARR 1000 (the '- 1' forgotten) - PB12 492.66 Hz instead of 500 Hz",
+  "expect": "72 MHz; TIM4 PSC 72, ARR 1000 on TIMXCLK1 = 72 MHz: an update every 73 x 1001 = 73073 timer clocks = 1014.903 us (985.31 Hz) instead of 1.000 ms. Each TIM4 interrupt toggles PB12 push-pull: 1.014903 ms high / 1.014903 ms low = 492.66 Hz (-1.47 %). Every 500th interrupt toggles PC13 (on-board LED, active low, starts off): 507.451 ms on / 507.451 ms off. The CPU sleeps in __WFI(). No UART.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": ["PB12: logic analyzer probe (no load needed)", "PC13: on-board LED"],
+    "pins": { "PB12": "output-pp", "PC13": "output-pp" },
+    "signals": [
+      { "pin": "PB12", "square": [1.014903, 1.014903], "tolUs": 0.3, "always": true },
+      { "pin": "PC13", "square": [507.4514, 507.4514], "tolUs": 0.5, "always": true },
+      { "pin": "PC13", "edgesAfter": "PB12", "maxLagUs": 2, "always": true }
+    ],
+    "scenarios": []
+  }
+}

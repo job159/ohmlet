@@ -1,0 +1,43 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "MAX7219 8x8 LED matrix on SPI1 (16-bit frames, PA5 CLK, PA7 DIN, PA4 CS/LOAD, 4.5 MHz): \"OHM \" scrolls left one column every 100 ms",
+  "expect": "72 MHz. SPI1 master transmit-only, 16-bit frames (DFF), mode 0, MSB first, prescaler 16: SCK 4.5 MHz on PA5, MOSI PA7 (AF push-pull); PA4 = CS/LOAD (push-pull, idle high, rising edge latches). USART1 PA9/PA10 115200 8N1. Prints 'MAX7219 scroll demo\\r\\n', writes 0F00, 0C00, 0900, 0A04, 0B07, 0100..0800, 0C01 (one CS-low frame each) and prints 'MAX7219 ready\\r\\n'. Then every 100 ms (deadline based) step s = 0, 1, 2, ...: rows 1..8 rewritten so that matrix column c (bit 7 - c of every row) shows column (s + c) mod 24 of the text 'OHM ' in a 5x7 font (5 columns + 1 blank per character, bit r of a font column = row r); every 10th step 'step N\\r\\n' on USART1 right after the frame. The module needs VIH >= 0.7 x V+: run it from 4.5 V with this 3.3 V MCU (at 5 V nothing is latched).",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA5, PA7, PA4: unconnected on this bench (MAX7219 CLK / DIN / CS in the full circuit; the matrix contents are covered by tests/devices/displays-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "af-pp",
+      "PA7": "af-pp",
+      "PA4": "output-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "MAX7219 scroll demo\r\nMAX7219 ready\r\nstep 0\r\n"
+    }
+  }
+}

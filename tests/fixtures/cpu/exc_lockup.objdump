@@ -1,0 +1,59 @@
+
+
+Disassembly of section .text:
+
+080000ec <reset>:
+ 80000ec:      	movw	r12, #0x4
+ 80000f0:      	movt	r12, #0x4000
+ 80000f4:      	movw	r3, #0x1
+ 80000f8:      	movt	r3, #0x0
+ 80000fc:      	str.w	r3, [r12]
+
+08000100 <udf_thread>:
+ 8000100:      	udf	#0x0
+ 8000102:      	movw	r12, #0x4
+ 8000106:      	movt	r12, #0x4000
+ 800010a:      	movw	r3, #0xbad
+ 800010e:      	movt	r3, #0x0
+ 8000112:      	str.w	r3, [r12]
+
+08000116 <HardFault_Handler>:
+ 8000116:      	movw	r12, #0x4
+ 800011a:      	movt	r12, #0x4000
+ 800011e:      	movw	r3, #0x2
+ 8000122:      	movt	r3, #0x0
+ 8000126:      	str.w	r3, [r12]
+ 800012a:      	movw	r12, #0xed2c
+ 800012e:      	movt	r12, #0xe000
+ 8000132:      	ldr.w	r3, [r12]
+ 8000136:      	movw	r12, #0x4
+ 800013a:      	movt	r12, #0x4000
+ 800013e:      	str.w	r3, [r12]
+
+08000142 <udf_hardfault>:
+ 8000142:      	udf	#0x1
+ 8000144:      	movw	r12, #0x4
+ 8000148:      	movt	r12, #0x4000
+ 800014c:      	movw	r3, #0xbad
+ 8000150:      	movt	r3, #0x0
+ 8000154:      	str.w	r3, [r12]
+
+08000158 <NMI_Handler>:
+ 8000158:      	movw	r12, #0x4
+ 800015c:      	movt	r12, #0x4000
+ 8000160:      	movw	r3, #0x3
+ 8000164:      	movt	r3, #0x0
+ 8000168:      	str.w	r3, [r12]
+ 800016c:      	mrs	r0, ipsr
+ 8000170:      	movw	r12, #0x4
+ 8000174:      	movt	r12, #0x4000
+ 8000178:      	str.w	r0, [r12]
+ 800017c:      	ldr	r0, [sp, #0x18]
+ 800017e:      	movw	r12, #0x4
+ 8000182:      	movt	r12, #0x4000
+ 8000186:      	str.w	r0, [r12]
+ 800018a:      	bkpt	#0x0
+
+0800018c <unexpected>:
+ 800018c:      	bkpt	#0xee
+ 800018e:      	b	0x800018c <unexpected>  @ imm = #-0x6

@@ -1,0 +1,47 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "tim",
+    "uart"
+  ],
+  "description": "A4988 stepper demo: STEP = PA0 TIM2 pulses with a trapezoidal ramp in the update IRQ, DIR PB0, MS1-3 PB12-14, EN PB15; +1600 (1/8), -100 (full), -800 (1/8) steps, USART1 log",
+  "expect": "72 MHz; TIM2 PSC 71 (1 us counts), PWM mode 1 on PA0 (AF push-pull), CCR1 = 10: every timer period starts with a 10 us STEP pulse; ARR is rewritten in the update interrupt for the next period (trapezoid: linear frequency ramp over `ramp` steps, cruise, symmetric ramp down) and the last period has CCR1 = 0, so exactly N pulses leave. PB0 (DIR), PB12-14 (MS1-3), PB15 (EN, low) push-pull. USART1 PA9/PA10 115200 8N1: 'A4988 stepper demo\\r\\n', then after 300 ms: 'move +1600 steps 1/8 (1 rev)\\r\\n' (DIR=1, MS=110, 400 -> 3200 steps/s), 'done, position 1600/8 full steps\\r\\n'; 300 ms; 'move -100 steps full (1/2 rev)\\r\\n' (DIR=0, MS=000, 200 -> 400 steps/s), 'done, position 800/8 full steps\\r\\n'; 300 ms; 'move -800 steps 1/8 (1/2 rev)\\r\\n', 'done, position 0/8 full steps\\r\\n'; repeat. A NEMA 17 on the A4988 (VMOT 12 V, VDD 3.3 V, RST-SLP tied) turns +1, -1/2, -1/2 revolution.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA0 (STEP), PB0 (DIR), PB12-PB14 (MS1-3), PB15 (EN): A4988 carrier in the full circuit (motor position covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA9": "af-pp",
+      "PA10": "input-pullup",
+      "PB0": "output-pp",
+      "PB12": "output-pp",
+      "PB13": "output-pp",
+      "PB14": "output-pp",
+      "PB15": "output-pp"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "A4988 stepper demo\r\n"
+    },
+    "signals": [],
+    "scenarios": []
+  }
+}

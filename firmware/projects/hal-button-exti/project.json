@@ -1,0 +1,71 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "HAL EXTI button: PB12 falling edge + 20 ms debounce toggles PA5 and prints 'press N' on USART1 115200 8N1",
+  "expect": "72 MHz. PB12 input pull-up + EXTI falling; PA5 push-pull, 0 after boot; USART1 PA9/PA10 115200 8N1, silent until the first press. A press is accepted 19-20 ms after the LAST falling edge on PB12 if PB12 still reads low: PA5 toggles then (+<20 us) and 'press N\\r\\n' (N = 1, 2, ...) starts right after (first byte done 0.08-0.15 ms after the PA5 edge). Press bounce counts once, holding counts once, release bounce and low pulses shorter than 19 ms never count.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "settle",
+    "settleMs": 150,
+    "circuit": [
+      "PB12: push-button to GND, no external resistor",
+      "PA5: LED + 330 ohm to GND",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PB12": "input-pullup", "PA5": "output-pp", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "" },
+    "idle": { "PB12": 1, "PA5": 0 },
+    "scenarios": [
+      {
+        "name": "two clean presses",
+        "durationMs": 400,
+        "drive": [
+          { "at": 0, "pin": "PB12", "level": 0 },
+          { "at": 100, "pin": "PB12", "level": "open" },
+          { "at": 200, "pin": "PB12", "level": 0 },
+          { "at": 300, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [
+          { "id": "p1", "at": [19, 20.02], "pin": "PA5", "edge": 1 },
+          { "from": "p1", "at": [0.08, 0.15], "uart": "press 1\r\n" },
+          { "id": "p2", "at": [219, 220.02], "pin": "PA5", "edge": 0 },
+          { "from": "p2", "at": [0.08, 0.15], "uart": "press 2\r\n" }
+        ],
+        "quiet": ["PA5", "USART1"]
+      },
+      {
+        "name": "bouncy press counts once, bouncy release never",
+        "durationMs": 300,
+        "drive": [
+          { "at": 0, "pin": "PB12", "level": 0 },
+          { "at": 0.3, "pin": "PB12", "level": "open" },
+          { "at": 0.6, "pin": "PB12", "level": 0 },
+          { "at": 1.1, "pin": "PB12", "level": "open" },
+          { "at": 1.5, "pin": "PB12", "level": 0 },
+          { "at": 150, "pin": "PB12", "level": "open" },
+          { "at": 150.4, "pin": "PB12", "level": 0 },
+          { "at": 150.9, "pin": "PB12", "level": "open" },
+          { "at": 151.3, "pin": "PB12", "level": 0 },
+          { "at": 151.6, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [
+          { "id": "p1", "at": [20.5, 21.52], "pin": "PA5", "edge": 1 },
+          { "from": "p1", "at": [0.08, 0.15], "uart": "press 1\r\n" }
+        ],
+        "quiet": ["PA5", "USART1"]
+      },
+      {
+        "name": "a low pulse shorter than the debounce window is ignored",
+        "durationMs": 100,
+        "drive": [
+          { "at": 0, "pin": "PB12", "level": 0 },
+          { "at": 15, "pin": "PB12", "level": "open" }
+        ],
+        "expect": [],
+        "quiet": ["PA5", "USART1"]
+      }
+    ]
+  }
+}

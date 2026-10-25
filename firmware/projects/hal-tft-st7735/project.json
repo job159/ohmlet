@@ -1,0 +1,55 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "ST7735S 1.8\" 128x160 TFT on SPI1 (PA5 SCK, PA7 MOSI, 9 MHz) with PA4 CS, PB0 DC, PB1 RES, PB10 BL: black-tab init, eight colour bars and text, frame counter every 500 ms",
+  "expect": "72 MHz. SPI1 master transmit-only, mode 0, MSB first, 8-bit, prescaler 8: SCK 9 MHz on PA5, MOSI PA7 (AF push-pull). GPIO push-pull: PA4 = CS (idle high), PB0 = DC, PB1 = RES, PB10 = BL. USART1 PA9/PA10 115200 8N1. Prints 'ST7735 TFT demo\\r\\n'; RES low 10 ms, high 120 ms; SWRESET + 150 ms, SLPOUT + 120 ms, FRMCTR1-3 (01 2C 2D), INVCTR 07, PWCTR1-5, VMCTR1 0E, INVOFF, MADCTL C0h, COLMOD 05h, CASET 0..127, RASET 0..159, GMCTRP1 / GMCTRN1, NORON + 10 ms, DISPON + 100 ms, BL high; prints 'ST7735 ready\\r\\n'. Each command / parameter group is one CS-low window, DC low for the command byte. Picture (RGB565 big-endian after RAMWR in CASET/RASET windows): rows 0..99 = eight 16 px bars left to right FFFF, FFE0, 07FF, 07E0, F81F, F800, 001F, 0000; rows 100..159 black with 'ST7735 128x160' at (4,108) white; prints 'colour bars drawn\\r\\n' (about 41 KB of SPI data, 40 ms). Every 500 ms (deadline based) 'frame N' (N = 1, 2, ...) is redrawn at (4,124) in yellow on black, 6x8 cells of a 5x7 font; every 2nd time 'frame N\\r\\n' on USART1.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA5, PA7, PA4, PB0, PB1, PB10: unconnected on this bench (TFT SCL / SDA / CS / DC / RES / BL in the full circuit; the picture is covered by tests/devices/displays-firmware.test.ts)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "af-pp",
+      "PA7": "af-pp",
+      "PA4": "output-pp",
+      "PB0": "output-pp",
+      "PB1": "output-pp",
+      "PB10": "output-pp",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "ST7735 TFT demo\r\nST7735 ready\r\ncolour bars drawn\r\n"
+    },
+    "signals": [
+      {
+        "uart": "USART1",
+        "match": "^frame \\d*[02468]\r\n$",
+        "firstAt": [1060, 1064],
+        "everyMs": 1000,
+        "tolUs": 1000
+      }
+    ]
+  }
+}

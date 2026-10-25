@@ -1,0 +1,201 @@
+
+
+Disassembly of section .text:
+
+080000ec <reset>:
+ 80000ec:      	ldr	r0, [pc, #0x20c]        @ 0x80002fc <PendSV_Handler+0x3e>
+ 80000ee:      	ldr	r1, [pc, #0x210]        @ 0x8000300 <PendSV_Handler+0x42>
+ 80000f0:      	ldr	r2, [pc, #0x210]        @ 0x8000304 <PendSV_Handler+0x46>
+ 80000f2:      	cmp	r1, r2
+ 80000f4:      	bhs	0x8000100 <reset+0x14>  @ imm = #0x8
+ 80000f6:      	ldr	r3, [r0], #4
+ 80000fa:      	str	r3, [r1], #4
+ 80000fe:      	b	0x80000f2 <reset+0x6>   @ imm = #-0x10
+ 8000100:      	ldr	r1, [pc, #0x204]        @ 0x8000308 <PendSV_Handler+0x4a>
+ 8000102:      	ldr	r2, [pc, #0x208]        @ 0x800030c <PendSV_Handler+0x4e>
+ 8000104:      	movs	r3, #0x0
+ 8000106:      	cmp	r1, r2
+ 8000108:      	bhs	0x8000110 <reset+0x24>  @ imm = #0x4
+ 800010a:      	str	r3, [r1], #4
+ 800010e:      	b	0x8000106 <reset+0x1a>  @ imm = #-0xc
+ 8000110:      	movw	r0, #0x3e0
+ 8000114:      	movt	r0, #0x2000
+ 8000118:      	movs	r1, #0x0
+ 800011a:      	movs	r2, #0x0
+ 800011c:      	str.w	r2, [r0, r1, lsl #2]
+ 8000120:      	adds	r1, #0x1
+ 8000122:      	cmp	r1, #0x10
+ 8000124:      	bne	0x800011c <reset+0x30>  @ imm = #-0xc
+ 8000126:      	movw	r2, #0x233
+ 800012a:      	movt	r2, #0x800
+ 800012e:      	bic	r2, r2, #0x1
+ 8000132:      	str	r2, [r0, #0x38]
+ 8000134:      	movw	r2, #0x0
+ 8000138:      	movt	r2, #0x100
+ 800013c:      	str	r2, [r0, #0x3c]
+ 800013e:      	movw	r1, #0x14
+ 8000142:      	movt	r1, #0x2000
+ 8000146:      	str	r0, [r1, #0x4]
+ 8000148:      	movw	r12, #0xed20
+ 800014c:      	movt	r12, #0xe000
+ 8000150:      	movw	r3, #0x0
+ 8000154:      	movt	r3, #0x80f0
+ 8000158:      	str.w	r3, [r12]
+ 800015c:      	movw	r12, #0xe014
+ 8000160:      	movt	r12, #0xe000
+ 8000164:      	movw	r3, #0x2bb
+ 8000168:      	movt	r3, #0x0
+ 800016c:      	str.w	r3, [r12]
+ 8000170:      	movw	r12, #0xe018
+ 8000174:      	movt	r12, #0xe000
+ 8000178:      	movw	r3, #0x0
+ 800017c:      	movt	r3, #0x0
+ 8000180:      	str.w	r3, [r12]
+ 8000184:      	movw	r12, #0xe010
+ 8000188:      	movt	r12, #0xe000
+ 800018c:      	movw	r3, #0x7
+ 8000190:      	movt	r3, #0x0
+ 8000194:      	str.w	r3, [r12]
+ 8000198:      	movw	r0, #0x220
+ 800019c:      	movt	r0, #0x2000
+ 80001a0:      	msr	psp, r0
+ 80001a4:      	movs	r0, #0x2
+ 80001a6:      	msr	control, r0
+ 80001aa:      	isb	sy
+ 80001ae:      	b	0x80001b0 <taskA>       @ imm = #-0x2
+
+080001b0 <taskA>:
+ 80001b0:      	movw	r4, #0xa4
+ 80001b4:      	movt	r4, #0x0
+ 80001b8:      	movw	r5, #0xa5
+ 80001bc:      	movt	r5, #0x0
+ 80001c0:      	movw	r6, #0xa6
+ 80001c4:      	movt	r6, #0x0
+ 80001c8:      	movw	r7, #0xa7
+ 80001cc:      	movt	r7, #0x0
+ 80001d0:      	movw	r8, #0xa8
+ 80001d4:      	movt	r8, #0x0
+ 80001d8:      	movw	r9, #0xa9
+ 80001dc:      	movt	r9, #0x0
+ 80001e0:      	movw	r10, #0xaa
+ 80001e4:      	movt	r10, #0x0
+ 80001e8:      	movw	r11, #0xab
+ 80001ec:      	movt	r11, #0x0
+ 80001f0:      	ldr	r0, [pc, #0x11c]        @ 0x8000310 <PendSV_Handler+0x52>
+ 80001f2:      	ldr	r1, [r0]
+ 80001f4:      	adds	r1, #0x1
+ 80001f6:      	str	r1, [r0]
+ 80001f8:      	cmp	r4, #0xa4
+ 80001fa:      	bne	0x80002a4 <bad>         @ imm = #0xa6
+ 80001fc:      	cmp	r5, #0xa5
+ 80001fe:      	bne	0x80002a4 <bad>         @ imm = #0xa2
+ 8000200:      	cmp	r6, #0xa6
+ 8000202:      	bne	0x80002a4 <bad>         @ imm = #0x9e
+ 8000204:      	cmp	r7, #0xa7
+ 8000206:      	bne	0x80002a4 <bad>         @ imm = #0x9a
+ 8000208:      	cmp.w	r8, #0xa8
+ 800020c:      	bne	0x80002a4 <bad>         @ imm = #0x94
+ 800020e:      	cmp.w	r9, #0xa9
+ 8000212:      	bne	0x80002a4 <bad>         @ imm = #0x8e
+ 8000214:      	cmp.w	r10, #0xaa
+ 8000218:      	bne	0x80002a4 <bad>         @ imm = #0x88
+ 800021a:      	cmp.w	r11, #0xab
+ 800021e:      	bne	0x80002a4 <bad>         @ imm = #0x82
+ 8000220:      	ldr	r2, [pc, #0xf0]         @ 0x8000314 <PendSV_Handler+0x56>
+ 8000222:      	ldr	r2, [r2]
+ 8000224:      	cmp.w	r1, #0x190
+ 8000228:      	blo	0x80001f0 <taskA+0x40>  @ imm = #-0x3c
+ 800022a:      	cmp.w	r2, #0x190
+ 800022e:      	blo	0x80001f0 <taskA+0x40>  @ imm = #-0x42
+ 8000230:      	bkpt	#0x0
+
+08000232 <taskB>:
+ 8000232:      	movw	r4, #0xb4
+ 8000236:      	movt	r4, #0x0
+ 800023a:      	movw	r5, #0xb5
+ 800023e:      	movt	r5, #0x0
+ 8000242:      	movw	r6, #0xb6
+ 8000246:      	movt	r6, #0x0
+ 800024a:      	movw	r7, #0xb7
+ 800024e:      	movt	r7, #0x0
+ 8000252:      	movw	r8, #0xb8
+ 8000256:      	movt	r8, #0x0
+ 800025a:      	movw	r9, #0xb9
+ 800025e:      	movt	r9, #0x0
+ 8000262:      	movw	r10, #0xba
+ 8000266:      	movt	r10, #0x0
+ 800026a:      	movw	r11, #0xbb
+ 800026e:      	movt	r11, #0x0
+ 8000272:      	ldr	r0, [pc, #0xa0]         @ 0x8000314 <PendSV_Handler+0x56>
+ 8000274:      	ldr	r1, [r0]
+ 8000276:      	adds	r1, #0x1
+ 8000278:      	str	r1, [r0]
+ 800027a:      	cmp	r4, #0xb4
+ 800027c:      	bne	0x80002a4 <bad>         @ imm = #0x24
+ 800027e:      	cmp	r5, #0xb5
+ 8000280:      	bne	0x80002a4 <bad>         @ imm = #0x20
+ 8000282:      	cmp	r6, #0xb6
+ 8000284:      	bne	0x80002a4 <bad>         @ imm = #0x1c
+ 8000286:      	cmp	r7, #0xb7
+ 8000288:      	bne	0x80002a4 <bad>         @ imm = #0x18
+ 800028a:      	cmp.w	r8, #0xb8
+ 800028e:      	bne	0x80002a4 <bad>         @ imm = #0x12
+ 8000290:      	cmp.w	r9, #0xb9
+ 8000294:      	bne	0x80002a4 <bad>         @ imm = #0xc
+ 8000296:      	cmp.w	r10, #0xba
+ 800029a:      	bne	0x80002a4 <bad>         @ imm = #0x6
+ 800029c:      	cmp.w	r11, #0xbb
+ 80002a0:      	bne	0x80002a4 <bad>         @ imm = #0x0
+ 80002a2:      	b	0x8000272 <taskB+0x40>  @ imm = #-0x34
+
+080002a4 <bad>:
+ 80002a4:      	bkpt	#0xbd
+
+080002a6 <SysTick_Handler>:
+ 80002a6:      	ldr	r0, [pc, #0x70]         @ 0x8000318 <PendSV_Handler+0x5a>
+ 80002a8:      	ldr	r1, [r0]
+ 80002aa:      	adds	r1, #0x1
+ 80002ac:      	str	r1, [r0]
+ 80002ae:      	movw	r0, #0xed04
+ 80002b2:      	movt	r0, #0xe000
+ 80002b6:      	mov.w	r1, #0x10000000
+ 80002ba:      	str	r1, [r0]
+ 80002bc:      	bx	lr
+
+080002be <PendSV_Handler>:
+ 80002be:      	mrs	r0, psp
+ 80002c2:      	stmdb	r0!, {r4, r5, r6, r7, r8, r9, r10, r11}
+ 80002c6:      	ldr	r1, [pc, #0x54]         @ 0x800031c <PendSV_Handler+0x5e>
+ 80002c8:      	ldr	r2, [r1]
+ 80002ca:      	ldr	r3, [pc, #0x54]         @ 0x8000320 <PendSV_Handler+0x62>
+ 80002cc:      	str.w	r0, [r3, r2, lsl #2]
+ 80002d0:      	eor	r2, r2, #0x1
+ 80002d4:      	str	r2, [r1]
+ 80002d6:      	ldr.w	r0, [r3, r2, lsl #2]
+ 80002da:      	ldm.w	r0!, {r4, r5, r6, r7, r8, r9, r10, r11}
+ 80002de:      	msr	psp, r0
+ 80002e2:      	ldr	r1, [pc, #0x40]         @ 0x8000324 <PendSV_Handler+0x66>
+ 80002e4:      	ldr	r2, [r1]
+ 80002e6:      	adds	r2, #0x1
+ 80002e8:      	str	r2, [r1]
+ 80002ea:      	mov	r0, lr
+ 80002ec:      	movw	r12, #0x4
+ 80002f0:      	movt	r12, #0x4000
+ 80002f4:      	str.w	r0, [r12]
+ 80002f8:      	bx	lr
+ 80002fa:      	movs	r0, r0
+ 80002fc: 2c 03 00 08  	.word	0x0800032c
+ 8000300: 00 00 00 20  	.word	0x20000000
+ 8000304: 00 00 00 20  	.word	0x20000000
+ 8000308: 00 00 00 20  	.word	0x20000000
+ 800030c: 20 04 00 20  	.word	0x20000420
+ 8000310: 00 00 00 20  	.word	0x20000000
+ 8000314: 04 00 00 20  	.word	0x20000004
+ 8000318: 08 00 00 20  	.word	0x20000008
+ 800031c: 10 00 00 20  	.word	0x20000010
+ 8000320: 14 00 00 20  	.word	0x20000014
+ 8000324: 0c 00 00 20  	.word	0x2000000c
+
+08000328 <unexpected>:
+ 8000328:      	bkpt	#0xee
+ 800032a:      	b	0x8000328 <unexpected>  @ imm = #-0x6

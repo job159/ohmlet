@@ -1,0 +1,47 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "i2c"
+  ],
+  "description": "LCD1602 through a PCF8574 I2C backpack at 0x27 (I2C1 PB6 SCL / PB7 SDA, 100 kHz): 4-bit init through the expander, text and an uptime counter updated every second",
+  "expect": "72 MHz. I2C1 PB6/PB7 AF open drain, 100 kHz standard mode (CCR 180); the backpack's 4.7 kOhm pull-ups go to its 5 V VCC (PB6/PB7 are 5 V tolerant). USART1 PA9/PA10 115200 8N1. Prints 'LCD1602 I2C demo\\r\\n', waits 50 ms, probes 0x27 (2 trials): HAL_BUSY -> 'I2C bus busy: SDA/SCL stuck low (pull-ups?)\\r\\n', no ACK (no backpack, a PCF8574A board at 0x3F) -> 'PCF8574 not found at 0x27 (no ACK)\\r\\n', both stop. Port bits P0 = RS, P1 = RW (always 0), P2 = E, P3 = backlight (always 1), P4..P7 = D4..D7; every nibble is written twice (E high, E low). Init: port 08h, 50 ms, nibble 3h, 5 ms, 3h, 1 ms, 3h, 1 ms, 2h, then 28h, 0Ch, 01h, 2 ms, 06h; DDRAM 00h 'Hello via I2C!', 40h 'uptime'; prints 'LCD ready at 0x27\\r\\n'. Every 1000 ms after that (deadline based) N = 1, 2, ... is written right-aligned in 6 digits at DDRAM 4Ah and 'uptime N s\\r\\n' goes out on USART1. A failed transfer prints 'I2C error <HAL error code>\\r\\n' and stops.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB6, PB7: 4.7k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no backpack on this bench: the probe of 0x27 is not acknowledged (the LCD contents are covered by tests/devices/displays-firmware.test.ts)"
+    ],
+    "pins": {
+      "PB6": "af-od",
+      "PB7": "af-od",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "LCD1602 I2C demo\r\nPCF8574 not found at 0x27 (no ACK)\r\n"
+    },
+    "idle": {
+      "PB6": 1,
+      "PB7": 1
+    }
+  }
+}

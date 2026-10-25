@@ -1,0 +1,22 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "DHT22 / AM2302 on PB12 (open drain, module pull-up) read every 2.5 s with DWT->CYCCNT microsecond timing: start pulse, answer, 40 bits, checksum; prints RH and T on USART1",
+  "expect": "72 MHz. PB12 open-drain output idling released (the module's 10 kOhm pull-up holds DATA high; PB12 is 5 V tolerant), DWT->CYCCNT enabled for microsecond timing. USART1 PA9/PA10 115200 8N1. Boot: 'DHT22 on PB12 (DWT timing)\\r\\n'. 2.5 s after boot and then every 2.5 s: PB12 low for 1.2 ms (host start), released; with interrupts masked the firmware waits <= 200 us for the sensor's answer (none -> 'DHT22: no response\\r\\n'), its 80 us low / 80 us high, then times the high phase of each of the 40 bits (> 40 us = 1); a missing edge prints 'DHT22: timeout in bit <n>\\r\\n', a wrong sum 'DHT22: checksum error\\r\\n', otherwise 'RH=<%>.<d> T=[-]<C>.<d>\\r\\n' with RH = (b0 << 8 | b1) / 10 and T = ((b2 & 0x7F) << 8 | b3) / 10, negative when b2 bit 7 is set. The DHT22 sends the measurement it took after the PREVIOUS read, so a change shows up one read later.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PB12: 10k ohm pull-up to 3V3",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+      "no DHT22 on PB12 (tests/devices/sensors-firmware.test.ts wires a DHT22 module instead)"
+    ],
+    "pins": { "PB12": "output-od", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "DHT22 on PB12 (DWT timing)\r\n" }
+  }
+}

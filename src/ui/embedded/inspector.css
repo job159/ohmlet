@@ -1,0 +1,973 @@
+/* ==========================================================================
+   Inspector (UX wave WS4) — `insp-` prefix: Tier-S popovers + glossary
+   terms, the MCU panel's honest state (reason line, debugger row), the
+   built-in firmware picker, meter readouts, pin-row probe actions, the MCU
+   sub-navigation and the wire net group. Kit tokens only (--ios-*,
+   --label*, --fill*, --separator, --lg-*). Tier-S materials only — NOTHING
+   here sets a backdrop-filter (DESIGN.md ≤ 4 filters / ≤ 3 lenses).
+   Animations: transform / opacity only; reduced motion honored below.
+   ========================================================================== */
+
+/* ---- Tier-S popover (controls.tsx Popover) ------------------------------ */
+
+.insp-pop {
+  position: fixed;
+  z-index: 58; /* over panels (40), pills (41/42), sheets (51), dock (55); under toasts (60) */
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: min(360px, calc(100vw - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-family: var(--lg-font);
+  color: var(--label);
+  /* the UndoPill / probe-menu over-scene recipe */
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.97), rgba(34, 36, 46, 0.96));
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --lg-ink-shadow: 0 1px 2px rgba(8, 10, 14, 0.4);
+  text-shadow: var(--lg-ink-shadow);
+  animation: insp-pop-in var(--lg-dur-control, 200ms) var(--lg-spring, ease-out);
+  transform-origin: top left;
+}
+.insp-pop.is-above {
+  transform-origin: bottom left;
+}
+@keyframes insp-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- glossary term (controls.tsx Term) ---------------------------------- */
+
+.insp-term {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
+  -webkit-tap-highlight-color: transparent;
+}
+.insp-term:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.insp-term-i {
+  font-size: 0.85em;
+  line-height: 1;
+  color: var(--label-3);
+  text-decoration: none;
+}
+.insp-term-pop {
+  max-width: min(300px, calc(100vw - 16px));
+  gap: 4px;
+}
+.insp-term-title {
+  font: 600 13px/18px var(--lg-font);
+  color: var(--label);
+}
+.insp-term-body {
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label-2);
+}
+
+/* ---- legibility: the stat labels and pin holes at the secondary label
+   token (≈ 0.64 alpha, ≥ 4.5:1 on the dark cards — ENG-19 / D-17); CJK
+   captions never below 12 px inside the inspector ----------------------- */
+
+/* (never inside the classic chrome's inspector, .prs-classic — IN-18; :where
+   keeps the specificity of the plain selectors) */
+.emb-stats:where(:not(.prs-classic *)) .emb-stat-label {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--label-2);
+}
+.emb-pin:where(:not(.prs-classic *)) .emb-pin-hole,
+.emb-pin:where(:not(.prs-classic *)) .emb-pin-name {
+  color: var(--label-2);
+}
+
+/* ---- MCU state: chip + reason line ----------------------------------- */
+
+.insp-state-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.insp-state-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.insp-state-line .emb-state {
+  white-space: normal;
+}
+.insp-reason {
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.insp-reason b {
+  font-weight: 600;
+  color: var(--label);
+}
+.insp-reason-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.insp-pcsym {
+  font-family: var(--lg-font-mono);
+  color: var(--ios-teal);
+}
+
+/* debugger sub-row: labelled text buttons (D-18) */
+.insp-dbg {
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 10px;
+  flex-wrap: wrap;
+}
+.insp-dbg-label {
+  flex: 0 0 auto;
+  font: 600 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-dbg-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+/* ---- firmware: the empty state + summary ------------------------------- */
+
+.insp-fw-empty {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.insp-fw-empty-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 15px/20px var(--lg-font);
+  color: var(--label);
+}
+.insp-fw-empty-title svg {
+  color: var(--ios-blue);
+  flex: 0 0 auto;
+}
+.insp-fw-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.insp-fw-btns .lg-btn {
+  width: 100%;
+}
+.insp-fw-hint {
+  font: 400 12px/17px var(--lg-font);
+  color: var(--label-2);
+  text-align: center;
+}
+.insp-fw-binbase-note {
+  font: 400 12px/17px var(--lg-font);
+  color: var(--ios-orange);
+}
+.insp-fw-warn {
+  align-items: flex-start;
+  gap: 10px;
+}
+.insp-fw-warn .emb-dot {
+  margin-top: 6px;
+  background: var(--ios-orange);
+}
+
+/* ---- built-in firmware picker (BundledFirmwarePicker.tsx) -------------- */
+
+.insp-fwp {
+  width: 380px;
+  max-width: min(380px, calc(100vw - 16px));
+  padding: 0;
+  gap: 0;
+}
+.insp-fwp-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 8px;
+  background: linear-gradient(180deg, rgba(50, 54, 66, 0.99), rgba(46, 50, 62, 0.98));
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+.insp-fwp-title {
+  font: 600 14px/19px var(--lg-font);
+  color: var(--label);
+}
+.insp-fwp-search {
+  width: 100%;
+  border-radius: 999px;
+  font-family: var(--lg-font);
+}
+.insp-fwp-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 6px 8px;
+  outline: none;
+}
+.insp-fwp-group {
+  padding: 10px 8px 4px;
+  font: 600 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-fwp-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--label);
+  text-align: left;
+  font-family: var(--lg-font);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.insp-fwp-row:hover,
+.insp-fwp-row.is-active {
+  background: var(--fill-2);
+}
+.insp-fwp-row.is-active {
+  box-shadow: inset 0 0 0 1.5px rgba(10, 132, 255, 0.7);
+}
+.insp-fwp-row.is-current .insp-fwp-name::after {
+  content: ' ✓';
+  color: var(--ios-green);
+}
+.insp-fwp-row[aria-busy='true'] {
+  opacity: 0.7;
+  cursor: progress;
+}
+.insp-fwp-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.insp-fwp-name {
+  flex: 0 0 auto;
+  max-width: 55%;
+  font: 500 12.5px/17px var(--lg-font-mono);
+  color: var(--ios-teal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insp-fwp-title-zh {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 600 14px/19px var(--lg-font);
+  color: var(--label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insp-fwp-tag {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 6px;
+  font: 600 11px/16px var(--lg-font);
+  white-space: nowrap;
+}
+.insp-fwp-tag.is-mistake {
+  background: rgba(255, 159, 10, 0.18);
+  color: var(--ios-orange);
+}
+.insp-fwp-tag.is-lesson {
+  background: rgba(10, 132, 255, 0.2);
+  color: #7cbcff;
+}
+.insp-fwp-sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 12.5px/17px var(--lg-font);
+  color: var(--label-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insp-fwp-empty {
+  padding: 18px 12px;
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+  text-align: center;
+}
+.insp-fwp-error {
+  margin: 4px 8px 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 69, 58, 0.14);
+  font: 400 13px/18px var(--lg-font);
+  color: #ff8a80;
+}
+/* phone: the same list inside a kit sheet */
+.insp-fwp-sheet .insp-fwp-head {
+  position: static;
+  padding: 0 4px 8px;
+  background: none;
+  border-bottom: none;
+}
+.insp-fwp-sheet .insp-fwp-list {
+  padding: 0 0 16px;
+}
+.insp-fwp-sheet .insp-fwp-row {
+  min-height: 52px;
+}
+
+/* ---- meter readout (PropertiesSheet ReadoutGroup) ----------------------- */
+
+.insp-readout {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.insp-readout-value {
+  font: 600 30px/36px var(--lg-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--label);
+  white-space: nowrap;
+}
+.insp-readout-value.is-empty {
+  color: var(--label-3);
+}
+.insp-readout-sub {
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+/* 「本課預期 1.7 V – 1.9 V ✓」: the guided lesson step's range under a reading (UX LS-15) */
+.insp-expect {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+  font: 500 13px/18px var(--lg-font);
+  font-variant-numeric: tabular-nums;
+  color: var(--label-2);
+}
+.insp-expect-mark {
+  font-weight: 700;
+}
+.insp-expect.is-ok .insp-expect-mark {
+  color: var(--ios-green);
+}
+.insp-expect.is-off .insp-expect-mark {
+  color: var(--ios-red);
+}
+.lg-row.insp-expect-row {
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+
+/* ---- problems: compact list under a part's header ---------------------- */
+
+.insp-part-problems {
+  margin-bottom: 4px;
+}
+.insp-part-problems:focus {
+  outline: none;
+}
+.insp-part-problems:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+  border-radius: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insp-pop {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .insp-pop {
+    background: linear-gradient(180deg, rgba(46, 50, 62, 0.99), rgba(30, 32, 42, 0.99));
+  }
+}
+
+/* the primary action chip of a row (「載入韌體…」, 「繼續執行」) */
+.emb-chip.is-accent {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.34), rgba(10, 132, 255, 0.22));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 0 0 0.5px rgba(120, 180, 255, 0.35);
+  color: #9fcbff;
+}
+
+/* ---- MCU sub-navigation (PropertiesSheet McuInspector, IN-6) ------------ */
+
+.insp-tabs {
+  margin: 4px 0 2px;
+}
+.insp-tabs .lg-seg {
+  width: 100%;
+}
+
+/* firmware summary row inside the status card */
+.insp-fw-summary {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  transition: box-shadow 160ms linear;
+}
+.insp-fw-summary.is-dragover {
+  box-shadow: inset 0 0 0 1.5px rgba(10, 132, 255, 0.85);
+}
+.insp-fw-summary-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.insp-fw-summary-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.insp-fw-summary-btns .lg-btn {
+  flex: 1 1 auto;
+}
+.insp-fw-summary-icon {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--ios-blue);
+}
+.insp-fw-summary-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 14px/19px var(--lg-font);
+  color: var(--label);
+}
+.insp-fw-summary-text .emb-mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+.insp-fw-summary-meta {
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-fw-summary-text.is-missing {
+  color: var(--label-2);
+}
+
+/* ---- pin rows: probe actions, active functions, hole links (IN-7) ------- */
+
+.insp-pin-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.insp-pin-filter .emb-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.insp-pin-acts {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0;
+  margin: -4px -8px -4px -2px;
+}
+.insp-pin-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--label-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.insp-pin-act:hover {
+  background: var(--fill-2);
+  color: var(--ios-blue);
+}
+.insp-pin-act:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 0;
+}
+/* rows reveal their actions on hover / focus with a fine pointer; touch keeps them visible */
+@media (hover: hover) and (pointer: fine) {
+  .emb-pin .insp-pin-acts,
+  .prs-pin .insp-pin-acts {
+    opacity: 0.45;
+    transition: opacity 120ms linear;
+  }
+  .emb-pin:hover .insp-pin-acts,
+  .emb-pin:focus-within .insp-pin-acts,
+  .prs-pin:hover .insp-pin-acts,
+  .prs-pin:focus-within .insp-pin-acts {
+    opacity: 1;
+  }
+}
+.emb-pin:where(:not(.prs-classic *)) .emb-pin-v {
+  min-width: 52px;
+}
+.insp-pin-hole {
+  margin-left: auto;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+.insp-pin-hole:hover {
+  color: var(--ios-blue);
+}
+.emb-fn.is-active {
+  background: linear-gradient(180deg, #3ea0ff, #0a84ff);
+  color: #fff;
+}
+.emb-fn.is-possible {
+  background: rgba(10, 132, 255, 0.16);
+  box-shadow: inset 0 0 0 0.5px rgba(10, 132, 255, 0.6);
+  color: #9fcbff;
+}
+.emb-fn.is-dim {
+  opacity: 0.55;
+}
+.insp-pin-legend {
+  display: inline;
+  line-height: 20px;
+}
+.insp-pin-legend .insp-term {
+  margin-right: 6px;
+}
+
+/* ---- wire net (PropertiesSheet WireNetGroup, IN-10) --------------------- */
+
+.insp-net-members {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.insp-net-label {
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-net-list {
+  font: 500 14.5px/20px var(--lg-font);
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+.insp-net-v {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ios-teal);
+}
+/* release polish: one member stays on one line (「PRB1 探棒」, never 「PRB1 探」/「棒」);
+   only a member wider than the whole card wraps inside itself */
+.insp-net-member {
+  display: inline-block;
+  max-width: 100%;
+}
+/* the 電壓 reading under its label, over the card's whole width (it wraps
+   between its parts — PartInfo WrapParts fit); a held net's history and the
+   paused / waiting note below it */
+.insp-net-reading .insp-net-v {
+  line-height: 22px;
+}
+.insp-net-history,
+.insp-net-note {
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-net-acts {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.insp-end {
+  font: 400 14px/19px var(--lg-font);
+  color: var(--label-2);
+  text-align: right;
+}
+
+/* pin row: identity on the left, hole · volts · actions on the right; the
+   right cluster wraps under the name in a narrow panel instead of squeezing it */
+.emb-pin-line.insp-pin-line {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.insp-pin-id {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+.insp-pin-id .emb-pin-name {
+  white-space: nowrap;
+}
+.insp-pin-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.insp-pin-right .emb-pin-hole {
+  margin-left: 0;
+}
+.insp-pin-right .emb-pin-v {
+  min-width: 48px;
+  padding-top: 0;
+}
+.emb-pin .insp-pin-hole {
+  font-family: var(--lg-font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  /* a 24 × 24 px target (WCAG 2.5.8 — QA IN-F6) without a taller row: the
+     box grows to 24 px and gives the 6 px back through negative margins */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 24px;
+  min-height: 24px;
+  margin-block: -3px;
+}
+.insp-pin-right .emb-pin-v:empty {
+  display: none;
+}
+.insp-pin-filter {
+  flex-wrap: wrap;
+}
+.insp-pin-filter .emb-field {
+  flex: 1 1 170px;
+}
+
+/* ---- registers: condition flags + decoded fault bits (IN-11) ------------ */
+
+.insp-flags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.insp-flags-label {
+  margin-right: 4px;
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--fill-2);
+  font: 600 12px/16px var(--lg-font-mono);
+  color: var(--label-3);
+}
+.insp-flag.is-on {
+  background: rgba(10, 132, 255, 0.22);
+  color: #9fcbff;
+}
+.insp-fault-bits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.insp-fault-bit {
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: rgba(255, 69, 58, 0.16);
+  font: 500 12.5px/17px var(--lg-font);
+  color: #ff8a80;
+}
+.insp-fault-bit .emb-mono {
+  font-weight: 600;
+}
+
+/* ---- peripherals: families + one-line rows (IN-6) ----------------------- */
+
+.insp-periph-family {
+  gap: 6px;
+  min-height: 0;
+  padding-top: 10px;
+  padding-bottom: 4px;
+  font: 600 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.insp-periph-count {
+  font-weight: 400;
+  color: var(--label-3);
+}
+.emb-periph.insp-periph {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.insp-periph .emb-periph-line {
+  min-width: 0;
+}
+.insp-periph .emb-periph-name,
+.insp-periph .emb-tag {
+  flex: 0 0 auto;
+}
+.insp-periph-first {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 13px/18px var(--lg-font);
+  color: var(--label-2);
+  text-align: start;
+}
+.insp-periph-chev {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--label-3);
+}
+
+/* ---- pin rows, fix wave (IN-20 / IN-21): the pin's one name 「PA9（板上 A9）」,
+   then the firmware mode and the board hole as a small ref, then the
+   function chips; the value is what the net is doing (H4) -------------- */
+
+.insp-pin-name {
+  font-family: var(--lg-font);
+  white-space: nowrap;
+}
+.emb-pin-line.insp-pin-sub {
+  gap: 6px;
+  min-height: 18px;
+}
+.insp-pin-sub .emb-pin-hole {
+  margin-left: 0;
+}
+.emb-pin .emb-pin-v.is-signal {
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--ios-green);
+}
+/* release polish: a held net's history (「核心停住前：有訊號變化」) and the UART
+   terminal adapter's note get a line of their own under the pin's name line —
+   the whole statement is readable in a 280 px panel, never cut at the edge */
+.insp-pin-history {
+  display: block;
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+/* a part of a long statement (PartInfo WrapParts fit): stays whole while it
+   fits on a line, wraps inside itself only when it is wider than the line */
+.insp-part-fit {
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* 「瞬時」: one instant of an unrecorded net — quiet, beside the value, but
+   readable: the secondary label token (≈ 0.64 alpha on the dark cards,
+   ≥ 4.5 : 1 in both themes — QA IN-F6) */
+.insp-pin-instant {
+  margin-left: 4px;
+  font: 400 11px/15px var(--lg-font);
+  color: var(--label-2);
+}
+:lang(zh) .insp-pin-instant {
+  font-size: 12px;
+}
+
+/* 「對調兩腳」 under a polarized part's pins (IN-19) */
+.lg-row.insp-swap-row {
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+
+/* CJK text never below 12 px (UX helper H9): the pin-mode tag under a pin, the picker's 錯誤示範 tag */
+:lang(zh) .insp-pin-sub .emb-tag,
+:lang(zh) .insp-fwp-tag {
+  font-size: 12px;
+}
+
+/* ---- on-board elements: a readable name, the element id as a small tag (QA IN-F5) */
+/* the name wraps rather than being cut by the reading beside it (the kit row title is one line) */
+.insp-sub-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+  white-space: normal;
+}
+/* break a name at its spaces (「電源 LED／限流電阻」), mid-word only when it cannot fit */
+.insp-sub-name {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.insp-sub-id {
+  font-size: 12px;
+  line-height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--fill);
+  color: var(--label-2);
+}
+
+/* ---- an off-board terminal's location: where its wire goes (QA IN-F4) */
+/* up to two lines in a narrow inspector (the full text is the title) */
+.prs-pin .prs-pin-dest,
+.emb-pin .insp-pin-dest {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  font-family: var(--lg-font);
+  font-size: 13px;
+  line-height: 17px;
+  min-width: 0;
+}
+.emb-pin .insp-pin-dest {
+  margin-left: 0;
+  font-size: 12px;
+}
+
+/* ---- the register grid in words (QA clarity GLOSSARY-ENTRIES): sp / lr /
+   pc / xpsr / ipsr carry their glossary term (dotted underline + ⓘ); the
+   name cell grows to fit it, the value keeps a gap. Product chrome only:
+   the classic inspector renders its own grid without these classes. ---- */
+/* one name column wide enough for 「xpsr ⓘ」 and 「mmfar」: every value starts at the same x */
+.insp-regs-grid {
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+}
+.insp-regs-grid .emb-reg-name {
+  width: 50px;
+  white-space: nowrap;
+}
+/* an address register whose VALID bit is clear: 「—（無效）」 reads as "nothing here", not as an error */
+.emb-regs-fault .insp-reg-invalid {
+  color: var(--label-3);
+}
+.insp-reg-term .insp-term {
+  color: inherit;
+}
+.insp-reg-term .insp-term-i {
+  font-size: 10px;
+}
+/* 「3（HardFault）」: the decoded exception stays on one line, across two columns when it needs them */
+.emb-reg.insp-reg-ipsr {
+  grid-column: span 2;
+  white-space: nowrap;
+}
+
+/* ---- a .bin at another base: the note and its one-click fix (QA clarity LOCKUP-CAUSE) */
+.insp-fw-binbase-fix {
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+/* ---- 韌體目前的設定 (QA clarity PERIPH-LIVE-CONFIG): the block, what the
+   firmware set, the instrument that shows it ------------------------------ */
+.insp-setup-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.insp-setup-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  min-width: 0;
+}
+.insp-setup-block {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label);
+}
+.insp-setup-detail {
+  flex: 1 1 12em;
+  min-width: 0;
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+.insp-setup-detail .insp-term {
+  color: var(--label);
+}
+.insp-setup-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.insp-setup-empty {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.insp-setup-empty-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font: 400 13px/19px var(--lg-font);
+  color: var(--label-2);
+}

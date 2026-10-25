@@ -1,0 +1,1540 @@
+[
+  {
+    "name": "sensors-overview",
+    "tone": "settle",
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-i2c",
+    "tone": "settle",
+    "cam": [
+      15.5,
+      12.5,
+      21.5,
+      15.5,
+      1.2,
+      6.2
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-gy302-dht11",
+    "tone": "settle",
+    "cam": [
+      32,
+      15,
+      16,
+      32,
+      1.2,
+      5.4
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-dht-encoder",
+    "tone": "settle",
+    "cam": [
+      45.5,
+      14,
+      22,
+      45.5,
+      2,
+      5.6
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-hcsr04-front",
+    "tone": "settle",
+    "cam": [
+      91.5,
+      9.5,
+      29,
+      91.5,
+      3.6,
+      9.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-hcsr04-back",
+    "tone": "settle",
+    "cam": [
+      73.5,
+      9.5,
+      26,
+      73.5,
+      3.6,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-joystick-current",
+    "tone": "settle",
+    "cam": [
+      113,
+      15.5,
+      31,
+      113,
+      2.4,
+      12.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-leaded",
+    "tone": "settle",
+    "cam": [
+      61,
+      6.5,
+      16,
+      61,
+      1.2,
+      8
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-i2c-enhanced",
+    "mode": "enhanced",
+    "tone": "settle",
+    "cam": [
+      15.5,
+      12.5,
+      21.5,
+      15.5,
+      1.2,
+      6.2
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-closeup-hcsr04-enhanced",
+    "mode": "enhanced",
+    "tone": "settle",
+    "cam": [
+      91.5,
+      9.5,
+      29,
+      91.5,
+      3.6,
+      9.5
+    ],
+    "layout": {
+      "version": 1,
+      "name": "Sensors",
+      "board": "labxl",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f2"
+        },
+        {
+          "id": "U2",
+          "type": "bmp280",
+          "at": "f12"
+        },
+        {
+          "id": "U3",
+          "type": "bme280",
+          "at": "f20"
+        },
+        {
+          "id": "U4",
+          "type": "bh1750",
+          "at": "f28"
+        },
+        {
+          "id": "U5",
+          "type": "dht11",
+          "at": "f36"
+        },
+        {
+          "id": "U6",
+          "type": "dht22",
+          "at": "f44"
+        },
+        {
+          "id": "U7",
+          "type": "ky040_encoder",
+          "at": "f52",
+          "params": {
+            "position": 2
+          }
+        },
+        {
+          "id": "U8",
+          "type": "hcsr04",
+          "at": "f75"
+        },
+        {
+          "id": "U9",
+          "type": "hcsr04",
+          "at": "e90",
+          "rotation": 180
+        },
+        {
+          "id": "U10",
+          "type": "joystick_xy",
+          "at": "e108",
+          "rotation": 180,
+          "params": {
+            "x": 60,
+            "y": 30
+          }
+        },
+        {
+          "id": "U11",
+          "type": "acs712_5a",
+          "at": "e116",
+          "rotation": 180
+        },
+        {
+          "id": "U12",
+          "type": "voltage_sensor",
+          "at": "e123",
+          "rotation": 180
+        },
+        {
+          "id": "U13",
+          "type": "ds18b20",
+          "holes": [
+            "b59",
+            "b60",
+            "b61"
+          ]
+        },
+        {
+          "id": "U14",
+          "type": "ir_receiver_vs1838b",
+          "holes": [
+            "h58",
+            "h59",
+            "h60"
+          ]
+        },
+        {
+          "id": "U15",
+          "type": "hall_a3144",
+          "holes": [
+            "h62",
+            "h63",
+            "h64"
+          ]
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-powered-leds",
+    "tone": "settle",
+    "cam": [
+      22,
+      13,
+      27,
+      22,
+      1.5,
+      8
+    ],
+    "keys": [
+      "Space"
+    ],
+    "settle": 2500,
+    "layout": {
+      "version": 1,
+      "name": "Sensors powered",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "mpu6050_gy521",
+          "at": "f6"
+        },
+        {
+          "id": "U2",
+          "type": "dht11",
+          "at": "f20"
+        },
+        {
+          "id": "U3",
+          "type": "acs712_5a",
+          "at": "f30"
+        },
+        {
+          "id": "U4",
+          "type": "hcsr04",
+          "at": "f48"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "bot+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "bot-0",
+          "color": "black"
+        },
+        {
+          "id": "w3",
+          "from": "h6",
+          "to": "bot+4",
+          "color": "red"
+        },
+        {
+          "id": "w4",
+          "from": "i7",
+          "to": "bot-5",
+          "color": "black"
+        },
+        {
+          "id": "w5",
+          "from": "h20",
+          "to": "bot+16",
+          "color": "red"
+        },
+        {
+          "id": "w6",
+          "from": "h22",
+          "to": "bot-17",
+          "color": "black"
+        },
+        {
+          "id": "w7",
+          "from": "h30",
+          "to": "bot+24",
+          "color": "red"
+        },
+        {
+          "id": "w8",
+          "from": "h32",
+          "to": "bot-25",
+          "color": "black"
+        },
+        {
+          "id": "w9",
+          "from": "h48",
+          "to": "bot+38",
+          "color": "red"
+        },
+        {
+          "id": "w10",
+          "from": "h45",
+          "to": "bot-35",
+          "color": "black"
+        }
+      ]
+    }
+  },
+  {
+    "name": "sensors-ws-zh",
+    "workspace": true,
+    "lang": "zh-TW",
+    "tone": "settle",
+    "layout": {
+      "version": 1,
+      "name": "Sensors workspace",
+      "components": [
+        {
+          "id": "PS1",
+          "type": "power_supply",
+          "params": {
+            "voltage": 5
+          }
+        },
+        {
+          "id": "U1",
+          "type": "stm32_bluepill",
+          "at": "h18"
+        },
+        {
+          "id": "U2",
+          "type": "mpu6050_gy521",
+          "at": "f4"
+        },
+        {
+          "id": "U3",
+          "type": "dht22",
+          "at": "f40"
+        },
+        {
+          "id": "U4",
+          "type": "hcsr04",
+          "at": "f56"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w1",
+          "from": "PS1:+",
+          "to": "top+0",
+          "color": "red"
+        },
+        {
+          "id": "w2",
+          "from": "PS1:-",
+          "to": "top-0",
+          "color": "black"
+        }
+      ]
+    }
+  }
+]

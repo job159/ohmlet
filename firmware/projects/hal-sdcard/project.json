@@ -1,0 +1,40 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "HAL SPI1 + micro-SD module: SPI-mode initialization (74 clocks, CMD0, CMD8, ACMD41, CMD58), CSD capacity, block 0 (MBR) and the FAT boot sector; volume info and 'sd ok' on USART1",
+  "expect": "72 MHz. SPI1 master mode 0, MSB first: PA5 SCK, PA6 MISO (input pull-up), PA7 MOSI, PA4 = CS (push-pull, high). SCK 281 kHz (72 MHz / 256) until initialized, then 9 MHz. micro-SD module on 5 V. USART1 PA9 115200 8N1 report: 'SD card SPI test (SPI1, CS PA4)\r\n'; 80 clocks with CS high; CMD0 (CRC 95h) up to 10 times: 'CMD0: idle (R1 0x01)' or 'CMD0: no card (R1 0xNN)' + 'sd FAILED' (no card: MISO pulled up, R1 0xFF); CMD8(1AAh): 'CMD8: v2 card, echo 0x1AA'; CMD55 + ACMD41(HCS) every millisecond: 'ACMD41: ready after N tries' (the simulated card initializes 25 ms after the first ACMD41); CMD58: 'OCR 0xC0FF8000: SDHC (block addresses)'; CMD9: 'CSD v2: 4096 MiB'; CMD17 block 0 (token FEh, CRC16 checked): 'MBR: partition 1 type 0x0C at LBA 8192, 8380416 sectors'; CMD17 of that LBA: 'FAT32 volume \"OHMLET SD\": 512 B/sector, 64 sectors/cluster, 32 reserved, 2 FATs x 1023 sectors, root cluster 2'; 'sd ok'. (An SDSC card prints the byte-address variant, CSD v1 and a FAT16 line.)",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "micro-SD module: not placed on this bench (the checks runner cannot place it; the full card sequence is covered by tests/devices/comm-firmware.test.ts)",
+      "PA4, PA5, PA6, PA7: unconnected (SPI1 + CS)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA4": "output-pp",
+      "PA5": "af-pp",
+      "PA6": "input-pullup",
+      "PA7": "af-pp",
+      "PA9": "af-pp"
+    },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": {
+      "USART1": "SD card SPI test (SPI1, CS PA4)\r\nCMD0: no card (R1 0xFF)\r\nsd FAILED\r\n"
+    },
+    "idle": {
+      "PA4": 1
+    }
+  }
+}

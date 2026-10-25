@@ -1,0 +1,38 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["adc", "uart"],
+  "description": "HAL ADC1 IN0 (PA0, analog) single conversion every 100 ms after HAL_ADCEx_Calibration_Start; prints 'adc=<raw> mv=<mV>' on USART1",
+  "expect": "72 MHz, ADCCLK = PCLK2/6 = 12 MHz. ADC1 independent mode, no scan, single conversion, software start, right aligned, channel 0 (PA0 in analog mode) sampled 55.5 cycles (conversion 68 ADCCLK = 5.67 us). After HAL_ADCEx_Calibration_Start (RSTCAL then CAL) a conversion is started every 100 ms (deadline based, no drift; the first right after init), EOC is polled and USART1 PA9/PA10 115200 8N1 prints 'adc=<raw> mv=<mV>\\r\\n' with raw = round(V(PA0) / VDDA x 4095) and mV = (raw x 3300 + 2047) / 4095 (VDDA assumed 3.3 V). PA0 at 0 V -> 'adc=0 mv=0', at VDD -> 'adc=4095 mv=3300'; a potentiometer between 3V3 and GND reads position x 4095.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA0: nothing else connected (the scenarios drive it; tests/mcu/stm32f1/adc-firmware.test.ts wires a 10 kohm potentiometer between 3V3 and GND with its wiper on PA0 instead)",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PA0": "analog", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": { "match": "^adc=\\d{1,4} mv=\\d{1,4}\r\n$" } },
+    "signals": [
+      { "uart": "USART1", "match": "^adc=\\d{1,4} mv=\\d{1,4}\r\n$", "firstAt": [98.95, 100.05], "everyMs": 100, "tolUs": 20, "always": true }
+    ],
+    "scenarios": [
+      {
+        "name": "PA0 tied to GND reads 0",
+        "durationMs": 250,
+        "drive": [{ "at": 0, "pin": "PA0", "level": 0 }],
+        "expect": [{ "at": [0.08, 100.2], "uart": "adc=0 mv=0\r\n" }],
+        "quiet": []
+      },
+      {
+        "name": "PA0 tied to 3V3 reads full scale",
+        "durationMs": 250,
+        "drive": [{ "at": 0, "pin": "PA0", "level": 1 }],
+        "expect": [{ "at": [0.08, 100.2], "uart": "adc=4095 mv=3300\r\n" }],
+        "quiet": []
+      }
+    ]
+  }
+}

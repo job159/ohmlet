@@ -1,0 +1,18 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["tim", "uart"],
+  "description": "HC-SR04 ultrasonic distance: 12 us TRIG pulse on PB12 every 100 ms, ECHO high time captured by TIM4 CH1 (rising) / CH2 (falling) on the 5 V-tolerant PB6 at 1 MHz; prints the distance on USART1",
+  "expect": "72 MHz. TIM4 PSC 71 (1 MHz), ARR 0xFFFF, IC1 = TI1 rising, IC2 = TI1 falling (indirect), no filter; PB6 floating input (5 V tolerant, the module drives ECHO at 5 V); PB12 push-pull output (TRIG). USART1 PA9/PA10 115200 8N1. Boot: 'HC-SR04: TRIG PB12, ECHO PB6 (TIM4 CH1/CH2 capture)\\r\\n'. Every 100 ms (first right after boot): CC flags cleared, PB12 high for 12 us (DWT), then CC1 (ECHO rising) is awaited up to 10 ms ('no echo (sensor not powered?)\\r\\n'), CC2 (falling) up to 60 ms ('echo stuck high\\r\\n'); t = CCR2 - CCR1 us; t >= 30000 prints 'out of range (echo <t> us)\\r\\n' (the module's 38 ms no-echo pulse), otherwise 'd=<cm>.<d> cm (echo <t> us)\\r\\n' with d = t x 0.0343 / 2 truncated to 0.1 cm.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)", "no HC-SR04 (tests/devices/sensors-firmware.test.ts wires one instead): PB6 floats"],
+    "pins": { "PB6": "input-floating", "PB12": "output-pp", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": {
+      "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 }
+    },
+    "boot": { "USART1": "HC-SR04: TRIG PB12, ECHO PB6 (TIM4 CH1/CH2 capture)\r\nno echo (sensor not powered?)\r\n" }
+  }
+}

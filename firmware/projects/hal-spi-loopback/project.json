@@ -1,0 +1,53 @@
+{
+  "kind": "hal",
+  "sources": [
+    "main.c",
+    "stm32f1xx_it.c",
+    "stm32f1xx_hal_msp.c"
+  ],
+  "hal": [
+    "uart",
+    "spi"
+  ],
+  "description": "HAL SPI1 full duplex with PA7 MOSI wired to PA6 MISO: 64-byte TransmitReceive in mode 0, mode 3 LSB-first, 16-bit frames and with hardware CRC, 'spi loopback ok' on USART1",
+  "expect": "72 MHz. SPI1 master full duplex: PA5 SCK and PA7 MOSI AF push-pull, PA6 MISO input; a wire connects PA7 to PA6. USART1 PA9/PA10 115200 8N1. Once after reset: 'SPI1 loopback (PA7 MOSI -> PA6 MISO)\r\n', then four blocking HAL_SPI_TransmitReceive passes of tx[i] = 37*i + 11, each compared with what was sent: mode 0 MSB first 9 MHz -> 'mode 0: 64 bytes ok\r\n'; mode 3 LSB first 18 MHz -> 'mode 3 lsb: 64 bytes ok\r\n'; mode 1 16-bit frames 4.5 MHz -> '16-bit: 32 words ok\r\n'; mode 0 with hardware CRC (polynomial 7, the CRC frame comes back and is checked) -> 'crc: 64 bytes ok, crc 0xNN\r\n'; then 'spi loopback ok\r\n' and WFI. A difference prints '<pass>: mismatch at byte N: sent 0xSS got 0xRR\r\n' and stops (without the wire the first pass fails this way); a HAL error prints '<pass>: HAL status S, ErrorCode 0xE\r\n'. No machine checks: the checks runner cannot place the PA7-PA6 wire; tests/mcu/stm32f1/spi-firmware.test.ts runs both variants.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA7 -> PA6: jumper wire",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": {
+      "PA5": "af-pp",
+      "PA7": "af-pp",
+      "PA6": "input-floating",
+      "PA9": "af-pp",
+      "PA10": "input-pullup"
+    },
+    "uart": {
+      "USART1": {
+        "tx": "PA9",
+        "rx": "PA10",
+        "baud": 115200,
+        "dataBits": 8,
+        "parity": "none",
+        "stopBits": 1
+      }
+    },
+    "boot": {
+      "USART1": "SPI1 loopback (PA7 MOSI -> PA6 MISO)\r\nmode 0: 64 bytes ok\r\nmode 3 lsb: 64 bytes ok\r\n16-bit: 32 words ok\r\ncrc: 64 bytes ok, crc 0x1E\r\nspi loopback ok\r\n"
+    },
+    "idle": {
+      "PA5": 0
+    },
+    "signals": [
+      {
+        "pin": "PA6",
+        "sameAs": "PA7",
+        "skewUs": 0.1
+      }
+    ]
+  }
+}

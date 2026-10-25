@@ -1,0 +1,20 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "HAL DMA1 channel 1 memory-to-memory copy of 1 KiB (256 words), verified and timed with DWT->CYCCNT; prints 'm2m ok <cycles>' every 500 ms on USART1",
+  "expect": "72 MHz. DMA1 channel 1 MEM2MEM, 32-bit words, both addresses incremented, normal mode, low priority. Right after init and then every 500 ms (deadline based): fill src[256] with a per-round xorshift pattern, clear dst[256] + a guard word, t0 = DWT->CYCCNT, HAL_DMA_Start + HAL_DMA_PollForTransfer(FULL, 10 ms), t1 = DWT->CYCCNT, compare. USART1 PA9/PA10 115200 8N1 prints 'm2m ok <t1 - t0>\\r\\n' when the copy matches and the guard is intact (else 'm2m FAIL <first bad index>' / 'm2m ERROR <status>'). With the simulator's DMA timing (6 HCLK per SRAM-to-SRAM word: arbitration 2 + read 2 + write 2) the count is 256 x 6 = 1536 cycles plus HAL start / poll overhead, identical every round.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": ["USART1: virtual terminal on PA9 (TX) / PA10 (RX)"],
+    "pins": { "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": { "match": "^m2m ok (15[3-9]\\d|1[6-9]\\d\\d)\r\n$" } },
+    "signals": [
+      { "uart": "USART1", "match": "^m2m ok (15[3-9]\\d|1[6-9]\\d\\d)\r\n$", "firstAt": [498.95, 500.05], "everyMs": 500, "tolUs": 20, "always": true }
+    ],
+    "scenarios": []
+  }
+}

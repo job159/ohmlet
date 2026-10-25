@@ -1,0 +1,105 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart"],
+  "description": "HAL traffic light: PA3 green 3 s -> PA2 yellow 1 s -> PA1 red 3 s; PB0 pedestrian button (EXTI) cuts green to 1 s; state on USART1",
+  "expect": "72 MHz. PA1 red / PA2 yellow / PA3 green push-pull, active high, exactly one high at any time (each change is one BSRR write). Cycle from boot: GREEN 3000 ms -> YELLOW 1000 ms -> RED 3000 ms (7000 ms period, +-20 us, no drift). USART1 PA9/PA10 115200 8N1: 'light=GREEN\\r\\n' at boot and on every change 'light=<GREEN|YELLOW|RED>\\r\\n' starting right after the LEDs switch. PB0 input pull-up + EXTI falling, accepted 19-20 ms after its last falling edge if still low: accepted during GREEN it ends green at max(green start + 1000 ms, now) and that yellow prints 'light=YELLOW (walk)\\r\\n'; presses during YELLOW/RED are ignored.",
+  "checks": {
+    "hclkHz": 72000000,
+    "t0": "uart:USART1",
+    "settleMs": 150,
+    "circuit": [
+      "PA1: red LED + 330 ohm to GND",
+      "PA2: yellow LED + 330 ohm to GND",
+      "PA3: green LED + 330 ohm to GND",
+      "PB0: push-button to GND, no external resistor",
+      "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+    ],
+    "pins": { "PA1": "output-pp", "PA2": "output-pp", "PA3": "output-pp", "PB0": "input-pullup", "PA9": "af-pp", "PA10": "input-pullup" },
+    "uart": { "USART1": { "tx": "PA9", "rx": "PA10", "baud": 115200, "dataBits": 8, "parity": "none", "stopBits": 1 } },
+    "boot": { "USART1": "light=GREEN\r\n" },
+    "idle": { "PB0": 1 },
+    "signals": [
+      { "pins": ["PA3", "PA2", "PA1"], "oneHot": true, "always": true },
+      { "pin": "PA3", "square": [3000, 4000], "tolUs": 20, "firstEdge": 0, "firstEdgeAt": [2998.85, 2999.95] },
+      { "pin": "PA2", "square": [1000, 6000], "tolUs": 20, "firstEdge": 1, "firstEdgeAt": [2998.85, 2999.95] },
+      { "pin": "PA1", "square": [3000, 4000], "tolUs": 20, "firstEdge": 1, "firstEdgeAt": [3998.85, 3999.95] }
+    ],
+    "scenarios": [
+      {
+        "name": "one full cycle",
+        "durationMs": 7100,
+        "drive": [],
+        "expect": [
+          { "id": "y", "at": [2998.85, 2999.95], "pin": "PA2", "edge": 1 },
+          { "from": "y", "at": [0, 0.001], "pin": "PA3", "edge": 0 },
+          { "from": "y", "at": [0.08, 0.15], "uart": "light=YELLOW\r\n" },
+          { "id": "r", "from": "y", "at": [999.98, 1000.02], "pin": "PA1", "edge": 1 },
+          { "from": "r", "at": [0, 0.001], "pin": "PA2", "edge": 0 },
+          { "from": "r", "at": [0.08, 0.15], "uart": "light=RED\r\n" },
+          { "id": "g", "from": "r", "at": [2999.98, 3000.02], "pin": "PA3", "edge": 1 },
+          { "from": "g", "at": [0, 0.001], "pin": "PA1", "edge": 0 },
+          { "from": "g", "at": [0.08, 0.15], "uart": "light=GREEN\r\n" }
+        ],
+        "quiet": ["PA1", "PA2", "PA3", "USART1"]
+      },
+      {
+        "name": "walk request early in green: green cut to 1 s in total",
+        "durationMs": 5100,
+        "drive": [
+          { "at": 100, "pin": "PB0", "level": 0 },
+          { "at": 300, "pin": "PB0", "level": "open" }
+        ],
+        "expect": [
+          { "id": "y", "at": [998.85, 999.95], "pin": "PA2", "edge": 1 },
+          { "from": "y", "at": [0, 0.001], "pin": "PA3", "edge": 0 },
+          { "from": "y", "at": [0.08, 0.15], "uart": "light=YELLOW (walk)\r\n" },
+          { "id": "r", "from": "y", "at": [999.98, 1000.02], "pin": "PA1", "edge": 1 },
+          { "from": "r", "at": [0, 0.001], "pin": "PA2", "edge": 0 },
+          { "from": "r", "at": [0.08, 0.15], "uart": "light=RED\r\n" },
+          { "id": "g", "from": "r", "at": [2999.98, 3000.02], "pin": "PA3", "edge": 1 },
+          { "from": "g", "at": [0, 0.001], "pin": "PA1", "edge": 0 },
+          { "from": "g", "at": [0.08, 0.15], "uart": "light=GREEN\r\n" }
+        ],
+        "quiet": ["PA1", "PA2", "PA3", "USART1"]
+      },
+      {
+        "name": "walk request after 1 s of green: yellow at once",
+        "durationMs": 2600,
+        "drive": [
+          { "at": 1500, "pin": "PB0", "level": 0 },
+          { "at": 1700, "pin": "PB0", "level": "open" }
+        ],
+        "expect": [
+          { "id": "y", "at": [1519, 1520.02], "pin": "PA2", "edge": 1 },
+          { "from": "y", "at": [0, 0.001], "pin": "PA3", "edge": 0 },
+          { "from": "y", "at": [0.08, 0.15], "uart": "light=YELLOW (walk)\r\n" },
+          { "id": "r", "from": "y", "at": [999.98, 1000.02], "pin": "PA1", "edge": 1 },
+          { "from": "r", "at": [0, 0.001], "pin": "PA2", "edge": 0 },
+          { "from": "r", "at": [0.08, 0.15], "uart": "light=RED\r\n" }
+        ],
+        "quiet": ["PA1", "PA2", "PA3", "USART1"]
+      },
+      {
+        "name": "a press during red is ignored",
+        "durationMs": 7100,
+        "drive": [
+          { "at": 5000, "pin": "PB0", "level": 0 },
+          { "at": 5200, "pin": "PB0", "level": "open" }
+        ],
+        "expect": [
+          { "id": "y", "at": [2998.85, 2999.95], "pin": "PA2", "edge": 1 },
+          { "from": "y", "at": [0, 0.001], "pin": "PA3", "edge": 0 },
+          { "from": "y", "at": [0.08, 0.15], "uart": "light=YELLOW\r\n" },
+          { "id": "r", "from": "y", "at": [999.98, 1000.02], "pin": "PA1", "edge": 1 },
+          { "from": "r", "at": [0, 0.001], "pin": "PA2", "edge": 0 },
+          { "from": "r", "at": [0.08, 0.15], "uart": "light=RED\r\n" },
+          { "id": "g", "from": "r", "at": [2999.98, 3000.02], "pin": "PA3", "edge": 1 },
+          { "from": "g", "at": [0, 0.001], "pin": "PA1", "edge": 0 },
+          { "from": "g", "at": [0.08, 0.15], "uart": "light=GREEN\r\n" }
+        ],
+        "quiet": ["PA1", "PA2", "PA3", "USART1"]
+      }
+    ]
+  }
+}

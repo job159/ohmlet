@@ -1,0 +1,46 @@
+
+
+Disassembly of section .text:
+
+080000ec <reset>:
+ 80000ec:      	movw	r12, #0xe100
+ 80000f0:      	movt	r12, #0xe000
+ 80000f4:      	movw	r3, #0x3
+ 80000f8:      	movt	r3, #0x0
+ 80000fc:      	str.w	r3, [r12]
+ 8000100:      	movs	r0, #0x0
+
+08000102 <spin_loop>:
+ 8000102:      	adds	r0, #0x1
+
+08000104 <spin_branch>:
+ 8000104:      	b.w	0x8000102 <spin_loop>   @ imm = #-0x6
+
+08000108 <IRQ0_Handler>:
+ 8000108:      	movw	r12, #0x4
+ 800010c:      	movt	r12, #0x4000
+ 8000110:      	movw	r3, #0x100
+ 8000114:      	movt	r3, #0x0
+ 8000118:      	str.w	r3, [r12]
+ 800011c:      	bx	lr
+
+0800011e <IRQ1_Handler>:
+ 800011e:      	movw	r12, #0x4
+ 8000122:      	movt	r12, #0x4000
+ 8000126:      	movw	r3, #0x101
+ 800012a:      	movt	r3, #0x0
+ 800012e:      	str.w	r3, [r12]
+ 8000132:      	bx	lr
+
+08000134 <SysTick_Handler>:
+ 8000134:      	movw	r12, #0x4
+ 8000138:      	movt	r12, #0x4000
+ 800013c:      	movw	r3, #0x115
+ 8000140:      	movt	r3, #0x0
+ 8000144:      	str.w	r3, [r12]
+ 8000148:      	bx	lr
+
+0800014a <unexpected>:
+ 800014a:      	bkpt	#0xee
+ 800014c:      	b	0x800014a <unexpected>  @ imm = #-0x6
+ 800014e:      	bmi	0x80000fa <reset+0xe>   @ imm = #-0x58

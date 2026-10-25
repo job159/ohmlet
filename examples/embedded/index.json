@@ -1,0 +1,1045 @@
+{
+  "v": 1,
+  "examples": [
+    {
+      "id": "blink",
+      "file": "blink.ohmlet.json",
+      "category": "gpio",
+      "order": 10,
+      "difficulty": "beginner",
+      "title": "Blue Pill 閃爍 LED（HAL）",
+      "summary": "HAL_Delay(500) 讓 PA5 外接 LED 與板載 PC13 LED 一起閃爍",
+      "description": "嵌入式的第一個程式：真正的 STM32CubeIDE 風格 HAL 韌體（72 MHz，HSE 8 MHz × PLL 9）在模擬的 STM32F103 上逐條指令執行。主迴圈呼叫 HAL_GPIO_TogglePin 後 HAL_Delay(500)，PA5 與 PC13 每 501 ms 反轉一次（`HAL_Delay(n)` 實際等待 n + 1 個 SysTick 週期）。\n\n接線：PA5 → 330 Ω 電阻 → 紅色 LED 陽極，LED 陰極接 GND（高電位點亮）。板載綠色 LED 接在 PC13，經 510 Ω 接到 3.3 V（低電位點亮）。韌體讓 PC13 的電位永遠與 PA5 相反，所以兩顆 LED 會同時亮、同時暗。\n\n試試看：打開邏輯分析儀量 PA5 與 PC13 的週期（約 1.002 s），確認兩者互為反相；在屬性面板查看 MCU 狀態與腳位模式；把 R1 改成 33 Ω 後點 LED1，電流會升到約 18 mA；把 R1 換成一條導線（LED 直接接在 PA5），問題面板就會出現「LED1 沒有限流電阻」。",
+      "tags": [
+        "GPIO",
+        "HAL_Delay",
+        "LED",
+        "PC13"
+      ],
+      "glyph": "led",
+      "firmware": {
+        "project": "hal-blink",
+        "name": "hal-blink.elf",
+        "sha256": "66618177658eade81cd14f8db9c8c0eacb45b6ed3d8268bf20b8b587a0f35369",
+        "size": 217336
+      },
+      "simulation": "full",
+      "parts": 4,
+      "wires": 7,
+      "instruments": [
+        "logic"
+      ]
+    },
+    {
+      "id": "button-exti",
+      "file": "button-exti.ohmlet.json",
+      "category": "gpio",
+      "order": 20,
+      "difficulty": "beginner",
+      "title": "按鈕中斷（EXTI）與軟體去彈跳",
+      "summary": "PB12 按鈕觸發 EXTI 下降緣中斷，20 ms 去彈跳後切換 PA5 LED 並印出按壓次數",
+      "description": "按鈕一端接 PB12、另一端接 GND，沒有外接電阻：韌體把 PB12 設成「輸入＋內部上拉」，放開時讀到 1、按下時讀到 0。EXTI12 在下降緣觸發中斷，中斷只記錄時間；主迴圈確認 20 ms 後腳位仍為低電位，才算一次有效按壓 —— 這就是軟體去彈跳。\n\n每次有效按壓，PA5 的 LED 反轉，並在 USART1（115200 8N1）印出 `press 1`、`press 2`…。開機時不會印任何東西。\n\n試試看：在 3D 畫面點按鈕，或在屬性面板切換 SW1 的「按下」；打開邏輯分析儀，對照 PB12、PA5 與 UART 解碼的時間差（約 19–20 ms）。\n\nERC 提醒：靜態檢查看不到韌體會開啟內部上拉，因此會標示 PB12 為「浮接輸入」風險 —— 這正是本範例要說明的重點；若韌體沒開上拉，放開按鈕時 PB12 就真的會浮接。",
+      "tags": [
+        "EXTI",
+        "NVIC",
+        "內部上拉",
+        "去彈跳",
+        "UART"
+      ],
+      "glyph": "pushbutton",
+      "firmware": {
+        "project": "hal-button-exti",
+        "name": "hal-button-exti.elf",
+        "sha256": "6d930db55f5282cbea7ea0ecfce445b480989395915389661e9a7afc5e72c4ea",
+        "size": 252736
+      },
+      "simulation": "full",
+      "parts": 5,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "traffic-light",
+      "file": "traffic-light.ohmlet.json",
+      "category": "gpio",
+      "order": 30,
+      "difficulty": "beginner",
+      "title": "紅綠燈與行人按鈕",
+      "summary": "綠 3 s → 黃 1 s → 紅 3 s 的狀態機，PB0 行人按鈕可提早結束綠燈",
+      "description": "三顆 LED 各串 330 Ω：PA1 紅、PA2 黃、PA3 綠。韌體是一個以 HAL_GetTick() 計時的狀態機，每次換燈都在 USART1 印出 `light=GREEN`、`light=YELLOW`、`light=RED`。\n\n行人按鈕接在 PB0 與 GND 之間（內部上拉、EXTI0 下降緣）。綠燈期間按下，綠燈會在「已亮滿 1 秒」或「立即」兩者較晚的時間結束，並印出 `light=YELLOW (walk)`；黃燈與紅燈期間的按壓會被忽略。\n\n試試看：在綠燈剛亮時按 SW1，再在紅燈時按一次，比較 UART 輸出；用邏輯分析儀確認任何時刻只有一顆燈亮。\n\nERC 提醒：PB0 只靠韌體開啟的內部上拉，靜態檢查會標示「浮接輸入」風險。",
+      "tags": [
+        "狀態機",
+        "HAL_GetTick",
+        "EXTI",
+        "LED"
+      ],
+      "glyph": "led",
+      "firmware": {
+        "project": "hal-traffic-light",
+        "name": "hal-traffic-light.elf",
+        "sha256": "1d074fc70782b8a788fe6406477aa04e726380b23181b1618b25791bdd95e6d6",
+        "size": 253920
+      },
+      "simulation": "full",
+      "parts": 9,
+      "wires": 11,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "pwm-fade",
+      "file": "pwm-fade.ohmlet.json",
+      "category": "gpio",
+      "order": 40,
+      "difficulty": "beginner",
+      "title": "PWM 呼吸燈（TIM3）",
+      "summary": "TIM3 CH1 在 PA6 輸出 1 kHz PWM，工作週期 0 → 100 → 0 % 每 2 秒循環",
+      "description": "TIM3 以 1 kHz 產生 PWM，更新中斷每 10 個週期把預載的 CCR1 加減 1 %，LED 的平均電流隨工作週期變化，看起來就像在「呼吸」。PA6 設為 AF 推挽輸出，由計時器硬體直接驅動，CPU 不需要切換腳位。\n\n接線：PA6 → 330 Ω → 紅色 LED → GND。示波器 CH1 探棒接在 PA6，邏輯分析儀也在 PA6 上。\n\n試試看：在邏輯分析儀放大單一週期，量高電位時間（工作週期 × 1 ms）；用示波器觀察 0 / 3.3 V 方波的寬度如何隨時間改變。",
+      "tags": [
+        "TIM3",
+        "PWM",
+        "CCR",
+        "中斷",
+        "LED"
+      ],
+      "glyph": "led",
+      "firmware": {
+        "project": "hal-pwm-fade",
+        "name": "hal-pwm-fade.elf",
+        "sha256": "d9e642c0465c597f015d7d832e46230ef5bf1d415e15c743c5438176c40f0f73",
+        "size": 288200
+      },
+      "simulation": "full",
+      "parts": 5,
+      "wires": 7,
+      "instruments": [
+        "logic",
+        "scope"
+      ]
+    },
+    {
+      "id": "uart-hello",
+      "file": "uart-hello.ohmlet.json",
+      "category": "serial",
+      "order": 10,
+      "difficulty": "beginner",
+      "title": "UART 問候與回音（終端機）",
+      "summary": "USART1 115200 8N1：開機問候、每秒報時，輸入的每一行文字都會被回傳",
+      "description": "USART1 的 TX 是 PA9、RX 是 PA10。韌體開機印出 `Hello from STM32F103!`，之後以 HAL_GetTick() 排程每 1000 ms 印出 `tick N`（以截止時間累加，不會漂移）。接收用中斷：收到 CR 或 LF 視為一行結束，回傳 `echo: <內容>`。\n\n這個範例不需要外接零件：UART 終端機直接接在 USART1 的周邊上，就像 USB 轉 TTL 線接到 PA9 / PA10。\n\n試試看：在終端機輸入 `hello` 並按輸入鍵；打開邏輯分析儀，PA9 與 PA10 已設定 UART 解碼器（115200），可以看到每個位元的起始位元、資料位元與停止位元（每個字元約 86.8 µs）。",
+      "tags": [
+        "USART1",
+        "115200",
+        "中斷接收",
+        "終端機"
+      ],
+      "glyph": "usb_uart_ch340",
+      "firmware": {
+        "project": "hal-uart-hello",
+        "name": "hal-uart-hello.elf",
+        "sha256": "b9e9fd2927ce6e6050cfab84b0d26a3d3b62a0ba59a8ad51fbed5e8c7d2bf9ff",
+        "size": 254868
+      },
+      "simulation": "full",
+      "parts": 2,
+      "wires": 6,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "i2c-scan",
+      "file": "i2c-scan.ohmlet.json",
+      "category": "serial",
+      "order": 20,
+      "difficulty": "intermediate",
+      "title": "I²C 匯流排掃描",
+      "summary": "掃描 0x08–0x77：找出 AT24C02（0x50）、SSD1306（0x3C）與 BME280（0x76）",
+      "description": "I2C1（PB6 = SCL、PB7 = SDA，100 kHz）上掛了三個裝置：AT24C02 EEPROM、SSD1306 OLED 模組與 GY-BME280 感測器。韌體對每個 7 位元位址呼叫 HAL_I2C_IsDeviceReady，有回應 ACK 的就印出 `found 0xNN`，最後印出 `scan done N`。\n\nI²C 是開汲極匯流排：SCL 與 SDA 都需要上拉電阻到 3.3 V。麵包板上的 R1、R2（4.7 kΩ）之外，OLED 與 BME280 模組板上也各有一組 4.7 kΩ 上拉，三組並聯後約 1.6 kΩ —— 實務上很常見，掛的模組越多，上拉越強。AT24C02 的 A2–A0 接地，所以位址是 0x50；WP 接地允許寫入。BME280 只能接 3.3 V（由 Blue Pill 的 3V3 腳供電），OLED 模組自帶穩壓，接 5 V。\n\n試試看：在屬性面板把 OLED 的「I²C 位址（模組跳線）」改成 0x3D 再重新執行，掃描結果會跟著變；在邏輯分析儀上看每個位址的 START、位址位元組與 ACK / NACK（沒有裝置的位址會收到 NACK）。",
+      "tags": [
+        "I²C",
+        "I2C1",
+        "上拉電阻",
+        "ACK",
+        "AT24C02",
+        "BME280",
+        "SSD1306"
+      ],
+      "glyph": "at24c02",
+      "firmware": {
+        "project": "hal-i2c-scan",
+        "name": "hal-i2c-scan.elf",
+        "sha256": "4ac5dbd5db1bcbba0739023c37395ffd26c906ecfa830381c9f82eedc1bdd1e2",
+        "size": 294740
+      },
+      "simulation": "full",
+      "parts": 7,
+      "wires": 22,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "i2c-eeprom",
+      "file": "i2c-eeprom.ohmlet.json",
+      "category": "serial",
+      "order": 30,
+      "difficulty": "intermediate",
+      "title": "I²C EEPROM 讀寫（AT24C02）",
+      "summary": "跨頁寫入 16 位元組、以 ACK 輪詢等待 5 ms 寫入週期，再用阻塞與中斷模式讀回比對",
+      "description": "AT24C02 是 256 位元組的 I²C EEPROM，一頁 8 位元組。韌體在位址 0x1C 起寫入 16 位元組，刻意跨過兩個頁邊界，所以拆成 4 + 8 + 4 三次寫入；每次寫入後晶片進入約 5 ms 的內部寫入週期，期間不回應 ACK，韌體以「ACK 輪詢」計算等了幾次（約 45 次）。\n\n接著用 HAL_I2C_Mem_Read 分別以 16、1、2 個位元組讀回，再用中斷模式（_IT）讀一次，全部比對正確後印出 `eeprom ok`。EEPROM 的內容在模擬中會保留：第二次執行時 `before:` 那一行就會顯示上次寫入的資料。\n\n接線：A2–A0 與 WP 接地（位址 0x50、允許寫入），VCC 接 3.3 V，SCL / SDA 各一顆 4.7 kΩ 上拉。\n\n試試看：在邏輯分析儀找出寫入週期中一連串被 NACK 的輪詢；把 WP 改接 3.3 V（寫入保護）—— 晶片仍會回 ACK，但資料不會寫進去，只要記憶體原本不是這組資料，讀回比對就會出現 `mismatch`。",
+      "tags": [
+        "I²C",
+        "EEPROM",
+        "AT24C02",
+        "ACK 輪詢",
+        "頁寫入",
+        "中斷"
+      ],
+      "glyph": "at24c02",
+      "firmware": {
+        "project": "hal-i2c-eeprom",
+        "name": "hal-i2c-eeprom.elf",
+        "sha256": "30be93d65118e82e09582455515f4e5fb2f74900463c479b17da3fdcf3dc42af",
+        "size": 303356
+      },
+      "simulation": "full",
+      "parts": 5,
+      "wires": 14,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "spi-595",
+      "file": "spi-595.ohmlet.json",
+      "category": "serial",
+      "order": 40,
+      "difficulty": "intermediate",
+      "title": "SPI 74HC595 跑馬燈",
+      "summary": "SPI1 每 100 ms 送出一個位元組到 74HC595，8 顆 LED 依序點亮",
+      "description": "74HC595 是「串列輸入、並列輸出」的移位暫存器：SPI1 的 SCK（PA5）接 SRCLK、MOSI（PA7）接 SER，8 個時脈把一個位元組移進去；PA4 接 RCLK，拉高的瞬間把移位暫存器鎖存到 QA–QH 輸出。每顆輸出接 220 Ω 與 LED。\n\n韌體以 4.5 MHz（模式 0）每 100 ms 送出 `1 << step`，所以 LED 從 QA 到 QH 一顆接一顆亮。SRCLR 接 3.3 V（不清除）、OE 接地（輸出致能）。\n\n試試看：在邏輯分析儀放大一次傳輸，SPI 解碼器（CS = PA4，低電位有效）會顯示每個位元組；把 OE 改接 3.3 V，所有 LED 都會熄滅但 SPI 傳輸照常。",
+      "tags": [
+        "SPI",
+        "SPI1",
+        "74HC595",
+        "移位暫存器",
+        "LED"
+      ],
+      "glyph": "74hc595",
+      "firmware": {
+        "project": "hal-spi-595",
+        "name": "hal-spi-595.elf",
+        "sha256": "1fbd59695e1a563550fc29264c25bb8549bf266806c0278f4d1351283d127960",
+        "size": 273404
+      },
+      "simulation": "full",
+      "parts": 19,
+      "wires": 13,
+      "instruments": [
+        "logic"
+      ]
+    },
+    {
+      "id": "w25q32-flash",
+      "file": "w25q32-flash.ohmlet.json",
+      "category": "serial",
+      "order": 50,
+      "difficulty": "advanced",
+      "title": "SPI NOR 快閃記憶體（W25Q32）抹除與燒寫",
+      "summary": "讀晶片 ID、4 KiB 磁區抹除（輪詢 BUSY）、64 位元組頁燒寫，再以 03h / 0Bh 讀回",
+      "description": "W25Q32 是 4 MB 的 SPI NOR 快閃記憶體。SPI1 以 9 MHz、模式 0 通訊，CS 用 PA4 手動控制。韌體依序：讀 `JEDEC` 晶片 ID（EF 40 16）與狀態暫存器 SR1、寫入致能（06h）後抹除 0x1000 的 4 KiB 磁區並輪詢 BUSY（約 45 ms）、燒寫 64 位元組（02h 頁燒寫），最後分別用一般讀取 03h 與快速讀取 0Bh 讀回比對，成功印出 `w25q ok`。\n\nNOR 快閃記憶體的關鍵觀念：燒寫只能把位元從 1 變成 0，所以要先抹除（全部變回 FFh）才能寫新資料。模擬的快閃記憶體內容在同一個瀏覽器分頁中會保留。\n\n接線：CS → PA4、DO（MISO）→ PA6、DI（MOSI）→ PA7、CLK → PA5；WP 與 HOLD 接 3.3 V（不使用），VCC 接 3.3 V（W25Q32 最高 3.6 V，不能接 5 V）。邏輯分析儀已設定 SPI 解碼（四條線）。",
+      "tags": [
+        "SPI",
+        "快閃記憶體",
+        "W25Q32",
+        "晶片 ID",
+        "抹除",
+        "頁燒寫"
+      ],
+      "glyph": "w25q32_flash",
+      "firmware": {
+        "project": "hal-w25q",
+        "name": "hal-w25q.elf",
+        "sha256": "1382f0c2ef1ce88ec946b6f7152112cb662f919883ffa0235402c6c49ba35ab3",
+        "size": 277960
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 14,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "rs485-link",
+      "file": "rs485-link.ohmlet.json",
+      "category": "serial",
+      "order": 60,
+      "difficulty": "advanced",
+      "title": "RS-485 半雙工連線（MAX485 ×2）",
+      "summary": "兩個 MAX485 模組共用一對差動匯流排：USART1 發問、USART3 回應，結果印在 USART2",
+      "description": "RS-485 用 A / B 兩條線傳送差動訊號，抗雜訊、可拉到上千公尺，多個節點共用一對線，因此同一時間只能有一個節點發送（半雙工）。每個 MAX485 的 DE（發送致能）與 RE（接收致能，低電位有效）接在一起，由一支 GPIO 切換方向：高電位發送、低電位接收。\n\n同一塊 Blue Pill 扮演兩個節點：節點 A 用 USART1（TX PA9、RX PA10、方向 PA8），節點 B 用 USART3（TX PB10、RX PB11、方向 PB12）。韌體跑 3 回合 `PING` / `PONG` 問答：發送前拉高 DE，等最後一個位元組的停止位元送完（TC 旗標）才放開匯流排。結果印在 USART2（PA2）—— 終端機請選 USART2。\n\nMAX485 需要 5 V，所以這個範例把上方電源軌也接到 5 V 電源。RO 輸出 5 V 進 PA10 / PB11，兩者都是 5 V 容忍（FT）腳位。兩個模組板上的 120 Ω 終端電阻（R7）都保留，匯流排兩端各一顆。試試看：在屬性面板取消兩個模組的「已裝 120 Ω 終端電阻（R7）」，連線仍然成功，但模擬日誌會提醒匯流排沒有終端。",
+      "tags": [
+        "RS-485",
+        "MAX485",
+        "半雙工",
+        "USART3",
+        "差動訊號",
+        "終端電阻"
+      ],
+      "glyph": "max485_module",
+      "firmware": {
+        "project": "hal-rs485",
+        "name": "hal-rs485.elf",
+        "sha256": "690d0ed644979e0f07fda76ba785173c66dfd27e37cdc476eaf5d0a42d8304d3",
+        "size": 259076
+      },
+      "simulation": "full",
+      "parts": 4,
+      "wires": 20,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "ch340-bridge",
+      "file": "ch340-bridge.ohmlet.json",
+      "category": "serial",
+      "order": 70,
+      "difficulty": "intermediate",
+      "title": "CH340 USB 轉 UART（電腦 COM 埠）",
+      "summary": "USART2 經 CH340 模組連到電腦的虛擬 COM 埠：開機訊息，輸入一行文字就附上行號回傳",
+      "description": "CH340 是常見的 USB 轉 TTL 序列模組。接線要「交叉」：模組的 TXD 接 MCU 的 RX（PA3），模組的 RXD 接 MCU 的 TX（PA2），兩邊 GND 相連。韌體使用 USART2（115200 8N1），開機印出 `CH340 echo on USART2`，之後每收到一行就回傳 `echo N: <內容>`。\n\n模組上的電壓跳線已設在 3.3 V（屬性面板的「邏輯準位跳線帽」）：PA2 / PA3 不是 5 V 容忍腳位，若跳線在 5 V，模組的 TXD 會以 5 V 驅動 PA3 —— 把跳線帽改成 5 V，ERC 與模擬都會提出過壓警告。\n\n試試看：在 UART 終端機選擇 CH1 的 COM 埠（電腦端），輸入文字並按輸入鍵；也可以把 COM 埠的鮑率改成 9600，看看鮑率不符時收到的亂碼。",
+      "tags": [
+        "UART",
+        "USART2",
+        "CH340",
+        "COM 埠",
+        "交叉接線"
+      ],
+      "glyph": "usb_uart_ch340",
+      "firmware": {
+        "project": "hal-ch340",
+        "name": "hal-ch340.elf",
+        "sha256": "a5c4522366676e425dfe6989711ce9264f190b0500ca9cf551a46fc99a7b9f16",
+        "size": 251060
+      },
+      "simulation": "partial",
+      "parts": 3,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "logic"
+      ],
+      "simulationNote": "USB 通訊本身不模擬：電腦端以虛擬 COM 埠代替；CH340 與 Blue Pill 之間的 TXD / RXD 仍以真實的 UART 波形傳送。"
+    },
+    {
+      "id": "hc05-bluetooth",
+      "file": "hc05-bluetooth.ohmlet.json",
+      "category": "serial",
+      "order": 80,
+      "difficulty": "intermediate",
+      "title": "HC-05 藍牙序列模組（AT 指令）",
+      "summary": "38400 鮑的 AT 指令設定名稱與鮑率，AT+RESET 後以 9600 鮑和已配對的手機互傳文字",
+      "description": "HC-05 開機時若 EN（又稱 `KEY`）為高電位，會進入 AT 指令模式（固定 38400 8N1）。韌體以 USART2（TX PA2、RX PA3）送出 `AT`、`AT+VERSION?`、`AT+NAME=OHMLET`、`AT+UART=9600,0,0` 等指令並檢查回應，再拉低 EN（PB0）、送 `AT+RESET` 讓模組以 9600 鮑進入資料模式。STATE（PB1）變高表示手機已連線，之後韌體向手機送出 `hello phone`，並回傳手機傳來的每一行。完整過程印在 USART1。\n\n接線：模組 VCC 接 5 V、GND 共地。HC-05 模組板上有 3.3 V 穩壓器，藍牙晶片以 3.3 V 運作：TXD 與 STATE 輸出的高電位是 3.3 V，RXD 也是 3.3 V 的輸入。所以 RXD 直接接 PA2（Blue Pill 的 TX 本來就是 3.3 V；換成 5 V 的 MCU 才需要在 RXD 前加分壓）；EN 接 PB0，並有 10 kΩ 上拉到 3.3 V，上電瞬間就是高電位。TXD 與 STATE 其實也可以直接接 PA3、PB1——這個範例讓它們先經過 BSS138 四通道電位轉換器（LS1：LV 接 Blue Pill 的 3.3 V、HV 接 5 V），練習它的接法。輸出真的會到 5 V 的模組（5 V 邏輯的序列裝置）才一定要經過它：PA3、PB1 不是 5 V 耐受腳位。\n\n試試看：在 UART 終端機選擇 BT1 的 BT 埠（手機端），輸入 `ping` 並按輸入鍵；在屬性面板取消「手機已連線（藍牙連線）」，模擬沒有手機配對的情況；在邏輯分析儀上比較 AT 模式（38400 鮑）與資料模式（9600 鮑）的位元寬度。",
+      "tags": [
+        "藍牙",
+        "HC-05",
+        "AT 指令",
+        "USART2",
+        "鮑率",
+        "電位轉換"
+      ],
+      "glyph": "hc05_bt",
+      "firmware": {
+        "project": "hal-hc05",
+        "name": "hal-hc05.elf",
+        "sha256": "57d91dc5535d02315d99f0ceab64eef6a74d7f7c5e5ce14eff59934279eae00d",
+        "size": 255116
+      },
+      "simulation": "partial",
+      "parts": 5,
+      "wires": 17,
+      "instruments": [
+        "uart",
+        "logic"
+      ],
+      "simulationNote": "藍牙無線電不模擬：已配對的手機以虛擬序列埠「BT」代替；HC-05 與 Blue Pill 之間的 AT 對話與資料仍以真實的 UART 波形傳送。"
+    },
+    {
+      "id": "oled-ssd1306",
+      "file": "oled-ssd1306.ohmlet.json",
+      "category": "display",
+      "order": 10,
+      "difficulty": "intermediate",
+      "title": "SSD1306 OLED 顯示器（I²C）",
+      "summary": "0.96 吋 128×64 OLED：初始化（含充電幫浦）、文字、畫框、進度條與圓形，每 200 ms 重畫一次",
+      "description": "SSD1306 是最常見的小型 OLED 控制器。韌體以 I2C1（PB6 = SCL、PB7 = SDA，400 kHz 快速模式）送出和常見函式庫相同的初始化序列 —— 其中 8Dh 14h 開啟內部充電幫浦，少了它螢幕會一直是黑的 —— 接著在 RAM 中的 1 KB 畫面緩衝區畫出文字、外框、圓形和進度條，再以水平定址模式一次寫入顯示記憶體（`GDDRAM`）。USART1 每 5 個畫格印出 `frame N`。\n\n接線：模組的 GND、VCC 接 5 V 電源軌（模組上有 3.3 V 穩壓器），SCL → PB6、SDA → PB7。模組本身已有 4.7 kΩ 上拉電阻，所以不需要另外加。位址 0x3C（模組背面的跳線可改成 0x3D）。\n\n試試看：在邏輯分析儀上觀察 400 kHz 的 I²C 傳輸，解碼器會標出位址 0x3C 與每個資料位元組；在屬性面板把「I²C 位址（模組跳線）」改成 0x3D，韌體就找不到螢幕；把「OLED 顏色」改成黃藍雙色，看看雙色模組的效果。",
+      "tags": [
+        "OLED",
+        "SSD1306",
+        "I²C",
+        "畫面緩衝區",
+        "400 kHz"
+      ],
+      "glyph": "ssd1306_i2c",
+      "firmware": {
+        "project": "hal-oled-ssd1306",
+        "name": "hal-oled-ssd1306.elf",
+        "sha256": "6de06bd4dcc0d46ebc5bd7d1237d4d82317a41b758a83ced585eabe191475f67",
+        "size": 302776
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "lcd1602-i2c",
+      "file": "lcd1602-i2c.ohmlet.json",
+      "category": "display",
+      "order": 20,
+      "difficulty": "intermediate",
+      "title": "LCD1602 液晶（I²C 轉接板）",
+      "summary": "PCF8574 轉接板把 HD44780 的 4 位元並列介面變成兩條線：歡迎文字與每秒更新的開機時間",
+      "description": "LCD1602 背面焊上 PCF8574 I²C 擴充晶片後，只要 SDA、SCL 兩條線就能控制。PCF8574 的 8 支輸出腳接到 LCD：P0 = RS、P1 = RW、P2 = E、P3 = 背光、P4–P7 = D4–D7。韌體（I2C1，100 kHz）每送出一個 4 位元半位元組都要寫兩次 PCF8574 —— 一次 E 為高、一次 E 為低 —— 用 I²C 模擬出 HD44780 需要的致能脈波，再依照資料手冊的 4 位元初始化步驟設定顯示器。\n\n接線：GND、VCC 接 5 V 電源軌；SDA → PB7、SCL → PB6。轉接板上的上拉電阻接到 5 V，PB6、PB7 是 5 V 容忍（FT）腳位，所以可以直接相連。位址 0x27（PCF8574A 轉接板是 0x3F）。\n\n試試看：在屬性面板轉動「對比微調電阻」，文字會淡到看不見 —— 實際焊好的模組最常見的「沒有字」原因就是這個；把「I²C 位址」改成 0x3F，韌體會回報找不到 PCF8574。",
+      "tags": [
+        "LCD1602",
+        "HD44780",
+        "PCF8574",
+        "I²C",
+        "背光"
+      ],
+      "glyph": "lcd1602_i2c",
+      "firmware": {
+        "project": "hal-lcd1602-i2c",
+        "name": "hal-lcd1602-i2c.elf",
+        "sha256": "6214e9ef5b959664b58542c5c582c24351a125684392d0b58ab281527da07c01",
+        "size": 298908
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "tft-st7735",
+      "file": "tft-st7735.ohmlet.json",
+      "category": "display",
+      "order": 30,
+      "difficulty": "advanced",
+      "title": "ST7735 彩色 TFT（SPI）",
+      "summary": "1.8 吋 128×160 TFT：重置、初始化、八條彩色色帶與文字，SPI1 以 9 MHz 傳送 RGB565 像素",
+      "description": "ST7735S 是常見的小尺寸彩色 TFT 控制器。韌體用 SPI1（PA5 = SCL/SCK、PA7 = SDA/MOSI，模式 0，9 MHz）傳送指令與資料，另外三支 GPIO：CS（PA4）選取晶片、DC（PB0）區分指令（低）與資料（高）、RES（PB1）硬體重置；PB10 打開背光。初始化：重置脈波 → `SWRESET` → `SLPOUT` → `COLMOD` 05h（16 位元色彩）→ `MADCTL` → `DISPON`，之後以 `CASET` / `RASET` 設定視窗、`RAMWR` 寫入大端序的 RGB565 像素，畫出八條色帶與白色、黃色文字，每 500 ms 更新一次畫格計數。\n\n接線：GND、VCC 接 5 V 電源軌（模組上有穩壓器），其餘六條訊號線依上面的腳位連接。SPI 只用到 MOSI —— 這個模組沒有 MISO，所以韌體不會讀回任何資料。\n\n試試看：在邏輯分析儀上用 SPI 解碼器看 DC 腳位切換時指令與資料的分界；把 DC 線拔掉，螢幕會把資料當成指令而一片混亂；拔掉 BL，背光熄滅。",
+      "tags": [
+        "TFT",
+        "ST7735",
+        "SPI",
+        "RGB565",
+        "背光"
+      ],
+      "glyph": "st7735",
+      "firmware": {
+        "project": "hal-tft-st7735",
+        "name": "hal-tft-st7735.elf",
+        "sha256": "0c50d3d8b76867a99ce0f21d65daaaf2bb4e8b103533bd2c3c088b86f9dfb950",
+        "size": 301100
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 14,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "max7219-matrix",
+      "file": "max7219-matrix.ohmlet.json",
+      "category": "display",
+      "order": 40,
+      "difficulty": "intermediate",
+      "title": "MAX7219 8×8 LED 點陣跑馬字",
+      "summary": "SPI1 以 16 位元訊框驅動 MAX7219：文字每 100 ms 向左捲動一行",
+      "description": "MAX7219 一顆晶片就能掃描 64 顆 LED。每個命令是 16 位元：高位元組是暫存器位址、低位元組是資料，CS（LOAD）拉低後送出、CS 上升緣鎖存。韌體把 SPI1 設成 16 位元資料框（DFF = 1，PA5 = CLK、PA7 = DIN、PA4 = CS，4.5 MHz），設定時先送 0x0C00 進入關機模式，再設定不解碼 0x0900、亮度 0x0A04、掃描全部 8 列 0x0B07，最後 0x0C01 恢復正常運作；之後每 100 ms 把字型緩衝區的 8 個欄位寫進 0x01–0x08。\n\n為什麼電源是 4.5 V？MAX7219 的輸入高電位門檻 VIH = 0.7 × VCC：5 V 供電時需要 3.5 V，Blue Pill 的 3.3 V 輸出永遠達不到，點陣會一片漆黑（模擬也會提出警告）。把整個電路的電源調到 4.5 V，VIH 降為 3.15 V，3.3 V 訊號就夠了 —— 這是業餘專題常用的解法；正式產品則會加電位轉換器。Blue Pill 的 3.3 V 穩壓器在 4.5 V 輸入下仍正常工作。\n\n試試看：把 PS1 的電壓改回 5 V，點陣立刻停止更新（模擬日誌會指出 CLK / DIN / CS 的電壓卡在 VIL 與 VIH 之間）；邏輯分析儀的 SPI 解碼器已設為 16 位元字組，可以直接看每個暫存器命令。",
+      "tags": [
+        "MAX7219",
+        "LED 點陣",
+        "SPI",
+        "16 位元訊框",
+        "邏輯準位"
+      ],
+      "glyph": "max7219_8x8",
+      "firmware": {
+        "project": "hal-max7219",
+        "name": "hal-max7219.elf",
+        "sha256": "200d3159f433d0e17f4f3625704522f79c4168b682cf09b873aa9a699a61f449",
+        "size": 276208
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 11,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "ws2812-strip",
+      "file": "ws2812-strip.ohmlet.json",
+      "category": "display",
+      "order": 50,
+      "difficulty": "advanced",
+      "title": "WS2812B 全彩 LED 燈條（SPI + DMA）",
+      "summary": "8 顆可定址 RGB LED：以 SPI1 MOSI 編碼單線時序，DMA 一次送出整條燈條，八色調色盤每 100 ms 輪轉",
+      "description": "WS2812B 只有一條資料線，每顆 LED 需要 24 位元（G-R-B，MSB 先送），用脈波寬度表示 0 與 1：0 = 0.4 µs 高 + 0.85 µs 低，1 = 0.8 µs 高 + 0.45 µs 低，低電位超過 280 µs 就鎖存。在 72 MHz 的 STM32 上用 GPIO 硬湊這種時序很不可靠，常見的穩定做法是借用 SPI：SPI1 以 2.25 MHz 輸出（每位元 0.44 µs），3 個 SPI 位元代表 1 個 WS 位元（100 = 0、110 = 1），再由 DMA1 通道 3 把整個緩衝區送出，CPU 完全不用管時序。\n\n電源 4.5 V 的原因：WS2812B 的 DIN 需要 0.7 × VDD 以上才算高電位，5 V 供電時是 3.5 V，3.3 V 的 PA7 不夠，燈條會完全不亮。把電路電源調到 4.5 V（門檻 3.15 V）就能直接驅動；正式作品則常用 74AHCT125 之類的電位轉換晶片。\n\n試試看：把 PS1 改成 5 V 看燈條熄滅，ERC 也會標示 DIN 的邏輯準位風險；在邏輯分析儀上量 PA7 的高電位寬度，分辨 0 與 1 的編碼。",
+      "tags": [
+        "WS2812B",
+        "NeoPixel",
+        "SPI",
+        "DMA",
+        "RGB",
+        "邏輯準位"
+      ],
+      "glyph": "ws2812b_strip8",
+      "firmware": {
+        "project": "hal-ws2812",
+        "name": "hal-ws2812.elf",
+        "sha256": "0e52ea0ede7a575ea9382f50d298e573dc4b1025df2f1680d09aa47ece8f719e",
+        "size": 277228
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "tm1637-counter",
+      "file": "tm1637-counter.ohmlet.json",
+      "category": "display",
+      "order": 60,
+      "difficulty": "intermediate",
+      "title": "TM1637 四位數七段顯示器計數",
+      "summary": "以開汲極 GPIO 模擬 TM1637 的兩線協定：0000–9999 每 100 ms 加一，冒號每秒閃爍",
+      "description": "TM1637 的兩線介面看起來像 I²C，但沒有位址、而且位元組是 LSB 先送，所以韌體用 GPIO 自己一個位元一個位元產生波形：PB6 = CLK、PB7 = DIO，設定為開汲極輸出，靠模組上的 10 kΩ 上拉電阻回到高電位。每個位元組送完後的第 9 個時脈，TM1637 會把 DIO 拉低表示 ACK，韌體逐一檢查。命令順序：40h（位址自動加一）→ C0h + 四個字的段碼 → 88h–8Fh（開顯示 + 亮度）。\n\n接線：CLK → PB6、DIO → PB7，VCC 接 5 V、GND 接地。為什麼要用開汲極？TM1637 在 5 V 供電時，輸入高電位門檻是 3.5 V，推挽輸出的 3.3 V 不夠；開汲極輸出只負責拉低，高電位由模組的上拉電阻拉到 5 V。PB6、PB7 是 5 V 容忍（FT）腳位，承受得了。ERC 會以「風險」提醒這件事（它無法得知韌體設定的是推挽還是開汲極）—— 這正是本範例要說明的重點。\n\n試試看：把 CLK 與 DIO 兩條線對調，韌體收不到 ACK，終端機會印出接線檢查提示；在邏輯分析儀上看 START（CLK 高時 DIO 下降）與第 9 個時脈的 ACK。",
+      "tags": [
+        "TM1637",
+        "七段顯示器",
+        "GPIO 模擬協定",
+        "開汲極",
+        "ACK"
+      ],
+      "glyph": "tm1637_4digit",
+      "firmware": {
+        "project": "hal-tm1637",
+        "name": "hal-tm1637.elf",
+        "sha256": "6e4a9bb834d0bf285e4e0b78a1227fff26ccbb5f7cb8dd1a59f1b23aebfe458c",
+        "size": 254484
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "adc-pot",
+      "file": "adc-pot.ohmlet.json",
+      "category": "sensor",
+      "order": 10,
+      "difficulty": "beginner",
+      "title": "ADC 讀取可變電阻",
+      "summary": "ADC1 通道 0（PA0）每 100 ms 轉換一次，印出 12 位元原始值與換算的毫伏",
+      "description": "可變電阻（電位計）的兩端接 3.3 V 與 GND，中間的滑動端就是一個可調的分壓器。韌體先執行 HAL_ADCEx_Calibration_Start 做自我校正，之後每 100 ms 以 HAL_ADC_Start / PollForConversion 讀一次 ADC1 通道 0（PA0 設為類比輸入），印出 `adc=<0–4095> mv=<毫伏>`，換算公式：毫伏 = 原始值 × 3300 ÷ 4095。\n\n接線：電位計逆時針那一端接 GND、順時針那一端接 3.3 V（Blue Pill 的 3V3 腳，也就是 ADC 的參考電壓 VDDA），滑動端接 PA0。示波器探棒 CH1 夾在滑動端上，可以同時看到類比電壓。\n\n試試看：模擬執行時在屬性面板拖動電位計的「旋鈕位置」，終端機的讀數跟著改變；把順時針那一端改接 5 V（下方 + 電源軌），再把旋鈕順時針轉到底，PA0 會被拉到 5 V，問題面板就會出現「U1 PA0 電壓過高」——PA0 不是 5 V 容忍腳位。",
+      "tags": [
+        "ADC",
+        "類比輸入",
+        "電位計",
+        "分壓",
+        "校正"
+      ],
+      "glyph": "potentiometer",
+      "firmware": {
+        "project": "hal-adc-pot",
+        "name": "hal-adc-pot.elf",
+        "sha256": "284de4406e8cf1a86c23011b7b5d20c963e2a4fe0951b81e1f40b685e94e0644",
+        "size": 271284
+      },
+      "simulation": "full",
+      "parts": 4,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "scope"
+      ]
+    },
+    {
+      "id": "ky040-encoder",
+      "file": "ky040-encoder.ohmlet.json",
+      "category": "sensor",
+      "order": 20,
+      "difficulty": "intermediate",
+      "title": "KY-040 旋轉編碼器（計時器編碼器模式）",
+      "summary": "TIM4 以硬體解碼正交訊號：每轉一格印出目前位置，按下旋鈕也會回報",
+      "description": "旋轉編碼器的 CLK、DT 兩個接點輪流導通，形成相位差 90° 的兩組方波（正交訊號）：順時針時 CLK 先變化，逆時針時 DT 先變化。STM32 的通用計時器內建編碼器模式，韌體把 TIM4 設成 TI12 模式（PB6 = CH1 = CLK、PB7 = CH2 = DT，加上輸入濾波），計數器會自動加減 —— 每一格是完整的一個週期、計數 4 次。主迴圈讀 TIM4->CNT，換算成格數有變化就印出 `pos=N`；PB12 讀按鍵（內部上拉、20 ms 去彈跳）。\n\n接線：模組 + 接 3.3 V（CLK、DT 的上拉電阻在模組上），GND 接地，CLK → PB6、DT → PB7、SW → PB12。\n\n試試看：模擬執行時在屬性面板把「位置」改成 5 或 −3，模組會以真實的正交波形轉過去；勾選「按下」按下旋鈕；在邏輯分析儀上比較順時針與逆時針時 CLK 與 DT 的先後。",
+      "tags": [
+        "旋轉編碼器",
+        "KY-040",
+        "TIM4",
+        "編碼器模式",
+        "正交訊號"
+      ],
+      "glyph": "ky040_encoder",
+      "firmware": {
+        "project": "hal-ky040",
+        "name": "hal-ky040.elf",
+        "sha256": "f12eccaa6afe3085a7634b8e5d72e534dd575f09962a2983f9c41881feb01e53",
+        "size": 316664
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 11,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "ir-remote-nec",
+      "file": "ir-remote-nec.ohmlet.json",
+      "category": "sensor",
+      "order": 30,
+      "difficulty": "intermediate",
+      "title": "紅外線遙控器解碼（VS1838B）",
+      "summary": "EXTI 雙緣中斷 + 1 MHz 計時器量測脈波寬度：解出遙控器的位址、指令與重複碼",
+      "description": "VS1838B 接收 38 kHz 調變的紅外線，收到載波時輸出低電位。常見的 `NEC` 協定一個訊框是：9 ms 低 + 4.5 ms 高的引導碼，接著 32 個位元（位址、位址反相、指令、指令反相，LSB 先送），每個位元以 562 µs 低開頭，之後高 562 µs 代表 0、高 1687 µs 代表 1；按住不放時每 108 ms 送一次重複碼（9 ms 低 + 2.25 ms 高）。\n\n韌體在 PB12 開啟 EXTI 雙緣中斷，每個邊緣讀 TIM2（1 MHz 自由計數）算出脈波寬度，用狀態機解出位元並檢查反相位元組，最後印出 `NEC addr=0x.. cmd=0x..` 或 `NEC repeat`。接線：OUT → PB12、GND、VCC 接 3.3 V。\n\n試試看：模擬執行時在屬性面板的「遙控器按鍵」選一個按鍵（例如 CH- 會送出指令碼 0x45），勾選「按住按鍵（送出重複碼）」看重複碼；在邏輯分析儀上量引導碼與每個位元的寬度。",
+      "tags": [
+        "紅外線",
+        "遙控器",
+        "VS1838B",
+        "EXTI",
+        "TIM2",
+        "脈波寬度"
+      ],
+      "glyph": "ir_receiver_vs1838b",
+      "firmware": {
+        "project": "hal-ir-nec",
+        "name": "hal-ir-nec.elf",
+        "sha256": "90e49598b641852eb6901957b2049bdad62181d983082b0a904e568ac80ff952",
+        "size": 318760
+      },
+      "simulation": "partial",
+      "parts": 3,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "logic"
+      ],
+      "simulationNote": "紅外線光學與 38 kHz 載波不模擬：內建的虛擬遙控器直接產生接收頭解調後的 OUT 波形（時序依協定規格）；Blue Pill 端的中斷、計時器與解碼程式完整執行。"
+    },
+    {
+      "id": "hcsr04-distance",
+      "file": "hcsr04-distance.ohmlet.json",
+      "category": "sensor",
+      "order": 40,
+      "difficulty": "intermediate",
+      "title": "HC-SR04 超音波測距",
+      "summary": "PB12 送出 12 µs 觸發脈波，TIM4 輸入捕捉量 ECHO 高電位寬度，每 100 ms 印出距離",
+      "description": "HC-SR04 收到 10 µs 以上的 TRIG 脈波後發出 8 個 40 kHz 超音波脈衝，ECHO 腳隨即變高，直到收到回波才變低；高電位的時間就是聲波來回的時間。距離（cm）= 時間（µs）× 0.0343 ÷ 2，大約是 t ÷ 58。\n\n韌體用 TIM4 以 1 MHz 計數，CH1 在上升緣、CH2 在下降緣捕捉同一支腳（PB6，CH2 設為間接輸入 TI1），兩者相減就是脈寬，硬體量測不受中斷延遲影響。接線：VCC 接 5 V，TRIG ← PB12，ECHO → PB6，GND。ECHO 是 5 V 訊號，PB6 是 5 V 容忍（FT）腳位，所以可以直接相連 —— 改接 PA0 這類非 FT 腳位，ERC 會提出錯誤。\n\n試試看：模擬執行時在屬性面板改變「與障礙物距離」與「空氣溫度」（氣溫會影響音速），看讀數的變化；超過 4 m 時韌體會回報 `out of range`。",
+      "tags": [
+        "超音波",
+        "HC-SR04",
+        "輸入捕捉",
+        "TIM4",
+        "5 V 容忍"
+      ],
+      "glyph": "hcsr04",
+      "firmware": {
+        "project": "hal-hcsr04",
+        "name": "hal-hcsr04.elf",
+        "sha256": "b71de2f6728429a3f016a3346ecf37dea0e35a3071b781c2f756642975499b99",
+        "size": 317800
+      },
+      "simulation": "partial",
+      "parts": 3,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ],
+      "simulationNote": "聲波傳播不模擬：模組依屬性面板的距離與氣溫計算回波時間，再以真實的 TRIG / ECHO 時序與 Blue Pill 互動。"
+    },
+    {
+      "id": "dht22-climate",
+      "file": "dht22-climate.ohmlet.json",
+      "category": "sensor",
+      "order": 50,
+      "difficulty": "intermediate",
+      "title": "DHT22 溫濕度感測器",
+      "summary": "單線協定：開汲極 PB12 送出起始脈波，以 DWT 週期計數器量測 40 個位元，每 2.5 秒印出濕度與溫度",
+      "description": "DHT22（AM2302）只用一條資料線：MCU 先把線拉低至少 1 ms 再放開，感測器回應 80 µs 低 + 80 µs 高，接著送出 40 個位元 —— 每個位元以約 50 µs 低開頭，之後高約 27 µs 代表 0、約 70 µs 代表 1。前兩個位元組是濕度 ×10、接著兩個是溫度 ×10（最高位元是負號），最後是檢查碼。\n\n韌體把 PB12 設成開汲極輸出（放開時就能讀取線上的電位），用 Cortex-M3 內建的 DWT->CYCCNT（72 MHz 週期計數器）做微秒計時，讀取期間關閉中斷避免時序被打斷。感測器上電後 2 秒內不理會匯流排，所以開機 2.5 秒後才第一次讀取，之後每 2.5 秒一次。接線：VCC 接 3.3 V，DATA → PB12，GND；資料線的 10 kΩ 上拉電阻已焊在模組上。\n\n試試看：在屬性面板改變「溫度」與「相對濕度」 —— 讀數會晚一次才更新，因為 DHT22 每次送出的是「上一次」量測的結果；在邏輯分析儀上量起始脈波與 0 / 1 位元的高電位寬度。",
+      "tags": [
+        "DHT22",
+        "AM2302",
+        "溫濕度",
+        "單線協定",
+        "DWT",
+        "開汲極"
+      ],
+      "glyph": "dht22",
+      "firmware": {
+        "project": "hal-dht",
+        "name": "hal-dht.elf",
+        "sha256": "de1a54a5ddc00238b51b1a6f2ee6abef1d7ed6953df33b989be4994e76b41ee5",
+        "size": 254192
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "ds18b20-temp",
+      "file": "ds18b20-temp.ohmlet.json",
+      "category": "sensor",
+      "order": 60,
+      "difficulty": "advanced",
+      "title": "DS18B20 數位溫度計（1-Wire）",
+      "summary": "開汲極 PB12 + 4.7 kΩ 上拉：讀取 64 位元 ROM 與 CRC，每秒轉換一次溫度（12 位元，750 ms）",
+      "description": "1-Wire 匯流排只有一條資料線 DQ，所有裝置都是開汲極，靠一顆 4.7 kΩ 上拉電阻回到高電位。每個動作都從重置開始：MCU 拉低 480 µs 再放開，感測器回應存在脈波；之後以「時槽」傳送位元 —— 寫 0 拉低 60 µs、寫 1 只拉低幾 µs，讀取時 MCU 拉低 1–2 µs 後在 15 µs 內取樣。\n\n韌體以 DWT->CYCCNT 做微秒計時：開機時以 `READ ROM`（33h）讀出 64 位元 ROM 並驗證 CRC8，之後每秒 `SKIP ROM`（CCh）+ `CONVERT T`（44h），等待轉換完成（12 位元解析度約 750 ms），再以 `READ SCRATCHPAD`（BEh）讀 9 個位元組，檢查 CRC 後印出溫度與轉換時間。接線（TO-92 平面朝自己，左到右）：GND、DQ → PB12、VDD 接 3.3 V，R1 4.7 kΩ 從 DQ 接到 VDD。\n\n試試看：把 R1 拿掉 —— 匯流排永遠升不起來，韌體會回報可能少了上拉電阻；在屬性面板改變「溫度」；在邏輯分析儀上用 1-Wire 解碼器看重置、存在脈波與每個位元組。",
+      "tags": [
+        "DS18B20",
+        "1-Wire",
+        "上拉電阻",
+        "CRC8",
+        "DWT"
+      ],
+      "glyph": "ds18b20",
+      "firmware": {
+        "project": "hal-ds18b20",
+        "name": "hal-ds18b20.elf",
+        "sha256": "858a20c2f4c7cf2f6c1bc7d35a25c4725a854108a3e2b0fc53bfc2d814c7fcf8",
+        "size": 262708
+      },
+      "simulation": "full",
+      "parts": 4,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "bme280-weather",
+      "file": "bme280-weather.ohmlet.json",
+      "category": "sensor",
+      "order": 70,
+      "difficulty": "advanced",
+      "title": "BME280 氣象站（溫度、氣壓、濕度）",
+      "summary": "I²C 讀出校正參數，強制模式 ×16 過取樣，以 Bosch 整數補償公式換算 T / P / H，每 500 ms 一筆",
+      "description": "BME280 量到的是未經補償的原始值，每顆晶片出廠時都在暫存器 0x88–0xA1 與 0xE1–0xE7 存了自己的校正參數（dig_T1…dig_H6）。韌體開機時讀晶片 ID（0xD0 = 0x60）與全部校正參數，之後每 500 ms 以強制模式啟動一次轉換：先寫 ctrl_hum（0xF2）、再寫 ctrl_meas（0xF4）—— 順序不能顛倒，濕度設定要在寫 ctrl_meas 後才生效 —— 等待狀態暫存器（0xF3）的 `measuring` 位元清除，讀 0xF7–0xFE 共 8 個位元組，最後用資料手冊附的 Bosch 整數補償程式算出溫度（0.01 °C）、氣壓（Pa）與相對濕度。\n\n接線：GY-BME280 模組只能接 3.3 V（模組上沒有穩壓器），VCC 接 Blue Pill 的 3V3 腳，SCL → PB6、SDA → PB7，模組上已有 10 kΩ 上拉電阻；SDO 在模組上接地，所以位址是 0x76。\n\n試試看：模擬執行時在屬性面板改變「溫度」、「氣壓」、「相對濕度」，下一筆讀數就會跟著變；在邏輯分析儀上看一次連續讀出的 8 個位元組。",
+      "tags": [
+        "BME280",
+        "氣壓",
+        "濕度",
+        "I²C",
+        "校正參數",
+        "補償公式"
+      ],
+      "glyph": "bme280",
+      "firmware": {
+        "project": "hal-bme280",
+        "name": "hal-bme280.elf",
+        "sha256": "5776cd3ba136262a142c8b9538bf389eabe3fa809cd4a4c413febc27a0629e78",
+        "size": 299428
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "mpu6050-imu",
+      "file": "mpu6050-imu.ohmlet.json",
+      "category": "sensor",
+      "order": 80,
+      "difficulty": "intermediate",
+      "title": "MPU-6050 六軸加速度計與陀螺儀",
+      "summary": "GY-521 模組：讀 WHO_AM_I、喚醒、設定 ±2 g / ±250 °/s，每 100 ms 讀 14 個位元組並印出原始值與溫度",
+      "description": "MPU-6050 上電後處於睡眠模式，第一件事是把 PWR_MGMT_1（0x6B）寫成 0 喚醒它 —— 忘了這一步，所有讀數都是 0。韌體先讀 WHO_AM_I（0x75，應為 0x68）確認晶片存在，設定取樣率、低通濾波與量程，之後每 100 ms 從 ACCEL_XOUT_H（0x3B）連續讀 14 個位元組（大端序）：三軸加速度、溫度、三軸角速度。±2 g 時 1 g = 16384，±250 °/s 時 1 °/s = 131，溫度 = 原始值 / 340 + 36.53 °C。\n\n接線：VCC 接 5 V —— GY-521 板上有 3.3 V 穩壓器，接 3.3 V 反而會因壓降不足而讓晶片電壓偏低（ERC 會提醒）—— GND 共地，SCL → PB6、SDA → PB7；模組上已有 4.7 kΩ 上拉電阻（拉到模組的 3.3 V），AD0 在模組上接了下拉電阻，所以位址是 0x68。\n\n試試看：模擬執行時在屬性面板改變「加速度 X / Y / Z」與「角速度 X / Y / Z」，讀數會在下一筆更新；把 PB12 接地，韌體就不會寫 PWR_MGMT_1 —— 重現「讀數全是 0」的經典錯誤。",
+      "tags": [
+        "MPU-6050",
+        "GY-521",
+        "慣性量測",
+        "加速度計",
+        "陀螺儀",
+        "I²C"
+      ],
+      "glyph": "mpu6050_gy521",
+      "firmware": {
+        "project": "hal-mpu6050",
+        "name": "hal-mpu6050.elf",
+        "sha256": "c0f15c6acefb731b8079acadd9a4516c2fbf32dcd6c5ebfaacf5d033665e825b",
+        "size": 296576
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 10,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "servo-sg90",
+      "file": "servo-sg90.ohmlet.json",
+      "category": "motor",
+      "order": 10,
+      "difficulty": "beginner",
+      "title": "SG90 伺服馬達掃動",
+      "summary": "TIM2 CH1（PA0）輸出 50 Hz PWM，脈寬 0.5–2.5 ms 對應 0°–180°，每 500 ms 轉動 30°",
+      "description": "伺服馬達看的是脈波寬度而不是工作週期：每 20 ms 一個高電位脈波，0.5 ms = 0°、1.5 ms = 90°、2.5 ms = 180°。韌體把 TIM2 的預除器設為 PSC = 71（72 MHz ÷ 72 = 1 MHz，每格 1 µs）、ARR = 19999（週期 20 ms），PA0 輸出 CH1 PWM，改變 CCR1 就是改變脈寬（單位 µs）。角度從 0° 以 30° 為一步掃到 180° 再掃回來，每一步停 500 ms，並在 USART1 印出角度與脈寬。\n\n接線：伺服馬達的紅線（VCC）接 5 V 電源軌、棕線（GND）接地、橘線（SIG）接 PA0。伺服馬達轉動時電流可達數百 mA，不能由 Blue Pill 的 3.3 V 供電；訊號線的 3.3 V 高電位足以被 SG90 辨識。\n\n試試看：在邏輯分析儀上量 PA0 的脈寬；在屬性面板加大「負載轉矩」，看伺服馬達變慢；觀察擺臂從 90° 轉到 120° 所需的時間（SG90 約 0.1 s 轉 60°）。",
+      "tags": [
+        "伺服馬達",
+        "SG90",
+        "PWM",
+        "TIM2",
+        "脈波寬度"
+      ],
+      "glyph": "sg90_servo",
+      "firmware": {
+        "project": "hal-sg90",
+        "name": "hal-sg90.elf",
+        "sha256": "0b0342064979bda37550f1e575f12983af666ec842da5fd2d06097d212b8b277",
+        "size": 317132
+      },
+      "simulation": "full",
+      "parts": 3,
+      "wires": 9,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "dc-motor-l298n",
+      "file": "dc-motor-l298n.ohmlet.json",
+      "category": "motor",
+      "order": 20,
+      "difficulty": "intermediate",
+      "title": "直流馬達與 L298N H 橋",
+      "summary": "ENA 接 TIM2 1 kHz PWM 調速、IN1 / IN2 決定方向：正轉 25→100 %、煞車、反轉、滑行",
+      "description": "H 橋用四個開關讓馬達兩端的電壓可以正反切換。L298N 的 A 通道：ENA 高電位時致能，IN1 / IN2 = 1 / 0 正轉、0 / 1 反轉、相同時兩端短路「煞車」；ENA 低電位時輸出全部關閉，馬達「滑行」慢慢停下。對 ENA 送 PWM，就能以工作週期控制平均電壓與轉速。\n\n韌體：TIM2 CH1（PA0）輸出 1 kHz PWM 到 ENA（屬性面板中「ENA 跳線帽（接 +5V）」已拿掉），PB0 / PB1 控制 IN1 / IN2，依序正轉 25 %、50 %、75 %、100 %，煞車，反轉 50 %、100 %，滑行，每段 400 ms，USART1 印出每個階段。\n\n接線：馬達使用獨立的 7.5 V 電源 PS2，接到 L298N 的 +12V 端子；L298N 的 GND 必須和 Blue Pill 共地，否則控制訊號沒有共同參考。模組的「5V-EN 穩壓器跳線帽」已拔掉，邏輯電源 +5V 改由麵包板的 5 V 電源軌供應 —— 馬達電源高於 12 V 時一定要這樣接；這裡雖然只有 7.5 V，也採用同樣的接法。L298N 是雙極性電晶體 H 橋，輸出會比電源低約 2 V。試試看：在屬性面板加大馬達的「負載轉矩」，看轉速下降；比較「煞車」與「滑行」的減速差異。",
+      "tags": [
+        "直流馬達",
+        "L298N",
+        "H 橋",
+        "PWM",
+        "調速",
+        "共地"
+      ],
+      "glyph": "l298n_module",
+      "firmware": {
+        "project": "hal-dc-motor",
+        "name": "hal-dc-motor.elf",
+        "sha256": "e0303341b7fba81553998678bb4cf2d621015a3608fb21ffdbfd49a0b9d78b29",
+        "size": 317696
+      },
+      "simulation": "full",
+      "parts": 5,
+      "wires": 15,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "stepper-a4988",
+      "file": "stepper-a4988.ohmlet.json",
+      "category": "motor",
+      "order": 30,
+      "difficulty": "advanced",
+      "title": "NEMA 17 步進馬達與 A4988 驅動器",
+      "summary": "TIM2 產生 STEP 脈波並在更新中斷裡做梯形加減速；MS1–MS3 切換 1/8 微步與全步",
+      "description": "A4988 把雙極步進馬達的兩組線圈電流控制全部包辦：MCU 只要給 DIR（方向）和 STEP（上升緣走一步），再用 MS1–MS3 選全步、1/2、1/4、1/8 或 1/16 微步。NEMA 17 一圈 200 個全步，1/8 微步就是 1600 個 STEP 脈波。\n\n韌體：TIM2 CH1（PA0）輸出 STEP 脈波，每個更新中斷依梯形曲線重新計算下一步的週期（加速 → 等速 → 減速），避免馬達一開始就失步；PB0 = DIR、PB12–PB14 = MS1–MS3、PB15 = EN（低電位致能）。動作依序：+1600 步（1/8 微步，一圈）、−100 步（全步，半圈）、−800 步（1/8，半圈），每次完成後印出位置。\n\n接線：馬達電源 PS2 12 V 接 VMOT（實際電路要在 VMOT 與 GND 間並聯一顆 100 µF 電解電容，吸收長電源線電感造成的電壓突波；模擬中的電源沒有導線電感，所以範例省略）；VDD 接 3.3 V；RST 與 SLP 互相短接（RST 沒有內部上拉，不能空接）；線圈 A 接 1A / 1B、線圈 B 接 2A / 2B。試試看：在屬性面板調整「限流 VREF」，太低時馬達扭力不足而失步。",
+      "tags": [
+        "步進馬達",
+        "A4988",
+        "NEMA 17",
+        "微步",
+        "加減速",
+        "TIM2"
+      ],
+      "glyph": "a4988_driver",
+      "firmware": {
+        "project": "hal-stepper-a4988",
+        "name": "hal-stepper-a4988.elf",
+        "sha256": "baa61ac9d8ce312e06c82a9aa4280e8e7d97c4e777b4417d919b9a5ea0e7fb29",
+        "size": 322752
+      },
+      "simulation": "full",
+      "parts": 5,
+      "wires": 22,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "stepper-28byj48",
+      "file": "stepper-28byj48.ohmlet.json",
+      "category": "motor",
+      "order": 40,
+      "difficulty": "beginner",
+      "title": "28BYJ-48 步進馬達與 ULN2003",
+      "summary": "PB12–PB15 依半步順序驅動四相線圈，每 2 ms 一步；4096 個半步轉一圈，正轉後反轉",
+      "description": "28BYJ-48 是 5 V 單極步進馬達，內部有 1:64 減速齒輪：輸出軸轉一圈需要 4096 個半步。紅線是共同端（接 5 V），橘、黃、粉紅、藍四條線依序接地就會一步一步轉動。ULN2003 是七組達靈頓電晶體陣列，負責把 MCU 的 3.3 V 訊號放大成能吸收數百 mA 的低側開關，板上的 LED A–D 顯示目前導通的相。\n\n韌體：PB12–PB15 接 IN1–IN4，依半步順序（橘、橘+黃、黃、黃+粉、粉、粉+藍、藍、藍+橘）每 2 ms 前進一步，正轉 4096 步、停 500 ms、再反轉 4096 步，USART1 每 1024 步回報一次進度（約 2 秒）。\n\n接線：ULN2003 的 VCC 接 5 V、GND 與 Blue Pill 共地，OUT1–OUT4 接橘、黃、粉、藍，馬達紅線接 VCC。試試看：把黃線和粉紅線對調，馬達只會原地抖動 —— 相序錯誤的典型症狀。",
+      "tags": [
+        "步進馬達",
+        "28BYJ-48",
+        "ULN2003",
+        "半步",
+        "相序"
+      ],
+      "glyph": "stepper_28byj48",
+      "firmware": {
+        "project": "hal-stepper-uln2003",
+        "name": "hal-stepper-uln2003.elf",
+        "sha256": "7c96e6a61303be798d7ab58780252e8064b612fae7c15cffdc0250a05bb82c91",
+        "size": 252008
+      },
+      "simulation": "full",
+      "parts": 4,
+      "wires": 17,
+      "instruments": [
+        "uart",
+        "logic"
+      ]
+    },
+    {
+      "id": "npn-switch",
+      "file": "npn-switch.ohmlet.json",
+      "category": "analog",
+      "order": 10,
+      "difficulty": "beginner",
+      "title": "電晶體開關（NPN）",
+      "summary": "小小的基極電流控制大一些的集極電流：按下按鈕，NPN 電晶體導通點亮 LED",
+      "description": "MCU 的腳位或按鈕只能提供幾 mA，要開關較大的負載（LED 陣列、繼電器、蜂鳴器）就得靠電晶體。NPN 電晶體當開關時：基極電流 IB 流入，集極到射極就導通；只要 IB 大於 IC ÷ β（β 是電流放大率），電晶體就進入飽和，C-E 之間只剩約 0.1–0.2 V 的壓降。\n\n電路：按鈕按下時，5 V 經 R1（10 kΩ）送入基極，IB ≈ (5 − 0.7) ÷ 10 kΩ ≈ 0.43 mA；集極接 LED 與 R3（330 Ω），IC ≈ (5 − 2 − 0.2) ÷ 330 ≈ 8.5 mA，只需要 β ≥ 20 就會飽和，一般小訊號電晶體綽綽有餘。R2（100 kΩ）把基極拉到地，按鈕放開時電晶體確實關閉，不會因為基極浮接而亂亮。\n\n試試看：模擬執行時按住按鈕（屬性面板的「按下」），LED 亮起；把 R1 改成 1 MΩ，基極電流太小、電晶體進不了飽和，LED 會變暗；在屬性面板查看電晶體各腳的電壓。",
+      "tags": [
+        "NPN",
+        "電晶體",
+        "開關",
+        "飽和",
+        "基極電阻"
+      ],
+      "glyph": "npn",
+      "firmware": null,
+      "simulation": "full",
+      "parts": 7,
+      "wires": 4,
+      "instruments": []
+    },
+    {
+      "id": "rc-lowpass",
+      "file": "rc-lowpass.ohmlet.json",
+      "category": "analog",
+      "order": 20,
+      "difficulty": "beginner",
+      "title": "RC 低通濾波與時間常數",
+      "summary": "10 kΩ + 100 nF：τ = 1 ms、截止頻率約 159 Hz；用示波器同時看方波輸入與電容的充放電曲線",
+      "description": "電阻與電容串聯，從電容兩端取出電壓，就是最簡單的低通濾波器。輸入突然升高時，電容經電阻充電，電壓依指數曲線上升：經過一個時間常數 τ = R × C 到達 63 %，5τ 後超過 99 %。頻率越高，電容來不及充放電，輸出振幅就越小；截止頻率 fc = 1 ÷ (2π R C)，這裡約 159 Hz。\n\n電路：函數產生器 FG1 輸出 100 Hz、0–5 V 方波（振幅 2.5 V、直流偏移 2.5 V），經 R1（10 kΩ）接 C1（100 nF）到地。示波器 CH1 量輸入、CH2 量電容電壓。直流電源 PS1 只提供電路的接地參考點（函數產生器與示波器共地），正端不需要接任何東西。\n\n試試看：在屬性面板把 FG1 的頻率調到 1 kHz，CH2 變成小振幅的三角波；改成 10 Hz 則幾乎和輸入一樣；把波形改成正弦波，比較 159 Hz 時輸出振幅約為輸入的 71 %（−3 dB）。",
+      "tags": [
+        "RC 電路",
+        "低通濾波",
+        "時間常數",
+        "截止頻率",
+        "示波器"
+      ],
+      "glyph": "capacitor",
+      "firmware": null,
+      "simulation": "full",
+      "parts": 6,
+      "wires": 3,
+      "instruments": [
+        "scope"
+      ]
+    },
+    {
+      "id": "opamp-amplifier",
+      "file": "opamp-amplifier.ohmlet.json",
+      "category": "analog",
+      "order": 30,
+      "difficulty": "intermediate",
+      "title": "運算放大器非反相放大（LM358）",
+      "summary": "增益 = 1 + Rf ÷ Rg = 3：1 kHz 正弦波從 1.0 ± 0.5 V 放大成 3.0 ± 1.5 V，示波器雙通道比較",
+      "description": "非反相放大器把訊號接到運算放大器的 + 輸入，輸出經 Rf、Rg 分壓回授到 − 輸入。負回授讓兩個輸入電壓幾乎相等，於是 Vout × Rg ÷ (Rf + Rg) = Vin，增益 = 1 + Rf ÷ Rg。這裡 Rf = 20 kΩ、Rg = 10 kΩ，增益 3 倍，輸入阻抗很高、輸出和輸入同相位。\n\nLM358 是單電源運算放大器，以 9 V 供電，輸出大約只能擺到 0 V 與 VCC − 1.2 V 之間，所以輸入訊號帶有 1 V 直流偏移，放大後落在 1.5–4.5 V，不會被截掉。同一顆晶片的第二組運放沒有用到：好習慣是把它接成電壓隨耦器，+ 輸入接地，避免浮接振盪。\n\n試試看：把 FG1 的振幅調到 1.5 V，輸出頂到約 7.8 V 時被削平（飽和）；把 Rf 改成 90 kΩ（增益 10）；把頻率調高到 100 kHz 以上，觀察 LM358 有限的頻寬與迴轉率讓輸出變小、變形。",
+      "tags": [
+        "運算放大器",
+        "LM358",
+        "非反相放大",
+        "負回授",
+        "增益",
+        "示波器"
+      ],
+      "glyph": "lm358",
+      "firmware": null,
+      "simulation": "full",
+      "parts": 7,
+      "wires": 10,
+      "instruments": [
+        "scope"
+      ]
+    },
+    {
+      "id": "lm7805-regulator",
+      "file": "lm7805-regulator.ohmlet.json",
+      "category": "analog",
+      "order": 40,
+      "difficulty": "beginner",
+      "title": "LM7805 線性穩壓電源",
+      "summary": "9 V 電池經 LM7805 穩壓成 5 V：輸入、輸出電容、指示 LED，電錶量測輸出電壓",
+      "description": "LM7805 是最經典的三端線性穩壓器：IN 輸入 7–35 V，OUT 輸出穩定的 5 V，GND 接地。它像一個自動調整的可變電阻，把多出來的電壓 (VIN − 5 V) × I 變成熱量散掉，所以輸入至少要比輸出高約 2 V（壓降），電流大時還需要散熱片。\n\n電路：9 V 電池接 IN，IN 與 GND 之間並 0.33 µF、OUT 與 GND 之間並 0.1 µF —— 資料手冊建議的電容，讓穩壓器在負載變化時保持穩定。輸出經 330 Ω 點亮綠色 LED（約 9 mA），數位電錶 DMM1 切在電壓檔，量測輸出端對地的電壓。\n\n試試看：在屬性面板把電池電壓往下調，低於約 7 V 時輸出開始跟著下降（壓降不足）；把 LED 的限流電阻改小，看電池電流與穩壓器的功率損耗增加。",
+      "tags": [
+        "穩壓器",
+        "LM7805",
+        "線性穩壓",
+        "壓降",
+        "電錶",
+        "電池"
+      ],
+      "glyph": "lm7805",
+      "firmware": null,
+      "simulation": "full",
+      "parts": 7,
+      "wires": 6,
+      "instruments": []
+    }
+  ]
+}

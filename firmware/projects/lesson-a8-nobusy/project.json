@@ -1,0 +1,7 @@
+{
+  "kind": "hal",
+  "sources": ["main.c", "stm32f1xx_it.c", "stm32f1xx_hal_msp.c"],
+  "hal": ["uart", "spi"],
+  "description": "Lesson a8 mistake: hal-w25q without the BUSY polling — the page program is sent during the 45 ms sector erase and the read back follows at once: the flash ignores the program, the page reads FF, 'w25q FAILED'",
+  "expect": "Same as hal-w25q (72 MHz, SPI1 mode 0 at 9 MHz on PA5 SCK / PA6 MISO / PA7 MOSI, PA4 = CS, USART1 PA9 115200 8N1) without the two BUSY waits: 'W25Q32 test (SPI1 9 MHz mode 0, CS PA4)\\r\\n', 'JEDEC ID EF 40 16\\r\\n', 'SR1 0x00\\r\\n', 'before: <16 bytes at 0x001000>\\r\\n', then 06h + 20h 001000h and at once 'sector erase: sent, BUSY not polled\\r\\n', 06h + 02h with 64 bytes (i * 3 + 1) while the erase is still running (tSE 45 ms) -> 'page program 64 bytes: sent, BUSY not polled\\r\\n', and the 03h read back right after it: a W25Q32 ignores every instruction except 05h (read status) while BUSY, so the program is lost and the page reads FF: 'mismatch at 0x001000: wrote 01 read FF\\r\\n', 'w25q FAILED\\r\\n'. Without a W25Q32 on the bus: 'no W25Q32: JEDEC ID FF FF FF\\r\\n'."
+}

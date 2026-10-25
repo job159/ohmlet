@@ -1,0 +1,1920 @@
+/* ==========================================================================
+   Instrument additions to the embedded-lab views (logic analyzer decoders,
+   trigger, cursor readouts; oscilloscope controls + measurements) — `lai-`
+   (logic analyzer) and `sco-` (scope) prefixes. Same vocabulary as
+   embedded.css: kit tokens only, the recessed dark instrument window for
+   data, capsule chips / recessed select wells for controls, NO
+   backdrop-filter (DESIGN.md ≤4-filter budget). Animations: opacity only;
+   reduced motion honored at the bottom.
+   ========================================================================== */
+
+/* ---- shared: compact settings strip under the toolbar ----------------- */
+
+.lai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 14px;
+  background: var(--fill-2);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+}
+.lai-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 6px;
+  min-width: 0;
+}
+.lai-panel .emb-select select,
+.sco-bar .emb-select select {
+  min-height: 26px;
+  padding: 0 24px 0 10px;
+  font-size: 12px;
+}
+.lai-panel .emb-select-chev,
+.sco-bar .emb-select-chev {
+  right: 8px;
+}
+.lai-panel .emb-chip,
+.sco-bar .emb-chip {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.lai-panel .emb-icon-btn {
+  width: 26px;
+  height: 26px;
+}
+.lai-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px 0 7px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: 700 11.5px/16px var(--lg-font);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.lai-tag-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.lai-note {
+  min-width: 0;
+  font: 500 11.5px/16px var(--lg-font-mono);
+  color: var(--label-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lai-note.is-warn {
+  color: var(--ios-orange);
+}
+.lai-note.is-ok {
+  color: var(--ios-green);
+}
+.lai-row-end {
+  margin-left: auto;
+}
+
+/* toolbar chip status dot (trigger armed / triggered) */
+.lai-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
+.lai-dot.is-armed {
+  background: var(--ios-orange);
+  opacity: 1;
+  animation: lai-pulse 1.2s var(--lg-spring) infinite;
+}
+.lai-dot.is-hit {
+  background: var(--ios-green);
+  opacity: 1;
+}
+@keyframes lai-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.lai-count {
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font: 700 11px/16px var(--lg-font);
+  text-align: center;
+}
+
+/* pattern-trigger chips: one per channel, cycling X → 0 → 1 */
+.lai-pat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(16, 18, 26, 0.32);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32), inset 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  color: var(--label-2);
+  font: 600 12px/16px var(--lg-font-mono);
+  cursor: pointer;
+}
+.lai-pat b {
+  min-width: 9px;
+  color: var(--label-3);
+  font-weight: 700;
+}
+.lai-pat.is-0 b,
+.lai-pat.is-1 b {
+  color: var(--ios-orange);
+}
+.lai-pat:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+
+/* ---- measurement footer under the logic window ------------------------ */
+
+.lai-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+  flex: 0 0 auto;
+  min-height: 20px;
+  padding: 0 4px;
+  font: 500 12.5px/20px var(--lg-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
+}
+.lai-foot-k {
+  margin-right: 5px;
+  color: var(--label-2);
+}
+.lai-foot-a {
+  color: #64b5ff;
+}
+.lai-foot-b {
+  color: #5ee0c8;
+}
+.lai-foot-d {
+  color: #7cbcff;
+}
+.lai-foot-ch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lai-foot-sw {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+/* 18 px glyph, 26 px hit area (UX IS-9) */
+.lai-foot-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: -3px 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+.lai-foot-x > svg {
+  box-sizing: content-box;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--fill-2);
+}
+.lai-foot-x:focus-visible {
+  outline: 2px solid var(--ios-blue);
+}
+
+/* the region after the last simulated instant of a frozen window */
+.lai-future {
+  position: absolute;
+  top: 20px;
+  bottom: 0;
+  right: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.025) 0 6px,
+    transparent 6px 12px
+  );
+  pointer-events: none;
+}
+
+/* ---- oscilloscope ------------------------------------------------------ */
+
+.sco-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.sco-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sco-tools .emb-select select {
+  min-height: 28px;
+  padding: 0 24px 0 10px;
+  font-size: 12px;
+}
+.sco-tools .emb-select-chev {
+  right: 8px;
+}
+.sco-tools .emb-chip {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.sco-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.sco-group .emb-icon-btn {
+  width: 26px;
+  height: 26px;
+}
+.sco-val {
+  min-width: 64px;
+  font: 600 12px/16px var(--lg-font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--label);
+  white-space: nowrap;
+}
+.sco-k {
+  font: 600 11px/16px var(--lg-font);
+  color: var(--label-3);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+.sco-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--fill-2);
+  font: 700 11.5px/16px var(--lg-font);
+  letter-spacing: 0.02em;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.sco-status.is-trig {
+  color: var(--ios-green);
+}
+.sco-status.is-wait {
+  color: var(--ios-orange);
+}
+.sco-status.is-stop {
+  color: var(--ios-red);
+}
+.sco-level {
+  width: 66px;
+  min-height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(16, 18, 26, 0.32);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32), inset 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  color: var(--label);
+  font: 500 12px/16px var(--lg-font-mono);
+  outline: none;
+}
+.sco-level:focus-visible {
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(10, 132, 255, 0.7);
+}
+
+/* the scope window: canvas + measurement strip inside the same dark glass */
+.sco-screen {
+  display: flex;
+  flex-direction: column;
+}
+.sco-screen > .sco-canvas-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+/* keyboard cursors (UX IS-9) */
+.sco-screen > .sco-canvas-wrap:focus {
+  outline: none;
+}
+.sco-screen > .sco-canvas-wrap:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+.sco-screen .asm-scope-canvas {
+  position: absolute;
+  inset: 0;
+}
+.sco-meas {
+  display: grid;
+  grid-template-columns: repeat(7, max-content);
+  gap: 0 14px;
+  flex: 0 0 auto;
+  padding: 2px 10px 4px 12px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.07);
+  font: 500 11px/15px 'SF Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #c9d0da;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.sco-meas-ch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+}
+.sco-meas-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.sco-meas-k {
+  color: #6c7584;
+  margin-right: 4px;
+}
+/* Chinese measurement names (頻率 / 峰對峰值 …) are wider than the English
+   symbols (f / Vpp …): tighter columns keep the strip inside a 1440 px tray */
+.sco-meas:lang(zh) {
+  column-gap: 8px;
+}
+.sco-meas:lang(zh) .sco-meas-k {
+  margin-right: 3px;
+}
+
+/* decoder lane caption in the label column */
+.lai-ann-name {
+  font-weight: 600;
+  color: #aab3c0;
+}
+
+/* closed selects show only their placeholder: size them to it, not to
+   their longest option (a native select is as wide as its widest option) */
+.lai-export select {
+  width: 96px;
+}
+.lai-add-ch select {
+  width: 118px;
+}
+
+.sco-cursor-line {
+  flex: 0 0 auto;
+  padding: 3px 10px 0 12px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.07);
+  font: 500 11px/16px 'SF Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #e8ecf2;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.sco-cursor-line + .sco-meas {
+  border-top: none;
+}
+
+/* ==========================================================================
+   UX wave (IS-1 … IS-9): toolbar summaries, popovers, decode results,
+   hints, the scope's honest timing readout. Tier-S only (no backdrop-filter).
+   ========================================================================== */
+
+/* ---- logic analyzer toolbar: three groups (view · analysis · add/export)
+   that wrap as units instead of overflowing ---- */
+.lai-toolbar {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.lai-tb-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.lai-tb-group:empty {
+  display: none;
+}
+.lai-tb-end {
+  margin-left: auto;
+}
+/* too wide for one row: view controls + export / ＋通道 on the first row,
+   the trigger / decoder chips on the second (LogicAnalyzer measures) */
+.lai-toolbar.is-stacked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'view . end'
+    'chips chips chips';
+  align-items: center;
+}
+.lai-toolbar.is-stacked > .lai-tb-view {
+  grid-area: view;
+}
+.lai-toolbar.is-stacked > .lai-tb-chips {
+  grid-area: chips;
+  justify-self: start;
+}
+.lai-toolbar.is-stacked > .lai-tb-end {
+  grid-area: end;
+  margin-left: 0;
+}
+.lai-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.lai-nav .emb-icon-btn {
+  width: 30px;
+  height: 30px;
+}
+/* rows too short for two lines: the name only (the source is in the title) */
+.emb-la-label.is-compact .emb-la-src {
+  display: none;
+}
+/* the plot takes keyboard focus (UX IS-9) */
+.emb-la-plot:focus {
+  outline: none;
+}
+.emb-la-plot:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+
+/* phone sheet (UX IS-9): the content clears the floating dock; the
+   analyzer's footer becomes a two-column grid, value + unit never split */
+.sco-sheet-content {
+  padding-bottom: calc(var(--lg-safe-bottom, 0px) + 88px);
+}
+@media (max-width: 600px) {
+  /* the scope's measurement strip wraps instead of scrolling Vpp / Vavg /
+     Vrms off a phone screen: the channel on its own line, then the values
+     (value + unit never split); classic English keeps its one-line strip */
+  .sco-meas:lang(zh) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    overflow-x: visible;
+    white-space: normal;
+  }
+  .sco-meas:lang(zh) > span {
+    white-space: nowrap;
+  }
+  .sco-meas:lang(zh) > .sco-meas-ch {
+    flex-basis: 100%;
+  }
+  .sco-meas:lang(zh) > .sco-meas-note {
+    white-space: normal;
+    flex-basis: 100%;
+  }
+  /* the sheet presents at its tall detent (product chrome): give the screen
+     the room the wrapped readout takes, so the waveform keeps ~200 px */
+  .sco-sheet-content .asm-scope-body:lang(zh) {
+    height: clamp(200px, 34dvh, 320px);
+  }
+  .lai-foot {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 10px;
+  }
+  .lai-foot-ch {
+    display: contents;
+  }
+  .lai-foot-cell,
+  .lai-foot-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lai-foot-sw {
+    display: none;
+  }
+  .lai-foot-tip {
+    grid-column: 1 / -1;
+  }
+  .lai-foot-mk {
+    margin: 0;
+    justify-content: flex-start;
+    min-height: 32px;
+  }
+  /* phone toolbar: two rows — the view controls, then the trigger / decoder
+     chips as a horizontally scrolling strip next to ＋通道… (a wrapped chip
+     per row pushed the waveform off the sheet) */
+  .lai-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'view view'
+      'chips end';
+    gap: 6px 8px;
+  }
+  .lai-toolbar > .lai-tb-view {
+    grid-area: view;
+  }
+  .lai-toolbar > .lai-tb-chips {
+    grid-area: chips;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: 2px 0;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+  }
+  .lai-toolbar > .lai-tb-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .lai-toolbar > .lai-tb-chips > * {
+    flex: 0 0 auto;
+  }
+  .lai-toolbar > .lai-tb-end {
+    grid-area: end;
+    margin-left: 0;
+  }
+  /* no room for the per-channel column on a phone: the footer reads the tapped channel */
+  .lai-foot .lai-meas-toggle,
+  .emb-la-grid .lai-meas {
+    display: none;
+  }
+  .emb-la-grid.has-meas {
+    grid-template-columns: 72px 1fr;
+  }
+}
+.lai-glyph {
+  font: 600 14px/1 var(--lg-font);
+}
+.lai-chip-wrap {
+  display: inline-flex;
+  min-width: 0;
+}
+.lai-chip-wrap .emb-chip {
+  gap: 6px;
+  max-width: 250px;
+}
+.lai-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lai-caret {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.lai-chip-warn {
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ios-orange);
+  color: #1c1300;
+  font: 800 11px/15px var(--lg-font);
+  text-align: center;
+}
+.lai-add-wrap {
+  display: inline-flex;
+}
+.lai-add-dec select {
+  width: 104px;
+}
+
+/* ---- anchored popover (Popover.tsx): the probe-menu / UndoPill recipe ---- */
+.lai-pop {
+  position: fixed;
+  z-index: 58; /* over panels (40), pills (41/42), sheets (51), dock (55); under toasts (60) */
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 10px;
+  border-radius: 14px;
+  font-family: var(--lg-font);
+  color: var(--label);
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.97), rgba(34, 36, 46, 0.96));
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  animation: lai-pop-in var(--lg-dur-control, 200ms) var(--lg-spring, ease-out);
+  transform-origin: top left;
+}
+.lai-pop.is-up {
+  transform-origin: bottom left;
+}
+@keyframes lai-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lai-pop .lai-panel {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.lai-pop .emb-select select {
+  min-height: 30px;
+  padding: 0 26px 0 11px;
+  font-size: 13px;
+}
+.lai-pop .emb-select-chev {
+  right: 9px;
+}
+.lai-pop .emb-chip {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+/* decoder editor (DecoderPanel.tsx) */
+.lai-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.lai-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.lai-editor-desc {
+  min-width: 0;
+  font: 400 12.5px/17px var(--lg-font);
+  color: var(--label-2);
+}
+.lai-editor-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lai-editor-note {
+  margin: 0;
+  font: 500 12.5px/17px var(--lg-font);
+  color: var(--label-2);
+}
+.lai-editor-note.is-warn {
+  color: var(--ios-orange);
+}
+.lai-editor-note.is-ok {
+  color: var(--ios-green);
+}
+.lai-editor-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+.lai-editor-foot .emb-chip {
+  gap: 6px;
+}
+
+/* ---- plot hint (no edges in the window) ---- */
+.lai-hint {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 460px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(10, 12, 16, 0.78);
+  font: 500 13px/18px var(--lg-font);
+  color: rgba(235, 238, 245, 0.82);
+  text-align: center;
+  pointer-events: auto;
+}
+.lai-hint-btn {
+  min-height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ios-blue);
+  color: #fff;
+  font: 600 13px/18px var(--lg-font);
+  cursor: pointer;
+}
+.lai-hint-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+/* empty states get the instrument's glyph above the title (UX IS-9) — a CSS
+   mask, so the shared EmptyNote markup stays as it is */
+.emb-la .emb-empty::before,
+.emb-term .emb-empty::before,
+.emb-log .emb-empty::before {
+  content: '';
+  width: 30px;
+  height: 30px;
+  margin-bottom: 4px;
+  background: var(--label-2);
+  -webkit-mask: var(--emb-empty-icon) center / contain no-repeat;
+  mask: var(--emb-empty-icon) center / contain no-repeat;
+}
+.emb-la {
+  --emb-empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 9h3V4h4v5h3V4h4v5h6'/%3E%3Cpath d='M2 20h5v-5h4v5h4v-5h7'/%3E%3C/svg%3E");
+}
+.emb-term {
+  --emb-empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Cpath d='M7 9.5l3 2.5-3 2.5M12.5 15H17'/%3E%3C/svg%3E");
+}
+.emb-log {
+  --emb-empty-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 10.5h16M4 15h11M4 19.5h7'/%3E%3C/svg%3E");
+}
+
+/* ---- body: plot + decode results (below, or beside when the tray is wide) ---- */
+.lai-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.lai-body > .emb-la-scroll {
+  flex: 1 1 auto;
+}
+.lai-body.has-results > .emb-la-scroll {
+  flex: 3 1 0;
+  min-height: 90px;
+}
+.emb-la.is-wide .lai-body.has-results {
+  flex-direction: row;
+}
+.emb-la.is-wide .lai-body.has-results > .emb-la-scroll {
+  flex: 3 1 0;
+  min-width: 0;
+}
+
+/* decode results (DecodeResults.tsx) */
+.lai-results {
+  display: flex;
+  flex-direction: column;
+  flex: 2 1 0;
+  min-height: 110px;
+  min-width: 0;
+  border-radius: var(--lg-radius-card);
+  background: #0d1015;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.emb-la.is-wide .lai-results {
+  flex: 0 0 380px;
+  min-height: 0;
+}
+.lai-results-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.07);
+}
+.lai-results-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 13px/18px var(--lg-font);
+  color: var(--label);
+  white-space: nowrap;
+}
+.lai-results-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--fill-2);
+  font: 600 11.5px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.lai-results-search {
+  flex: 1 1 auto;
+  min-width: 80px;
+  min-height: 28px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.lai-results-head .emb-icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.lai-results-cols,
+.lai-results-row {
+  display: grid;
+  /* the time column holds 「187.800 123 s」 (seconds to the µs, H3) */
+  grid-template-columns: 98px 56px minmax(0, 1fr) 60px;
+  gap: 8px;
+  align-items: center;
+}
+.lai-results-cols {
+  padding: 3px 12px;
+  font: 600 12px/16px var(--lg-font);
+  color: var(--label-2);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.05);
+}
+.lai-results-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+.lai-results-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  color: #d9dee7;
+  font: 500 12.5px/26px var(--lg-font-mono);
+  text-align: left;
+  cursor: pointer;
+}
+.lai-results-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.lai-results-row.is-sel {
+  background: rgba(10, 132, 255, 0.22);
+}
+.lai-results-row:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+.lai-results-t {
+  color: var(--label-2);
+}
+.lai-results-dec {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--lg-font);
+  font-weight: 600;
+}
+.lai-results-txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lai-results-st {
+  font: 700 11.5px/16px var(--lg-font);
+  color: var(--ios-green);
+}
+.lai-results-row.is-nack .lai-results-st {
+  color: var(--ios-orange);
+}
+.lai-results-row.is-error .lai-results-st {
+  color: #ff8a80;
+}
+/* a row and its (product chrome) side action, positioned by the virtual list */
+.lai-results-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+/* product chrome (UX QA IS-F4): the columns size to their content — one width
+   per table (DecodeResults sets --lai-res-cols from the rows), 內容 ≥ 10 ch;
+   the header uses the rows' font for the column widths (ch), its labels keep theirs */
+.lai-results.is-product .lai-results-cols,
+.lai-results.is-product .lai-results-row {
+  grid-template-columns: var(--lai-res-cols, auto auto minmax(10ch, 1fr) auto);
+  font-family: var(--lg-font-mono);
+  font-size: 12.5px;
+}
+.lai-results.is-product .lai-results-cols > span {
+  font: 600 12px/16px var(--lg-font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.lai-results.is-product .lai-results-cols > span:last-child {
+  text-align: right;
+}
+.lai-results.is-product .lai-results-st {
+  text-align: right;
+}
+.lai-results.is-product .lai-results-dec {
+  min-width: 0;
+  overflow: hidden;
+}
+.lai-results-dec-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* a UART row's 「在 UART 終端機中顯示」: at the row's end, shown on hover / focus / the picked row */
+.lai-results-item.has-act .lai-results-row {
+  padding-right: 34px;
+}
+.lai-results-act {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 24px;
+  height: 22px;
+  margin-top: -11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--label-2);
+  cursor: pointer;
+  opacity: 0;
+}
+.lai-results-item:hover .lai-results-act,
+.lai-results-item:focus-within .lai-results-act,
+.lai-results-item .lai-results-row.is-sel + .lai-results-act {
+  opacity: 1;
+}
+.lai-results-act:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--label);
+}
+.lai-results-act:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+@media (hover: none) {
+  .lai-results-act {
+    opacity: 1;
+  }
+}
+/* a narrow pane (< 360 px, IS-F4): two lines per row — the decoder's dot, 時間
+   and 狀態 above, the whole 內容 below (the virtual list's row height is 44 px) */
+.lai-results.is-two-line .lai-results-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'dec t st'
+    'txt txt txt';
+  row-gap: 0;
+  column-gap: 6px;
+  height: 44px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  align-content: center;
+  line-height: 18px;
+}
+.lai-results.is-two-line .lai-results-dec {
+  grid-area: dec;
+}
+.lai-results.is-two-line .lai-results-dec-name {
+  display: none;
+}
+.lai-results.is-two-line .lai-results-t {
+  grid-area: t;
+}
+.lai-results.is-two-line .lai-results-st {
+  grid-area: st;
+}
+.lai-results.is-two-line .lai-results-txt {
+  grid-area: txt;
+}
+
+.lai-results-empty,
+.lai-results-cap {
+  margin: 0;
+  padding: 10px 12px;
+  font: 400 13px/18px var(--lg-font);
+  color: rgba(235, 238, 245, 0.72);
+}
+.lai-results-cap {
+  position: sticky;
+  bottom: 0;
+  padding: 4px 12px;
+  background: #0d1015;
+  font-size: 12px;
+}
+
+/* ---- footer: readable values, the how-to caption, a real hit area ---- */
+.lai-foot-name {
+  font-weight: 600;
+  color: var(--label);
+}
+.lai-foot-cell {
+  white-space: nowrap;
+}
+.lai-foot-tip {
+  font: 400 12.5px/18px var(--lg-font);
+  color: var(--label-2);
+}
+/* keyboard help while a plot has keyboard focus (KeyHelp.tsx) */
+.lai-keys {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  font: 400 12.5px/20px var(--lg-font);
+  color: var(--label-2);
+}
+.lai-keys-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.lai-keys-text {
+  margin-left: 4px;
+}
+.sco-cursor-line .lai-keys {
+  margin-left: 14px;
+}
+/* A / B readouts double as "the next click places this marker" toggles (UX IS-9) */
+.lai-foot-mk {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin: -2px -6px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms linear;
+}
+.lai-foot-mk:hover {
+  background: var(--fill-2);
+}
+.lai-foot-mk.is-armed {
+  background: rgba(10, 132, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(100, 181, 255, 0.55);
+  font-family: var(--lg-font);
+}
+.lai-foot-mk:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+/* 「各通道量測」: at the end of the readout it extends */
+.lai-foot-mk.lai-meas-toggle {
+  margin-left: auto;
+  color: var(--label-2);
+  font-family: var(--lg-font);
+}
+.lai-foot-mk.lai-meas-toggle.is-armed {
+  color: var(--label);
+}
+
+/* ---- per-channel measurement column (UX IS-9) ---- */
+.emb-la-grid.has-meas {
+  grid-template-columns: minmax(104px, max-content) minmax(0, 1fr) max-content;
+}
+.lai-meas {
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0.5px 0 0 rgba(255, 255, 255, 0.08);
+}
+.lai-meas-row {
+  display: grid;
+  grid-template-columns: 72px 52px 92px 92px;
+  align-items: center;
+  column-gap: 8px;
+  padding: 0 8px 0 10px;
+  font: 500 12px/16px var(--lg-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
+  white-space: nowrap;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.04);
+}
+.lai-meas-row.is-head {
+  font: 600 11.5px/16px var(--lg-font);
+  color: var(--label-2);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ---- oscilloscope: honest timing + auto setup ---- */
+.sco-meas-note {
+  grid-column: span 3;
+  font-family: var(--lg-font);
+  color: #ffc56b;
+}
+.sco-exact {
+  margin-left: 4px;
+  font-family: var(--lg-font);
+  font-size: 11px;
+  color: var(--ios-green);
+}
+.sco-autoset {
+  font-weight: 600;
+}
+
+@media (pointer: coarse) {
+  .lai-export select {
+    width: 116px;
+  }
+  .lai-add-ch select {
+    width: 146px;
+  }
+  .lai-panel .emb-select select,
+  .sco-bar .emb-select select,
+  .sco-tools .emb-select select {
+    min-height: 32px;
+    font-size: 16px;
+  }
+  .sco-level {
+    width: 96px;
+    min-height: 32px;
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lai-dot.is-armed {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   UX fix wave (IS-11 / IS-20): the scope readout — one wrapping row per
+   channel in the product chrome (a baud line or a note wraps instead of
+   being cut off at the tray edge), 12.5 px, labels and values readable on
+   the always-dark screen (≥ 4.5:1). Classic keeps its one-line grid.
+   ========================================================================== */
+.sco-meas.is-rows {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 1px;
+  overflow: visible;
+  white-space: normal;
+  font-size: 12.5px;
+  line-height: 17px;
+  color: #eef1f6;
+}
+.sco-meas.is-rows > .sco-meas-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
+  min-width: 0;
+}
+.sco-meas.is-rows > .sco-meas-row > span {
+  white-space: nowrap;
+}
+.sco-meas.is-rows > .sco-meas-row > .sco-meas-note,
+.sco-meas.is-rows > .sco-meas-row > .sco-meas-line {
+  white-space: normal;
+}
+.sco-meas.is-rows .sco-meas-k {
+  color: rgba(235, 238, 245, 0.68);
+  margin-right: 4px;
+}
+.sco-meas.is-rows .sco-meas-note {
+  grid-column: auto;
+}
+.sco-meas.is-rows .sco-exact {
+  font-size: 12px;
+}
+
+/* UX fix wave (IS-15): marker alignment, the A–B note */
+.lai-foot-snap {
+  margin-left: 6px;
+  font: 500 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+.lai-foot-snap.is-off {
+  color: var(--ios-orange);
+}
+.lai-foot-note {
+  flex-basis: 100%;
+  font: 500 12px/16px var(--lg-font);
+  color: var(--ios-orange);
+}
+
+/* decode results (IS-15): beside the plot (≥ 760 px; 280–380 px wide), or a
+   280 px Tier-S pane over the plot's right edge in a narrow tray — the plot
+   keeps its height and the footer stays below, never covered */
+.emb-la.is-wide .lai-results {
+  flex: 0 0 clamp(280px, 32%, 380px);
+}
+/* a tray ≥ 900 px wide (UX QA IS-F4): the full 380 px, so 內容 has room */
+.emb-la.is-wide.is-roomy .lai-results {
+  flex: 0 0 380px;
+}
+.emb-la.is-narrow .lai-body.has-results {
+  position: relative;
+}
+.emb-la.is-narrow .lai-body.has-results > .emb-la-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.emb-la.is-narrow .lai-results {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  width: min(280px, 100%);
+  min-height: 0;
+  background: #0d1015;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    -8px 0 18px rgba(0, 0, 0, 0.45);
+}
+
+/* channel labels lead back to the circuit (IS-13): the name is a button —
+   click: show it on the board; right-click / long-press: the channel menu */
+.lai-label-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  margin: 0 0 0 -4px;
+  padding: 1px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lai-label-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+.lai-label-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -1px;
+}
+.lai-label-btn:disabled {
+  cursor: default;
+}
+.lai-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lai-menu-head {
+  padding: 2px 8px 6px;
+  font: 500 12px/16px var(--lg-font);
+  color: var(--label-2);
+  border-bottom: 0.5px solid var(--separator);
+  margin-bottom: 2px;
+}
+.lai-menu-item {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--label);
+  font: 500 13px/18px var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+}
+.lai-menu-item:hover:not(:disabled),
+.lai-menu-item:focus-visible {
+  background: var(--fill-2);
+  outline: none;
+}
+.lai-menu-item:disabled {
+  color: var(--label-3);
+  cursor: default;
+}
+.lai-menu-item.is-danger {
+  color: var(--ios-red);
+}
+.lai-menu-item.is-primary {
+  width: auto;
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+.lai-menu-rename {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 2px;
+}
+.lai-menu-rename .emb-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 30px;
+}
+
+/* scope CH chips name their probe and net (IS-13); a probe action pointing at an
+   existing one flashes it (transform / opacity only) */
+.sco-chip-btn {
+  max-width: 280px;
+  cursor: pointer;
+  color: inherit;
+}
+.sco-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sco-chip-btn:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.sco-chip-btn.is-flash {
+  animation: sco-chip-flash 0.4s ease-in-out 0s 3;
+}
+@keyframes sco-chip-flash {
+  50% {
+    opacity: 0.35;
+    transform: scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sco-chip-btn.is-flash {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--ios-blue);
+  }
+}
+
+/* 工作週期 as the glossary term (DutyTerm): the narrow per-channel table keeps
+   the dotted underline only — its ⓘ would run into the next column */
+.lai-meas .ins-duty-term .insp-term-i {
+  display: none;
+}
+
+/* the analyzer row a probe action points at (「在邏輯分析儀中顯示」, a duplicate
+   add): its label and its trace band blink three times, like the scope chip */
+.emb-la-label.is-flash {
+  animation: lai-label-flash 0.4s ease-in-out 0s 3;
+  box-shadow: inset 3px 0 0 var(--ios-blue);
+}
+@keyframes lai-label-flash {
+  50% {
+    background: color-mix(in srgb, var(--ios-blue) 22%, transparent);
+  }
+}
+.lai-row-flash {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background: var(--ios-blue);
+  opacity: 0;
+  animation: lai-row-flash 0.4s ease-in-out 0s 3;
+}
+@keyframes lai-row-flash {
+  50% {
+    opacity: 0.16;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emb-la-label.is-flash {
+    animation: none;
+    background: color-mix(in srgb, var(--ios-blue) 16%, transparent);
+  }
+  .lai-row-flash {
+    animation: none;
+    opacity: 0.1;
+  }
+}
+
+/* an analog net the 0.8 / 2.0 V thresholds hide (IS-16): the reason on its row,
+   with the way out (a scope probe) */
+.lai-thr {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  pointer-events: none;
+}
+.lai-thr-text {
+  min-width: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(10, 12, 16, 0.82);
+  color: #ffc56b;
+  font: 500 12px/18px var(--lg-font);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lai-thr .lai-hint-btn {
+  pointer-events: auto;
+  flex: 0 0 auto;
+}
+.lai-approx {
+  font-weight: 500;
+  color: var(--label-2);
+}
+
+/* decode results (IS-14): the frame's note, a boot-noise row muted */
+.lai-results-note {
+  color: #ffc56b;
+  font-family: var(--lg-font);
+}
+.lai-results-row.is-hint .lai-results-st,
+.lai-results-row.is-hint .lai-results-txt {
+  color: var(--label-2);
+}
+
+/* the real reason an instrument is empty (IS-14): a Tier-S inline note with
+   its fix — the dot is the board's run-state colour (H6) */
+.ins-blocker {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  max-width: 100%;
+  padding: 6px 8px 6px 12px;
+  border-radius: 12px;
+  background: rgba(22, 24, 30, 0.94);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    0 6px 18px rgba(0, 0, 0, 0.35);
+  font: 500 13px/18px var(--lg-font);
+  color: #eef1f6;
+  pointer-events: auto;
+}
+.ins-blocker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.ins-blocker-text {
+  min-width: 0;
+}
+.ins-blocker-btn {
+  min-height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ios-blue);
+  color: #fff;
+  font: 600 13px/18px var(--lg-font);
+  cursor: pointer;
+}
+.ins-blocker-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+.sco-blocker {
+  display: flex;
+  justify-content: flex-start;
+  padding: 4px 10px 2px 12px;
+}
+.emb-term-blocker {
+  display: flex;
+  padding: 2px 0 6px;
+}
+
+/* 量測 (IS-19): one row per meter / supply with its big reading, then the
+   recorded nets — a row leads to its part on the board */
+.meas-view {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  padding: 2px 2px 8px;
+}
+.meas-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) auto 1fr;
+  align-items: baseline;
+  gap: 4px 16px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 12px;
+  background: var(--fill-2);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+  color: var(--label);
+  font: 500 13px/18px var(--lg-font);
+  text-align: left;
+  cursor: pointer;
+}
+.meas-row:hover {
+  background: var(--fill-1, var(--fill-2));
+}
+.meas-row:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.meas-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.meas-id {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.meas-kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--label-2);
+  font-size: 12px;
+}
+.meas-dot {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.meas-value {
+  font: 600 26px/32px var(--lg-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.meas-value.is-net {
+  font-size: 15px;
+  line-height: 20px;
+}
+.meas-value.is-empty {
+  color: var(--label-3);
+}
+.meas-sub {
+  min-width: 0;
+  color: var(--label-2);
+  font-size: 13px;
+}
+.meas-section {
+  margin: 6px 4px 0;
+  font: 600 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+@media (max-width: 600px) {
+  .meas-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* IS-20: the ⋯ menus of narrow instruments; the phone decoder button keeps
+   its text; the phone footer: t / A / B / Δt first, the readings below */
+.emb-more-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+@media (pointer: coarse) {
+  .lai-add-dec select {
+    width: auto;
+    min-width: 124px;
+  }
+}
+@media (max-width: 600px) {
+  .lai-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+  .lai-foot-ch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-basis: 100%;
+    gap: 2px 10px;
+  }
+}
+
+/* activity band (IS-20): the whole recording's edge density above the plot */
+.lai-band-row {
+  flex: 0 0 auto;
+  height: 10px;
+  margin-bottom: -6px;
+}
+.lai-band {
+  display: block;
+  border-radius: 3px;
+  cursor: zoom-in;
+}
+
+/* phone rows (UX QA IS-F16): the channel's name 「PA5 LED」 like the desktop
+   label, its trigger and its footer — a 104 px column, two lines at most;
+   the classic chrome keeps the bare pin in 72 px */
+@media (max-width: 600px) {
+  .emb-la.is-product .emb-la-grid {
+    grid-template-columns: 104px 1fr;
+  }
+  .emb-la.is-product .emb-la-labels {
+    max-width: 104px;
+  }
+  .emb-la.is-product .emb-la-short {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    font: 600 12.5px/15px var(--lg-font);
+  }
+}
+
+/* the UART line the shared instrument cursor falls in (UX QA IS-F13): the
+   analyzer's cursor purple; 「回到最新」 while following is paused */
+.emb-term-line.is-cursor {
+  background: rgba(191, 90, 242, 0.2);
+  box-shadow: inset 2px 0 0 rgba(191, 90, 242, 0.95);
+}
+.emb-term-latest {
+  position: sticky;
+  bottom: 4px;
+  display: block;
+  width: max-content;
+  margin: 4px 0 0 auto;
+  min-height: 24px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.92);
+  color: #fff;
+  font: 600 12px/24px var(--lg-font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.emb-term-latest:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+/* a short scope screen (UX QA IS-F18): the rows after the first fold into 「量測 ▾」 */
+.sco-meas-fold {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 22px;
+  margin-top: 1px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eef1f6;
+  font: 600 12px/22px var(--lg-font);
+  cursor: pointer;
+}
+.sco-meas-fold:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.sco-meas-fold:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.sco-meas-fold-n {
+  font-weight: 500;
+  color: rgba(235, 238, 245, 0.68);
+}
+/* the undersampled-line note (IS-F6): its own line under the levels, the button beside the text */
+.sco-meas.is-rows > .sco-meas-row > .sco-meas-under {
+  flex-basis: 100%;
+}
+.sco-meas-under .lai-hint-btn {
+  margin-left: 8px;
+}
+
+/* ==== QA clarity round (analysis panels) ==== */
+
+/* LA-MEAS-NAMES: the product table names every quantity — 頻率 · 週期 · 工作週期 ·
+   高電位時間 · 低電位時間 · 邊緣數 (the classic table keeps its four columns) */
+.emb-la.is-product .lai-meas-row {
+  grid-template-columns: 84px 66px 56px 92px 92px 46px;
+}
+.emb-la.is-product .lai-meas-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lai-meas .ins-term .insp-term-i {
+  display: none;
+}
+/* a row measured over its recent recording (LA-FIT): the stretch under the value */
+.lai-meas-f {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.lai-meas-recent {
+  display: none;
+  font: 500 10.5px/12px var(--lg-font);
+  color: var(--label-2);
+}
+.lai-meas-row.is-recent.is-tall .lai-meas-recent {
+  display: block;
+}
+.lai-meas-row.is-recent .lai-meas-f > span:first-child {
+  color: var(--label);
+}
+.lai-foot-recent {
+  font-family: var(--lg-font);
+}
+/* 量測: a probe's reading names its quantity before the value (MEASURE-COHERENCE) */
+.meas-q {
+  margin-right: 8px;
+  font: 500 13px/20px var(--lg-font);
+  color: var(--label-2);
+  vertical-align: middle;
+}
+
+/* DECODE-SUMMARY: the table at a glance — counts, the answering I²C addresses
+   (each one filters the rows), the status filters */
+.lai-results-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 10px;
+  padding: 4px 10px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.07);
+  font: 500 12.5px/20px var(--lg-font);
+  color: var(--label);
+}
+.lai-results-sum-part {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.lai-results-addr,
+.lai-results-filter {
+  min-height: 22px;
+  padding: 0 7px;
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--label);
+  font: 600 12px/20px var(--lg-font-mono);
+  cursor: pointer;
+}
+.lai-results-filter {
+  font-family: var(--lg-font);
+  font-weight: 500;
+  color: var(--label-2);
+}
+.lai-results-addr.is-on,
+.lai-results-filter.is-on {
+  border-color: color-mix(in srgb, var(--ios-blue) 70%, transparent);
+  background: color-mix(in srgb, var(--ios-blue) 22%, transparent);
+  color: var(--label);
+}
+.lai-results-addr:focus-visible,
+.lai-results-filter:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 1px;
+}
+.lai-results-filters {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+/* a narrow pane keeps the line's short name next to the colour dot (TX vs RX without the dot) */
+.lai-results-dec-line {
+  margin-left: 4px;
+  font: 600 11.5px/16px var(--lg-font);
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.lai-thr.is-rx .lai-thr-text {
+  color: #e2c6ff;
+}
+.emb-term-hint {
+  margin: 2px 0 0;
+  padding: 0 12px;
+  font: 400 12px/16px var(--lg-font);
+  color: var(--label-2);
+}
+
+/* SCOPE-READOUT-TRIGGER: before the first run — a neutral note, not the orange 「取樣不足」 */
+.sco-meas-idle {
+  font-family: var(--lg-font);
+  color: var(--label-2);
+}
+/* SCOPE-CURSORS: A / B in the analyzer's marker colours, every channel at each cursor */
+.sco-cursor-line.is-product {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  white-space: normal;
+  overflow-x: visible;
+  font-size: 12px;
+  line-height: 18px;
+}
+.sco-cur-part {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  white-space: nowrap;
+}
+.sco-cur-name {
+  font-family: var(--lg-font);
+  font-weight: 700;
+}
+.sco-cur-name.is-a {
+  color: #64b5ff;
+}
+.sco-cur-name.is-b {
+  color: #5ee0c8;
+}
+.sco-cur-ch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sco-cur-sep {
+  color: var(--label-3);
+}
+/* one trigger chip; its fields labelled in a popover */
+.sco-field-k {
+  font: 500 12.5px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.sco-trig-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.sco-trig-head {
+  font: 600 14px/20px var(--lg-font);
+  color: var(--label);
+}
+.sco-trig-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.sco-trig-k {
+  font: 500 13px/18px var(--lg-font);
+  color: var(--label-2);
+}
+.sco-trig-note {
+  margin: 0;
+  font: 400 12px/17px var(--lg-font);
+  color: var(--label-2);
+}
+/* the RX note wraps on a narrow plot (two lines at most) instead of losing its point */
+.lai-thr.is-rx .lai-thr-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  text-align: center;
+  border-radius: 10px;
+}
+.sco-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+/* the trigger chip says everything it is set to: room for the whole line (never 「…」 before the mode) */
+.sco-trig-chip,
+.sco-trig-chip .emb-chip {
+  max-width: 100%;
+}
+/* a narrow tray never loses its waveform to the per-channel table: the plot keeps 240 px and the
+   table scrolls sideways (its rows stay aligned with the traces) */
+@media (min-width: 601px) {
+  .emb-la.is-product .emb-la-grid.has-meas {
+    grid-template-columns: minmax(104px, max-content) minmax(240px, 1fr) minmax(0, max-content);
+  }
+  .emb-la.is-product .lai-meas {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+}
+/* the named readout wraps as cells — the channel's name never squeezes to one character a line */
+.emb-la.is-product .lai-foot-ch {
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+.emb-la.is-product .lai-foot-name {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
