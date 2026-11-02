@@ -1,0 +1,152 @@
+/* ==========================================================================
+   FlowToggle — 「顯示電流」 checkbox chip right of the run capsule (owner:
+   flow). Tier-S Liquid Glass (the UndoPill / StatusPill recipe): near-opaque
+   over-scene tint + the bent-light rim (lg-rim) + slab inset shadows. NO
+   backdrop-filter (dock + capsule + sheet keep the blur budget, DESIGN §7).
+   Anchored to the capsule's own centre (50 %, or the workspace's free
+   column) + half its measured width (--app-flow-half), so it glides with
+   it. Springs in with transform + opacity only.
+   ========================================================================== */
+
+.app-flow-chip {
+  position: fixed;
+  /* capsule: top safe+10, 38 tall → its centre line at safe+29 */
+  top: calc(var(--lg-safe-top) + 12px);
+  left: calc(50% + var(--app-flow-half, 120px) + 8px);
+  z-index: 55; /* the capsule's layer: floats above sheets like Run / Pause */
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px 0 9px;
+  border: none;
+  border-radius: 999px;
+  font: 600 13px/1 var(--lg-font);
+  letter-spacing: 0.01em;
+  color: var(--label);
+  background: linear-gradient(180deg, rgba(52, 56, 68, 0.94), rgba(34, 36, 46, 0.92));
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+  --lg-rim-hi: 0.3;
+  --lg-rim-mid: 0.18;
+  --lg-rim-w: 1px;
+  --lg-ink-shadow: 0 1px 3px rgba(8, 10, 14, 0.55);
+  text-shadow: var(--lg-ink-shadow);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  /* backwards fill only: a finished entrance must not pin opacity / transform */
+  animation: app-flow-in var(--lg-dur-control) var(--lg-spring) backwards;
+  transition:
+    transform var(--lg-dur-press) var(--lg-spring),
+    opacity var(--lg-dur-control) var(--lg-spring),
+    box-shadow var(--lg-dur-control) var(--lg-spring);
+}
+body.ws-on .app-flow-chip {
+  left: calc(var(--ws-center-x) + var(--app-flow-half, 120px) + 8px);
+}
+.app-flow-chip:active {
+  transform: scale(0.95);
+}
+.app-flow-chip:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+@keyframes app-flow-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* the checkbox: an outlined square; ON = the particles' amber with a dark tick */
+.app-flow-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1.5px rgba(235, 235, 245, 0.62);
+  color: #1b1405;
+  text-shadow: none;
+  transition:
+    background-color var(--lg-dur-control) var(--lg-spring),
+    box-shadow var(--lg-dur-control) var(--lg-spring);
+}
+.app-flow-chip.is-on .app-flow-box {
+  background: #ffc21a;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 10px rgba(255, 194, 26, 0.55);
+}
+.app-flow-chip.is-on {
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 194, 26, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5);
+}
+.app-flow-label {
+  display: inline-block;
+}
+
+/* narrow phones: the box + a bolt in a 40 px round chip */
+.app-flow-chip.is-compact {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+  gap: 2px;
+}
+.app-flow-chip.is-compact .app-flow-box {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+}
+.app-flow-bolt {
+  display: inline-flex;
+  color: rgba(235, 235, 245, 0.8);
+  margin-right: -3px;
+}
+.app-flow-chip.is-on .app-flow-bolt {
+  color: #ffc21a;
+}
+/* the capsule's second line (AI / Studio / firmware flashes) may grow wider
+   than its first: the chip steps aside for those ~3 s (transform + opacity) */
+body.app-capsule-expanded .app-flow-chip:not(.is-below) {
+  opacity: 0;
+  transform: translateX(8px) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity var(--lg-dur-control) var(--lg-spring),
+    transform var(--lg-dur-control) var(--lg-spring);
+}
+
+/* no room beside the capsule at all: the right edge, one row lower */
+.app-flow-chip.is-below,
+body.ws-on .app-flow-chip.is-below {
+  left: auto;
+  right: calc(var(--lg-safe-right, 0px) + 8px);
+  top: calc(var(--lg-safe-top) + 58px);
+}
+/* the full label, measured while the compact chip shows */
+.app-flow-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-flow-chip {
+    animation: none;
+  }
+}

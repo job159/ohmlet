@@ -178,7 +178,7 @@ export const PARTS_ZH: Record<string, PartText> = {
 
   ky040_encoder: {
     label: '旋轉編碼器模組（KY-040）',
-    doc: 'KY-040 旋轉編碼器模組，5 腳排針 CLK DT SW + GND（`at` = 第 f 列的 CLK；電路板蓋住 a–f 列）。+ 接 3.3 V（CLK 與 DT 的上拉電阻在板上）。每一格段是 CLK/DT 上一個完整的正交週期（順時針：CLK 先下降）——可使用 STM32 計時器的編碼器模式（TI12 每格計數 4），或在 CLK 上使用 EXTI 並讀取 DT。按下時 SW 短路到 GND：請啟用微控制器的上拉。在屬性面板變更「位置」（格數）即可旋轉；「按下」可按住按鈕。',
+    doc: 'KY-040 旋轉編碼器模組，5 腳排針 CLK DT SW + GND（`at` = 第 f 列的 CLK；電路板蓋住 a–f 列）。+ 接 3.3 V（CLK 與 DT 的上拉電阻在板上）。每一格段是 CLK/DT 上一個完整的正交週期（順時針：CLK 先下降）——可使用 STM32 計時器的編碼器模式（TI12 每格計數 4），或在 CLK 上使用 EXTI 並讀取 DT。按下時 SW 短路到 GND：請啟用微控制器的上拉。在屬性面板變更「位置」（格數）即可旋轉；打開「保持按下」旋鈕就一直按著（模擬執行中也可以在 3D 畫面按住旋鈕）。',
     specs: ['每圈 20 格／20 個脈衝，含按壓開關', 'A/B 正交輸出，10 kΩ 上拉電阻', '模組電源（上拉）3.3–5 V'],
     simulated: [
       'EC11 類增量式編碼器，每圈 20 格：接點 A（CLK）與 B（DT）閉合時接到 GND；每一格停止位置兩者皆開路（經模組 10 kΩ 上拉為高準位）',
@@ -187,12 +187,12 @@ export const PARTS_ZH: Record<string, PartText> = {
       '按壓開關 SW 按下時閉合到 GND（模組上無上拉電阻）',
     ],
     limits: ['不模擬接點彈跳（實際 EC11 接點會彈跳數 ms——實機韌體仍需去彈跳）', '轉軸以固定速度轉動（無加速度）'],
-    params: { position: '位置', pressed: '按下', turnRate: '轉動速度' },
+    params: { position: '位置', pressed: '按鈕（SW）', turnRate: '轉動速度' },
   },
 
   joystick_xy: {
     label: '類比搖桿（KY-023）',
-    doc: 'KY-023 類比搖桿模組，5 腳排針 GND +5V VRx VRy SW（`at` = 第 f 列的 GND；電路板蓋住 a–f 列）。VRX／VRY 是接在 +5V 與 GND 之間的可變電阻中間腳——搭配 STM32 時 +5V 請接 3.3 V，並以兩個 ADC 通道讀取（靜止時約 2048）。按下搖桿時 SW 短路到 GND：請使用微控制器的上拉。可在屬性面板設定搖桿 X/Y（−100…100 %）與「按下」。',
+    doc: 'KY-023 類比搖桿模組，5 腳排針 GND +5V VRx VRy SW（`at` = 第 f 列的 GND；電路板蓋住 a–f 列）。VRX／VRY 是接在 +5V 與 GND 之間的可變電阻中間腳——搭配 STM32 時 +5V 請接 3.3 V，並以兩個 ADC 通道讀取（靜止時約 2048）。按下搖桿時 SW 短路到 GND：請使用微控制器的上拉。可在屬性面板設定搖桿 X/Y（−100…100 %）；打開「保持按下」搖桿按鈕就一直按著（模擬執行中也可以在 3D 畫面按住搖桿）。',
     specs: ['兩個 10 kΩ 可變電阻（X、Y）＋按壓開關', '類比輸出 0…VCC', '3.3–5 V'],
     simulated: [
       '兩個接在 +5V 與 GND 之間的 10 kΩ 線性可變電阻：VRX／VRY 為其中間腳（靜止時為電源電壓一半，推到底時為全範圍）',
@@ -200,7 +200,7 @@ export const PARTS_ZH: Record<string, PartText> = {
       '搖桿位置與按鈕可在執行中調整',
     ],
     limits: ['不模擬機械死區、回中誤差與彈簧動態；理想線性', 'SW 無上拉電阻（與模組相同）：請啟用微控制器的上拉'],
-    params: { x: '搖桿 X', y: '搖桿 Y', pressed: '按下' },
+    params: { x: '搖桿 X', y: '搖桿 Y', pressed: '按鈕（SW）' },
   },
 
   hall_a3144: {

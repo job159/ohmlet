@@ -134,9 +134,11 @@ export function fmtRange(quantity: Quantity, min: number, max: number): string {
 
 /**
  * What a check's stimulus does, in the inspector's own words (final round):
- * 「檢查時會自動操作：0.1 秒時把 ENC1 的「位置」設為 5，0.6 秒時勾選 ENC1
- * 的「按下」」 (「一上電就…」 at 0 s). A boolean param reads as the checkbox
- * the learner would tick; times are seconds after power-on. `parts` says which catalog part
+ * 「檢查時會自動操作：0.1 秒時把 ENC1 的「位置」設為 5，0.6 秒時按住 ENC1」
+ * (「一上電就…」 at 0 s). A button's 'pressed' reads as the press itself
+ * (「按住 SW1」 / 「放開 SW1」 — 按住 / 保持按下 in the inspector, latch.ts);
+ * another boolean param reads as the checkbox the learner would tick; times
+ * are seconds after power-on. `parts` says which catalog part
  * each id is (a CircuitLayout fits); '' for an empty stimulus.
  */
 export function stimulusText(stimulus: readonly LessonStimulus[], parts?: TerminalOwners): string {
@@ -150,6 +152,12 @@ export function stimulusText(stimulus: readonly LessonStimulus[], parts?: Termin
     // an SI quantity in the units the value fixes print (0.08 V → 「80 mV」); a count (detents) stays a number
     const si = typeof st.value === 'number' && !!def?.unit && /^(V|A|Ω|Hz|F|H|W|s)$/.test(def.unit)
     const v = { t: at, id: st.component, param, value: si ? fmtSi(st.value as number, def!.unit!) : String(st.value) }
+    if (typeof st.value === 'boolean' && st.param === 'pressed') {
+      // a button the check presses itself: 「按住 SW1」 / 「放開 SW1」 — the inspector has no
+      // 「按下」 box to tick (按住 / 保持按下 — latch.ts); the English keeps its words
+      if (at === 0) return st.value ? t('At power-on: tick {id} “{param}”|press', v) : t('At power-on: untick {id} “{param}”|press', v)
+      return st.value ? t('{t} s: tick {id} “{param}”|press', v) : t('{t} s: untick {id} “{param}”|press', v)
+    }
     if (typeof st.value === 'boolean') {
       if (at === 0) return st.value ? t('At power-on: tick {id} “{param}”', v) : t('At power-on: untick {id} “{param}”', v)
       return st.value ? t('{t} s: tick {id} “{param}”', v) : t('{t} s: untick {id} “{param}”', v)

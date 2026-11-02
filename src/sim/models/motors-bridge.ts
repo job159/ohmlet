@@ -22,6 +22,7 @@
 import type { StampContext } from '../mna'
 import { pnLimit } from '../mna'
 import { Junction, fitJunction, vAt } from './motors-common'
+import { bookBranch } from '../devices'
 
 /** MOSFET body diode: ≈ 0.7 V at 10 mA, 0.95 V at 1 A (A4988 VF ≤ 1.2 V at 1.5 A). */
 export const BODY_DIODE = fitJunction(0.7, 0.01, 0.95, 1.0)
@@ -52,6 +53,15 @@ export class FetLeg {
     let lim = this.dHi.stamp(ctx, x, this.out, this.sup, 1)
     if (this.dLo.stamp(ctx, x, this.gnd, this.out, 1)) lim = true
     return lim
+  }
+
+  /** terminalCurrents: the last stamp on device pins OUT / supply / ground at x. */
+  book(out: Float64Array, off: number, nodes: ArrayLike<number>, x: Float64Array, pOut: number, pSup: number, pGnd: number): void {
+    if (this.out < -1) return
+    if (this.hi > 0) bookBranch(out, off, nodes, x, pSup, pOut, this.hi * this.gHi)
+    if (this.lo > 0) bookBranch(out, off, nodes, x, pOut, pGnd, this.lo * this.gLo)
+    this.dHi.book(out, off, nodes, x, pOut, pSup, 1)
+    this.dLo.book(out, off, nodes, x, pGnd, pOut, 1)
   }
 
   /** Current delivered from OUT into the external load (A). */
@@ -151,6 +161,15 @@ export class SatSwitch {
 
   current(v: number, w: number): number {
     return w > 0 ? w * this.eval(v)[0] : 0
+  }
+
+  /** terminalCurrents: the last stamp's linearization between device pins `pa` → `pc` at x. */
+  book(out: Float64Array, off: number, nodes: ArrayLike<number>, x: Float64Array, pa: number, pc: number, w: number): void {
+    if (!(w > 0)) return
+    const vd = this.vLast
+    const [i, g] = this.eval(vd)
+    const gw = w * g
+    bookBranch(out, off, nodes, x, pa, pc, gw, w * i - gw * vd)
   }
 
   get lastCurrent(): number {
@@ -254,12 +273,43 @@ export class RegulatedBridge {
     ctx.addCurrent(this.b, -c)
     // the winding power comes from VM (previous step)
     const vm = vAt(x, this.sup) - vAt(x, this.gnd)
+    this.iVmLast = 0
     if (vm > 1) {
       const iVm = (this.v * this.i + this.i * this.i * this.rOn) / vm
       ctx.addCurrent(this.sup, -iVm)
       ctx.addCurrent(this.gnd, iVm)
+      this.iVmLast = iVm
     }
     return v !== vRaw
+  }
+
+  /** the VM draw of the last stamp (A, 0 = none) */
+  private iVmLast = 0
+
+  /** terminalCurrents: the last stamp on device pins OUTa / OUTb / supply / ground at x. */
+  book(
+    out: Float64Array,
+    off: number,
+    nodes: ArrayLike<number>,
+    x: Float64Array,
+    pA: number,
+    pB: number,
+    pSup: number,
+    pGnd: number,
+  ): void {
+    if (!this.active || this.a < -1 || this.b < -1) return
+    const ga = RegulatedBridge.G_ANCHOR
+    bookBranch(out, off, nodes, x, pA, pSup, ga)
+    bookBranch(out, off, nodes, x, pA, pGnd, ga)
+    bookBranch(out, off, nodes, x, pB, pSup, ga)
+    bookBranch(out, off, nodes, x, pB, pGnd, ga)
+    const v = this.vLast
+    const [i0, g] = this.eval(v)
+    bookBranch(out, off, nodes, x, pA, pB, -g, -(i0 - g * v))
+    if (pSup >= 0 && pGnd >= 0) {
+      out[off + pSup] += this.iVmLast
+      out[off + pGnd] -= this.iVmLast
+    }
   }
 
   settle(x: Float64Array): void {
@@ -308,6 +358,13 @@ export class DarlingtonLeg {
     let lim = this.up.stamp(ctx, x, this.sup, this.out, this.hi)
     if (this.down.stamp(ctx, x, this.out, this.gnd, this.lo)) lim = true
     return lim
+  }
+
+  /** terminalCurrents: the last stamp on device pins OUT / supply / ground at x. */
+  book(out: Float64Array, off: number, nodes: ArrayLike<number>, x: Float64Array, pOut: number, pSup: number, pGnd: number): void {
+    if (this.out < -1) return
+    this.up.book(out, off, nodes, x, pSup, pOut, this.hi)
+    this.down.book(out, off, nodes, x, pOut, pGnd, this.lo)
   }
 
   outCurrent(x: Float64Array): number {

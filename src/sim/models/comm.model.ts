@@ -52,7 +52,7 @@ import { registerDigitalDevice } from '../digital/api'
 import type { DeviceTelemetry, DigitalDevice, DigitalDeviceCtx, LogicLevel } from '../digital/api'
 import { DigitalDeviceChip } from '../digital/device-chip'
 import { registerChip } from '../chip-api'
-import { BaseDevice, registerDevice } from '../devices'
+import { BaseDevice, bookBranch, registerDevice } from '../devices'
 import type { StampContext } from '../mna'
 import type { ComponentInstance, ComponentTelemetry, ParamValue } from '../../model/types'
 import { paramOf } from '../../model/catalog'
@@ -151,6 +151,10 @@ export class JumperResistorDevice extends BaseDevice {
 
   stamp(ctx: StampContext): void {
     if (this.fitted) ctx.addConductance(this.nodes[0], this.nodes[1], this.g)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    if (this.fitted) bookBranch(out, off, this.nodes, x, 0, 1, this.g)
   }
 
   endStep(x: Float64Array): void {

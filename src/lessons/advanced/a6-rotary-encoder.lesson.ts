@@ -98,7 +98,7 @@ export const LESSON: Lesson = {
     'UART 開機：`KY-040 lesson a6: TIM4 encoder CLK PB6 / DT PB7, filter 15, SW PB12`、`pos=0`',
     'ENC1 的「位置」從 0 改成 5（每秒 20 格）：約每 50 ms 一行，依序 `pos=1`～`pos=5`，共約 0.25 s；再改成 2：`pos=4`、`pos=3`、`pos=2`',
     '邏輯分析儀 U1 PB6、PB7：順時針時 CLK 先下降，兩相相差約 12.5 ms（一格 50 ms 的四分之一）',
-    '勾選 ENC1 的「按下」：約 0.02 s 後 `SW pressed`；放開後約 0.02 s `SW released`',
+    '打開 ENC1 的「保持按下」（或在麵包板上按住旋鈕）：約 0.02 s 後 `SW pressed`；放開後約 0.02 s `SW released`',
     'U1 PB13 接地並重置後轉一格：`cnt=1`、`cnt=2`、`cnt=3`、`cnt=4`，然後 `pos=1`',
   ],
   // acceptance indices: 0 CLK · 1 DT · 2 SW · 3 power · 4 PB13 open · 5 firmware · 6 boot · 7 contract · 8 ERC
@@ -234,7 +234,7 @@ export const LESSON: Lesson = {
       title: '執行並轉動旋鈕',
       body: doc(
         '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開「UART 終端機」：開機印出 `pos=0`。接著點 ENC1，在屬性面板把「位置」改成 **5**：約每 50 ms 一行，`pos=1`～`pos=5`。再改成 2，看到 `pos=4`、`pos=3`、`pos=2`。',
-        '勾選「按下」再取消：約 20 ms 後各出現 `SW pressed`、`SW released`。計數完全由 TIM4 的硬體完成，主迴圈每 1 ms 醒來讀一次 `CNT`。',
+        '打開「保持按下」再關掉（或在麵包板上按住旋鈕再放開）：約 20 ms 後各出現 `SW pressed`、`SW released`。計數完全由 TIM4 的硬體完成，主迴圈每 1 ms 醒來讀一次 `CNT`。',
       ),
       highlight: { components: ['ENC1'] },
       // the check turns the knob itself (0 → 5), whatever the learner did on the live board

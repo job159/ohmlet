@@ -1,0 +1,24 @@
+/*
+ * Inspector damage banner (DamageBanner.tsx): the burned-LED banner's look
+ * (.prs-burned, PropertiesSheet.css) with a title line; an overheating part
+ * (not destroyed yet) uses the warning orange of the Problems risk rows.
+ * No backdrop-filter (Tier-S).
+ */
+.dmg-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dmg-banner-title {
+  font-weight: 600;
+}
+.dmg-banner-body {
+  color: var(--label);
+}
+.prs-burned.dmg-banner.is-warn {
+  background: linear-gradient(180deg, rgba(255, 159, 10, 0.2), rgba(255, 149, 0, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 0 0.5px rgba(255, 179, 64, 0.34),
+    inset 0 -6px 14px -10px rgba(0, 0, 0, 0.4);
+  color: var(--ios-orange);
+}

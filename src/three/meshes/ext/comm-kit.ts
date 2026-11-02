@@ -44,7 +44,8 @@ import {
   trianglesGeometry,
 } from '../pcb'
 import type { PcbArtStyle, PcbPainter } from '../pcb'
-import { LED_COLORS, ledGlowTexture } from '../semis'
+import { LED_COLORS } from '../semis'
+import { INDICATOR_ON_LIGHT, applyIndicator, indicatorHalo, ledPerceived, lightOf, type LedHaloRig } from '../led-look'
 
 export { MM }
 export type { PcbPainter }
@@ -593,7 +594,8 @@ const LENS_TINT: Record<string, number> = { red: 0xf4d2cc, green: 0xd6efd4, blue
 
 export interface LedRig {
   lens: THREE.MeshPhysicalMaterial
-  glow: THREE.Sprite | null
+  /** the shared LED glow halo (led-look.ts), null on a ghost */
+  halo: LedHaloRig | null
   tint: number
   level: number
 }
@@ -613,9 +615,9 @@ export function ledBase(parts: THREE.Object3D[], x: number, z: number, rotDeg = 
 }
 
 /**
- * The lit lens of an 0603 LED (per instance: emissive) + its additive halo
- * sprite. Ghost previews share one unlit lens and get no sprite. Add the
- * returned objects with `group.add(...)` — or into `parent` (a face group).
+ * The lit lens of an 0603 LED (per instance: emissive) + the shared glow
+ * halo (led-look.ts). Ghost previews share one unlit lens and get no sprite.
+ * The objects are added into `parent` (the group or a face group).
  */
 export function ledLens(
   parent: THREE.Object3D,
@@ -643,53 +645,37 @@ export function ledLens(
   mesh.position.set(x * MM, yTop + LIFT + 0.43 * MM, z * MM)
   mesh.rotation.y = (-rotDeg * Math.PI) / 180
   parent.add(mesh)
-  let glow: THREE.Sprite | null = null
-  if (!ghost) {
-    glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: ledGlowTexture(),
-        color: lit,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    )
-    glow.position.set(x * MM, yTop + 0.3, z * MM)
-    glow.scale.setScalar(1.1)
-    glow.visible = false
-    parent.add(glow)
-  }
-  return { lens, glow, tint, level: -1 }
+  const halo = indicatorHalo(lit, new THREE.Vector3(x * MM, yTop + 0.3, z * MM), ghost)
+  if (halo) parent.add(halo.halo)
+  return { lens, halo, tint, level: -1 }
 }
 
 /**
- * Light an indicator LED: `br` 0..1 (engine I / 10 mA, or a logic channel's
- * 0/1). Perceptual √ curve like the Blue Pill; only numeric mutations.
+ * Light an indicator LED at relative intensity `light` (I / 20 mA — subLed —
+ * or a logic channel's level — logicLed) in the one brightness language of
+ * every LED (led-look.ts); only numeric mutations.
  */
-export function applyLed(rig: LedRig | null, br: number | undefined): void {
-  if (!rig) return
-  const b = br !== undefined && br > 0 ? Math.min(br, 1) : 0
-  if (Math.abs(b - rig.level) < 1e-3) return
-  rig.level = b
-  const perceived = Math.sqrt(b)
-  rig.lens.emissiveIntensity = b <= 0.001 ? 0 : 1.2 + 4.0 * perceived
-  if (rig.glow) {
-    const mat = rig.glow.material
-    if (b > 0.002) {
-      rig.glow.visible = true
-      mat.opacity = Math.min(1, 0.35 + 0.65 * perceived)
-      rig.glow.scale.setScalar(0.8 + 1.0 * perceived)
-    } else {
-      rig.glow.visible = false
-      mat.opacity = 0
-    }
-  }
+export function applyLed(rig: LedRig | null, light: number | undefined): void {
+  if (!rig || !rig.halo) return // a ghost preview: its lens is shared and stays unlit
+  const l = light !== undefined && light > 0 ? Math.min(light, 1.6) : 0
+  if (Math.abs(l - rig.level) < 1e-4) return
+  rig.level = l
+  applyIndicator(rig, ledPerceived(l))
 }
 
-/** ledBrightness of a sub-circuit LED (e.g. 'LED_PWR'), else undefined. */
+/** relative intensity (I / 20 mA) of a sub-circuit LED (e.g. 'LED_PWR'), else undefined. */
 export function subLed(t: ComponentTelemetry | null, id: string): number | undefined {
-  return t?.sub?.[id]?.ledBrightness
+  const s = t?.sub?.[id]
+  return s ? lightOf(s) : undefined
+}
+
+/**
+ * An indicator driven by a logic channel / activity level 0..1 (no current
+ * in the model): ON shows a typical indicator (INDICATOR_ON_LIGHT, 2 mA)
+ * scaled by the level — no brightness is invented beyond the level.
+ */
+export function logicLed(level: number | undefined): number | undefined {
+  return typeof level === 'number' ? Math.max(0, Math.min(1, level)) * INDICATOR_ON_LIGHT : undefined
 }
 
 // ---------------------------------------------------------------------------

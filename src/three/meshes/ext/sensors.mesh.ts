@@ -56,7 +56,8 @@ import {
   plastic,
   roundedPath,
 } from '../shared'
-import { LED_COLORS, ledGlowTexture } from '../semis'
+import { LED_COLORS } from '../semis'
+import { applyIndicator, indicatorHalo, ledPerceived, lightOf, type LedHaloRig } from '../led-look'
 import {
   MM,
   PcbPainter,
@@ -637,12 +638,13 @@ function terminalBlock(P: Parts, x: number, z: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// Per-instance LED (emissive lens + additive halo sprite, like the Blue Pill)
+// Per-instance LED (emissive lens + the shared glow halo, like the Blue Pill)
 // ---------------------------------------------------------------------------
 
 interface LedRig {
   lens: THREE.MeshPhysicalMaterial
-  glow: THREE.Sprite | null
+  /** the shared LED glow halo (led-look.ts), null on a ghost */
+  halo: LedHaloRig | null
   tint: number
   burned: boolean
 }
@@ -669,17 +671,9 @@ function addLed(group: THREE.Group, ghost: boolean, xMm: number, zMm: number, co
   )
   lensMesh.position.set(xMm * MM, yTop + LIFT + 0.46 * MM, zMm * MM)
   group.add(lensMesh)
-  let glow: THREE.Sprite | null = null
-  if (!ghost) {
-    glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: ledGlowTexture(), color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
-    )
-    glow.position.set(xMm * MM, yTop + 0.3, zMm * MM)
-    glow.scale.setScalar(1.1)
-    glow.visible = false
-    group.add(glow)
-  }
-  return { lens, glow, tint, burned: false }
+  const halo = indicatorHalo(color, new THREE.Vector3(xMm * MM, yTop + 0.3, zMm * MM), ghost)
+  if (halo) group.add(halo.halo)
+  return { lens, halo, tint, burned: false }
 }
 
 function applyLed(rig: LedRig, t: ComponentTelemetry | undefined, ghost: boolean): void {
@@ -689,7 +683,7 @@ function applyLed(rig: LedRig, t: ComponentTelemetry | undefined, ghost: boolean
       rig.burned = true
       rig.lens.color.setHex(0x3a3631)
       rig.lens.emissiveIntensity = 0
-      if (rig.glow) rig.glow.visible = false
+      rig.halo?.apply(0)
     }
     return
   }
@@ -697,21 +691,9 @@ function applyLed(rig: LedRig, t: ComponentTelemetry | undefined, ghost: boolean
     rig.burned = false
     rig.lens.color.setHex(rig.tint)
   }
-  // ledBrightness = I / 10 mA; indicator LEDs run at 1–3 mA → perceptual √ curve
-  const br = THREE.MathUtils.clamp(t?.ledBrightness ?? 0, 0, 1)
-  const perceived = Math.sqrt(br)
-  rig.lens.emissiveIntensity = br <= 0.001 ? 0 : 1.2 + 4.0 * perceived
-  if (rig.glow) {
-    const mat = rig.glow.material
-    if (br > 0.002) {
-      rig.glow.visible = true
-      mat.opacity = Math.min(1, 0.35 + 0.65 * perceived)
-      rig.glow.scale.setScalar(0.8 + 1.1 * perceived)
-    } else {
-      rig.glow.visible = false
-      mat.opacity = 0
-    }
-  }
+  // the REAL LED current / 20 mA (indicator LEDs run at 1–3 mA) in the one
+  // brightness language of every LED (led-look.ts)
+  applyIndicator(rig, Math.min(ledPerceived(lightOf(t)), 1.3))
 }
 
 /** Etched marking quad on a package top (shared material, per-instance mesh). */

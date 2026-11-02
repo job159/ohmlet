@@ -294,9 +294,12 @@ describe('LED', () => {
   }
 
   function glowOf(root: THREE.Object3D): THREE.Sprite {
+    // vivid: the visible light is the bloom halo (led-look.ts) — exactly one;
+    // the legacy sprite stays an invisible pick proxy, the flare / soot are
+    // separate named sprites
     const out: THREE.Sprite[] = []
     root.traverse((o) => {
-      if ((o as THREE.Sprite).isSprite) out.push(o as THREE.Sprite)
+      if ((o as THREE.Sprite).isSprite && o.name === 'led-halo') out.push(o as THREE.Sprite)
     })
     expect(out).toHaveLength(1)
     return out[0]
@@ -406,20 +409,35 @@ describe('LED', () => {
     disposeComponentObject(built.object)
   })
 
-  it('burnout = smoked epoxy, restorable', () => {
+  it('at GPIO current (4 mA) the ONE halo glows outside the dome as glare (glow F1)', () => {
+    for (const color of ['red', 'blue', 'white']) {
+      const built = buildComponentObject(comp('led', { color }), entryOf('led'), pins)
+      const glow = glowOf(built.object)
+      updateComponentVisual(built, comp('led', { color }), entryOf('led'), telemetry({ light: 0.2 }))
+      expect(glow.visible, color).toBe(true)
+      // radius well past the dome (0.42), drawn over whatever stands in front
+      expect(glow.scale.x / 2, color).toBeGreaterThan(2.2 * 0.42)
+      expect(glow.material.depthTest, color).toBe(false)
+      expect(glow.material.opacity, color).toBeGreaterThan(0.5)
+      glowOf(built.object) // still exactly one light halo
+      disposeComponentObject(built.object)
+    }
+  })
+
+  it('burnout = charred epoxy, restorable', () => {
     const built = build()
     const glass = glassOf(built.object)
     const glow = glowOf(built.object)
     updateComponentVisual(built, comp('led'), entryOf('led'), telemetry({ burned: true }))
-    expect(glass.color.getHex()).toBe(0x33322e) // smoked tint
-    expect(glass.roughness).toBe(0.45) // smoked epoxy
+    expect(glass.color.getHex()).toBe(0x241c15) // charred tint (vivid: unmistakably broken)
+    expect(glass.roughness).toBe(0.68) // charred, matte epoxy
     // collapses but stays > 0: no program flag flip → no shader recompile
     expect(glass.transmission).toBeGreaterThan(0)
     expect(glass.transmission).toBeLessThanOrEqual(0.1)
     expect(glow.visible).toBe(false) // a dead LED must not keep glowing
 
     updateComponentVisual(built, comp('led'), entryOf('led'), telemetry({ ledBrightness: 0.5 }))
-    expect(glass.color.getHex()).not.toBe(0x33322e) // reset restores the tint
+    expect(glass.color.getHex()).not.toBe(0x241c15) // reset restores the tint
     expect(glass.roughness).toBe(0.32)
     expect(glass.transmission).toBeGreaterThanOrEqual(0.4) // translucency restored
     disposeComponentObject(built.object)
@@ -432,10 +450,10 @@ describe('LED', () => {
     ) as THREE.MeshPhysicalMaterial
     expect(clear).toBeDefined()
     updateComponentVisual(built, comp('led', { color: 'blue' }), entryOf('led'), telemetry({ burned: true }))
-    // stays > 0 (no program flag flip → no shader recompile) but goes smoked
+    // stays > 0 (no program flag flip → no shader recompile) but goes charred
     expect(clear.transmission).toBeGreaterThan(0)
     expect(clear.transmission).toBeLessThanOrEqual(0.15)
-    expect(clear.roughness).toBe(0.45)
+    expect(clear.roughness).toBe(0.68)
     updateComponentVisual(built, comp('led', { color: 'blue' }), entryOf('led'), telemetry({ ledBrightness: 0.5 }))
     expect(clear.transmission).toBe(1.0) // reset restores water-clear
     expect(clear.roughness).toBe(0.03)

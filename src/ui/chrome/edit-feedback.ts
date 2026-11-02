@@ -44,6 +44,7 @@ import { partLabel, pinLabel } from '../../i18n/parts'
 import { tidyCjkSpaces } from '../../i18n/tidy'
 import { dismissToast, showToast } from '../kit'
 import { wireRefusalText } from '../workspace/hole-chip'
+import { playCue, type SoundCue } from '../fx/sound'
 import { isLegacyChrome } from './legacy'
 import { coarsePointer } from './hints'
 import { shortcutKeysText } from './ShortcutsSheet'
@@ -393,6 +394,100 @@ export function redoWithFeedback(): void {
   historyToast(historyStepText('redo', describeLayoutChange(before, after)))
 }
 
+/**
+ * The boards of `layout` whose loaded firmware a whole-circuit load would
+ * overwrite (operation simplification: a load replacing the board acts at
+ * once — the circuit is one undo step — and asks first only for what undo
+ * cannot bring back: firmware bindings are not in the history). `next`: the
+ * MCU ids the incoming circuit binds or clears (a lesson load); null = every
+ * binding is replaced (a project / example import). A board the load merely
+ * takes away keeps its binding for the undo (the lab's detached bindings).
+ */
+export function firmwareAtRisk(layout: CircuitLayout, firmware: Readonly<Record<string, unknown>>, next: ReadonlySet<string> | null): string[] {
+  return layout.components
+    .filter((c) => !!getEntry(c.type)?.mcu && firmware[c.id] != null && (next === null || next.has(c.id)))
+    .map((c) => c.id)
+}
+
+/** 「U1 的 hal-blink.elf」: a board and the firmware file loaded on it (the id alone when the name is unknown). */
+function boardFirmwareName(id: string, firmware: Readonly<Record<string, unknown>>): string {
+  const rec = firmware[id] as { name?: unknown } | null | undefined
+  return typeof rec?.name === 'string' && rec.name ? t('{file} on {id}|firmware at risk', { id, file: rec.name }) : id
+}
+
+/**
+ * The one confirmation a whole-circuit load still asks (review F7): only
+ * when it would overwrite firmware (firmwareAtRisk — undo cannot bring that
+ * back), and then it names the boards and says so — title 「要取代電路和 U1
+ * 的韌體嗎？」, message 「「Blue Pill 閃爍 LED（HAL）」會取代目前的電路（按 ↶
+ * 可復原），也會取代已載入的韌體：U1 的 hal-blink.elf（韌體無法復原）。」.
+ * Shared by 範例 → 開啟, 下一課 / 開始引導 and 載入完整答案 (product chrome).
+ */
+export function firmwareRiskDialog(
+  title: string,
+  boards: readonly string[],
+  firmware: Readonly<Record<string, unknown>>,
+): { title: string; message: string } {
+  return {
+    title: t('Replace the circuit and the firmware of {boards}?', { boards: nameList(boards) }),
+    message: t('“{title}” replaces the circuit (↶ brings it back) and the loaded firmware: {list} (the firmware cannot be undone).', {
+      title,
+      list: nameList(boards.map((id) => boardFirmwareName(id, firmware))),
+    }),
+  }
+}
+
+/**
+ * A quiet sound cue for an edit (product chrome; src/ui/fx/sound.ts —
+ * rate-limited, silent before the first gesture and while 音效 is off): a
+ * part placed ('place'), a wire completed ('wire'), parts deleted
+ * ('delete'). The classic chrome stays silent, as it always was.
+ */
+export function editCue(cue: Extract<SoundCue, 'place' | 'wire' | 'delete'>): void {
+  if (!isLegacyChrome()) playCue(cue)
+}
+
+/**
+ * The 〔復原〕 action of an edit toast: undoes `after`'s step — only while the
+ * board still IS `after` (one more edit since, and the button would undo
+ * that one instead: it says so and leaves the history to ↶ / Ctrl+Z).
+ */
+export function undoAction(after: CircuitLayout): { label: string; run(): void } {
+  return {
+    label: t('Undo'),
+    run: () => {
+      if (useStore.getState().layout !== after) {
+        historyToast(t('The board changed since — step back with ↶'))
+        return
+      }
+      undoWithFeedback()
+    },
+  }
+}
+
+/** The open 〔復原〕 toast's board watch (undoableToast). */
+let undoableWatch: (() => void) | null = null
+
+/**
+ * A toast for a step the user can take back at once: its words + 〔復原〕.
+ * It leaves as soon as the board is no longer `after` (one more edit, a hand
+ * wiring after a lesson load…): its 〔復原〕 could then only refuse.
+ */
+export function undoableToast(text: string, after: CircuitLayout = useStore.getState().layout): void {
+  if (historyToastId != null) dismissToast(historyToastId)
+  undoableWatch?.()
+  undoableWatch = null
+  const id = showToast(text, { action: undoAction(after) })
+  historyToastId = id
+  const unsubscribe = useStore.subscribe((s) => {
+    if (s.layout === after) return
+    unsubscribe()
+    if (undoableWatch === unsubscribe) undoableWatch = null
+    dismissToast(id)
+  })
+  undoableWatch = unsubscribe
+}
+
 /** The Delete key: remove the selection; the new chrome names what went and how to get it back. */
 export function removeSelectedWithFeedback(): boolean {
   const st = useStore.getState()
@@ -400,11 +495,17 @@ export function removeSelectedWithFeedback(): boolean {
   const names = selectionNames(st.layout, st.selection)
   const before = st.layout
   st.removeSelected()
-  if (!isLegacyChrome() && useStore.getState().layout !== before && names.length > 0) historyToast(deletedText(names))
+  const after = useStore.getState().layout
+  // operation simplification: deleting never asks first — the toast carries 〔復原〕
+  if (!isLegacyChrome() && after !== before && names.length > 0) {
+    undoableToast(deletedText(names), after)
+    editCue('delete')
+  }
   return true
 }
 
-/** The long-press sheet's 「刪除」 (new chrome): same words as the Delete key. */
+/** The long-press sheet's 「刪除」 and the inspector's 「移除」 (new chrome): the Delete key's words, with 〔復原〕. */
 export function deletedToast(names: readonly string[]): void {
-  historyToast(deletedText(names))
+  undoableToast(deletedText(names))
+  editCue('delete')
 }

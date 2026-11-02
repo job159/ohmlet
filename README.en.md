@@ -28,6 +28,10 @@ The interface is in Traditional Chinese (Taiwan) by default; English is one swit
   "simulated / not modeled" list.
 - **One Problems panel** for the electrical rule checker (13 rules), runtime issues and the MCU's state — every row says why, how
   to fix it, and can be shown on the board.
+- **A circuit you can see working.** Tick *Show current* and particles flow along the wires with the solver's real currents;
+  LED brightness is I ÷ 20 mA with clearly different steps, an overloaded LED burns out, an overheating resistor discolours and smokes,
+  a reversed electrolytic vents, and a working circuit gets a success cue and sound (can be turned off). Wires colour themselves
+  (supply red, ground black, signals by function), deleting needs no confirmation (Undo instead), and buttons can be kept pressed.
 - **23 guided lessons** (7 beginner, 8 intermediate, 8 advanced) and **38 examples** (30 with bundled firmware).
 - **Project files** (`.ohmlet.json`) carry the circuit, every board's firmware (embedded, SHA-256 verified), instrument setup
   and panel layout.

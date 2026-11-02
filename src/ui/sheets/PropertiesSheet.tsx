@@ -16,7 +16,9 @@
  *   Pins                — pin → hole table with live voltages.
  *   Live                — telemetry readouts (current/power/brightness/…)
  *                         and the burned-LED banner.
- *   Remove              — red destructive row, confirmed via ActionSheet.
+ *   Remove              — red destructive row: acts at once in the product
+ *                         chrome (a toast with 〔復原〕), confirmed via
+ *                         ActionSheet in the classic chrome.
  *   Multi-select        — 2+ selected ids render the group view instead:
  *                         count header + one destructive group-delete row.
  *
@@ -74,7 +76,9 @@ import { boardConfigOf } from '../../model/types'
 import type { CircuitLayout, ComponentInstance, ComponentTelemetry, Wire } from '../../model/types'
 import { clamp, fmtEng, fmtVolts, tc, toNumber } from '../format'
 import { wireColorHex, wireColorLabel } from '../wire-colors'
+import { wireRoleOf } from '../wire-roles'
 import { t, useLang } from '../../i18n'
+import { tidyCjkSpaces } from '../../i18n/tidy'
 import { partLabel, partOptionLabel, partParamLabel, pinDisplayName, pinLabel } from '../../i18n/parts'
 import {
   FirmwareGroup,
@@ -102,11 +106,13 @@ import {
 } from '../embedded/PartInfo'
 import type { ProbeTarget } from '../embedded/probe-actions'
 import { ProblemsList } from '../embedded/ProblemsList'
-import { ChipButton, Term, sourceHoverProps, useSourceHoverRelease } from '../embedded/controls'
+import { ChipButton, LatchToggle, Term, sourceHoverProps, useSourceHoverRelease } from '../embedded/controls'
+import { canPress, pressMomentary, setLatched, useLatched } from '../embedded/latch'
 import { addLogicChannelFor, addScopeProbeFor, findScopeProbe, flashScopeChannel, nextScopeChannel } from '../embedded/probe-actions'
 import { endpointName } from '../workspace/hole-chip'
 import { getNetLive, netLiveText, netLiveTitle, useNetLive } from '../embedded/instruments/net-activity'
 import { useLegacyChrome } from '../chrome/legacy'
+import { removeSelectedWithFeedback } from '../chrome/edit-feedback'
 import { placementMeta } from './PartsSheet'
 import {
   LegacyFirmwareGroup,
@@ -117,6 +123,8 @@ import {
   LegacySubcircuitGroup,
 } from '../embedded/legacy-inspector'
 import { fmtBrightness, fmtReadingCurrent, fmtReadingPower, fmtReadingVoltage, isNoLoad } from '../embedded/format'
+import { DamageBanner, damageText, fmtHeat } from '../embedded/DamageBanner'
+import { classicLedBrightness, isAveragedLed, ledLightParts, LED_LIGHT_RATED_A } from '../../instruments/led-light'
 import { isMeterPart, isWaveformSourcePart, meterReading, waveformLiveText } from '../embedded/instruments/meter-readout'
 import { expectationText, meetsExpectation, useStepExpectation, type StepExpectation } from '../lessons/expectation'
 import '../embedded/inspector.css'
@@ -393,6 +401,7 @@ function ComponentEditor({
             {partKindText(entry)}
           </>
         }
+        trailing={<HeaderDelete id={comp.id} onDone={onDone} />}
       />
       {/* focusable: 「見上方 n 則問題」 moves the focus here (PartInfo scrollToPart); an MCU board's
           own state facts read as their title + 「見下方執行狀態」 — the sentence is in its 執行狀態 card (QA IN-F3) */}
@@ -559,6 +568,8 @@ function PartSections({
           waveformOut={isWaveformSourcePart(entry) ? `${comp.id}:${entry.pins[0]}` : undefined}
           // a meter / supply shows the lesson's expectation in its 讀數 card instead (one place)
           expectFor={isMeterPart(entry) ? undefined : comp.id}
+          partId={comp.id}
+          entry={entry}
         />
       )}
       <SubcircuitGroup entry={entry} tele={tele} />
@@ -878,6 +889,16 @@ interface ParamRowProps {
 }
 
 function ParamControl({ comp, entry, def }: ParamRowProps) {
+  const classic = useContext(ClassicBody)
+  // product chrome (operation simplification): the common values are one tap
+  if (!classic) {
+    const picks = quickPicksFor(comp.type, def.key)
+    if (picks) return <QuickPickRow comp={comp} entry={entry} def={def} picks={picks} />
+    if (comp.type === 'led' && def.key === 'color') return <LedColorRow comp={comp} entry={entry} def={def} />
+    // a pressable part's button (KY-040 push, joystick SW): the pushbutton's 「保持按下」 —
+    // same words, look and latch semantics everywhere (latch.ts), not a generic switch
+    if (def.key === 'pressed' && canPress(entry)) return <LatchParamRow comp={comp} entry={entry} def={def} />
+  }
   if (comp.type === 'resistor' && def.key === 'resistance') {
     return <ResistanceRow comp={comp} entry={entry} def={def} />
   }
@@ -1026,7 +1047,7 @@ function TextRow({ comp, entry, def }: ParamRowProps) {
 }
 
 /** Fully-ranged numbers (min+max+step): the iOS slider with value bubble. */
-function SliderRow({ comp, entry, def }: ParamRowProps) {
+function SliderRow({ comp, entry, def, children }: ParamRowProps & { children?: ReactNode }) {
   const setParam = useStore((s) => s.setParam)
   const value = toNumber(paramOf(comp.params, entry, def.key), toNumber(def.default, 0))
   const min = def.min ?? 0
@@ -1049,6 +1070,7 @@ function SliderRow({ comp, entry, def }: ParamRowProps) {
           aria-label={paramLabel(entry, def)}
         />
       </div>
+      {children}
     </StackRow>
   )
 }
@@ -1170,6 +1192,97 @@ function ResistanceRow({ comp, entry, def }: ParamRowProps) {
   )
 }
 
+/**
+ * The common values of a part parameter, one tap each (product chrome —
+ * operation simplification): the resistor values the lessons and examples
+ * use (LED series 220 / 330 Ω, pull-ups 4.7 / 10 kΩ), a capacitor's usual
+ * sizes and the bench supply's usual voltages. Anything else is still typed
+ * / stepped / slid in the same row.
+ */
+export const QUICK_PICKS: Readonly<Record<string, Readonly<Record<string, readonly number[]>>>> = {
+  resistor: { resistance: [220, 330, 1000, 4700, 10000] },
+  capacitor: { capacitance: [100e-9, 1e-6, 10e-6, 100e-6] },
+  power_supply: { voltage: [3.3, 5, 9, 12] },
+}
+
+/** The quick picks of `type`'s `key` (undefined = none). */
+export function quickPicksFor(type: string, key: string): readonly number[] | undefined {
+  return QUICK_PICKS[type]?.[key]
+}
+
+/** A value equals a pick (float-tolerant: 1e-7 vs 100e-9). */
+function samePick(a: number, b: number): boolean {
+  return Math.abs(a - b) <= Math.abs(b) * 1e-9
+}
+
+/** The number row (field / stepper, or the slider of a ranged one) with the common values as one-tap chips. */
+function QuickPickRow({ comp, entry, def, picks }: ParamRowProps & { picks: readonly number[] }) {
+  const setParam = useStore((s) => s.setParam)
+  const value = toNumber(paramOf(comp.params, entry, def.key), toNumber(def.default, 0))
+  const commit = (n: number) => setParam(comp.id, def.key, clamp(n, def.min, def.max))
+  const chips = (
+    <div className="prs-chips prs-chips-wrap" role="group" aria-label={t('Common values')}>
+      {picks.map((v) => (
+        <button
+          key={v}
+          type="button"
+          className="prs-chip lg-gel lg-tabular"
+          aria-pressed={samePick(value, v)}
+          {...pressProps}
+          onClick={() => {
+            tick()
+            commit(v)
+          }}
+        >
+          {fmtEng(v, def.unit ?? '')}
+        </button>
+      ))}
+    </div>
+  )
+  const ranged = def.min !== undefined && def.max !== undefined && def.step !== undefined
+  return ranged ? (
+    <SliderRow comp={comp} entry={entry} def={def}>
+      {chips}
+    </SliderRow>
+  ) : (
+    <PreciseNumberRow comp={comp} entry={entry} def={def}>
+      {chips}
+    </PreciseNumberRow>
+  )
+}
+
+/** LED colour (product chrome): the five colours as one-tap swatches instead of a picker. */
+function LedColorRow({ comp, entry, def }: ParamRowProps) {
+  const setParam = useStore((s) => s.setParam)
+  const value = String(paramOf(comp.params, entry, def.key) ?? def.default)
+  return (
+    <StackRow entry={entry} def={def} value={partOptionLabel(entry, def.key, value)}>
+      <div className="prs-colors" role="radiogroup" aria-label={paramLabel(entry, def)}>
+        {(def.options ?? []).map((o) => (
+          <button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={value === o}
+            aria-label={partOptionLabel(entry, def.key, o)}
+            title={partOptionLabel(entry, def.key, o)}
+            className={`prs-color lg-pressable${value === o ? ' is-on' : ''}`}
+            style={{ ['--prs-color' as string]: wireColorHex(o) }}
+            {...pressProps}
+            onClick={() => {
+              tick()
+              setParam(comp.id, def.key, o)
+            }}
+          >
+            <span className="prs-color-dot" aria-hidden="true" />
+            <span className="prs-color-name">{partOptionLabel(entry, def.key, o)}</span>
+          </button>
+        ))}
+      </div>
+    </StackRow>
+  )
+}
+
 /** Pushbutton: the giant circular HOLD button (pointer capture + haptics). */
 /** A press shorter than this is a "click" (IN-12)… */
 const QUICK_PRESS_MS = 150
@@ -1180,6 +1293,8 @@ function HoldGroup({ comp }: { comp: ComponentInstance }) {
   const setParam = useStore((s) => s.setParam)
   const classic = useContext(ClassicBody)
   const pressed = comp.params?.pressed === true
+  // 保持按下 (latch.ts): pressed while nobody holds it — the 按住 puck is a momentary hold
+  const kept = useLatched(comp.id)
   const downAt = useRef<{ wall: number; sim: number } | null>(null)
   const latch = useRef<(() => void) | null>(null)
   useEffect(() => () => latch.current?.(), [])
@@ -1191,7 +1306,7 @@ function HoldGroup({ comp }: { comp: ComponentInstance }) {
     if (down) {
       latch.current?.()
       downAt.current = { wall: performance.now(), sim: useStore.getState().simTime }
-      setParam(comp.id, 'pressed', true)
+      pressMomentary(comp.id, true)
       return
     }
     const d = downAt.current
@@ -1203,7 +1318,7 @@ function HoldGroup({ comp }: { comp: ComponentInstance }) {
       const release = () => {
         unsub()
         latch.current = null
-        setParam(comp.id, 'pressed', false)
+        pressMomentary(comp.id, false)
       }
       const unsub = useStore.subscribe((s) => {
         if (s.simTime >= until || !s.running) release()
@@ -1211,7 +1326,7 @@ function HoldGroup({ comp }: { comp: ComponentInstance }) {
       latch.current = release
       return
     }
-    setParam(comp.id, 'pressed', false)
+    pressMomentary(comp.id, false) // (a part kept pressed is released by it)
   }
 
   return (
@@ -1222,9 +1337,15 @@ function HoldGroup({ comp }: { comp: ComponentInstance }) {
           <LiveBadge />
         </>
       }
-      footer={t('The contacts stay closed while you hold the button.')}
+      footer={
+        classic
+          ? t('The contacts stay closed while you hold the button.')
+          : kept
+            ? t('{id} is kept pressed: the contacts stay closed until you turn “Keep pressed” off or press “HOLD” once.|latch', { id: comp.id })
+            : t('The contacts stay closed while you hold the button; “Keep pressed” keeps them closed.|latch')
+      }
     >
-      <div className="lg-row prs-holdrow" role="listitem">
+      <div className={`lg-row prs-holdrow${classic ? '' : ' latch-holdrow'}`} role="listitem">
         <button
           type="button"
           className={`prs-hold lg-card ${pressed ? 'is-down' : ''}`}
@@ -1258,8 +1379,26 @@ function HoldGroup({ comp }: { comp: ComponentInstance }) {
         >
           {pressed ? t('PRESSED') : t('HOLD')}
         </button>
+        {!classic && <LatchToggle on={kept} onChange={(on) => setLatched(comp.id, on)} />}
       </div>
     </ListGroup>
+  )
+}
+
+/**
+ * The 'pressed' param of a pressable part other than the pushbutton (the
+ * KY-040's push switch, the joystick's button — product chrome): its name
+ * (「按鈕（SW）」) and the same 「保持按下」 toggle as the pushbutton's
+ * HoldGroup — on keeps it pressed until turned off (the 3D badge, the hover
+ * chip and the status pill follow it, 重置模擬 lets go: latch.ts).
+ */
+function LatchParamRow({ comp, entry, def }: ParamRowProps) {
+  const kept = useLatched(comp.id)
+  return (
+    <ListRow
+      title={<Label entry={entry} def={def} />}
+      trailing={<LatchToggle on={kept} onChange={(on) => setLatched(comp.id, on)} />}
+    />
   )
 }
 
@@ -1468,6 +1607,8 @@ function LiveGroup({
   supply = false,
   waveformOut,
   expectFor,
+  partId,
+  entry,
 }: {
   tele: ComponentTelemetry
   supply?: boolean
@@ -1480,12 +1621,18 @@ function LiveGroup({
   waveformOut?: string
   /** this part's id: the guided lesson step's expected current / brightness goes under the values (UX LS-15) */
   expectFor?: string
+  /** the part (product chrome): its damage banner and the LED brightness rating (honesty F4 / damage banner) */
+  partId?: string
+  entry?: CatalogEntry
 }) {
   const classic = useContext(ClassicBody)
   const expected = useStepExpectation(!classic && expectFor ? expectFor : null)
+  // a lesson's LED brightness is on the app's one scale (F4): telemetry `light` = I / rated 20 mA
   const expectedValue =
-    expected?.quantity === 'current' ? tele.current : expected?.quantity === 'led-brightness' ? tele.ledBrightness : undefined
+    expected?.quantity === 'current' ? tele.current : expected?.quantity === 'led-brightness' ? tele.light : undefined
   const rows: [string, string][] = []
+  /** a row's note under its title (an LED above its rating: 「超過額定 20 mA」 — F4) */
+  const rowSubs: Record<string, string> = {}
   /** a waveform source's 電流 / 功率 row title (its text is the subtitle: it is a note, not a value) */
   let acTitle: string | null = null
   const noLoad = supply && isNoLoad(tele.current)
@@ -1493,8 +1640,9 @@ function LiveGroup({
     if (tele.current !== undefined) rows.push([tc('Current', 'telemetry'), fmtEng(tele.current, 'A')])
     // plain "Power" is the parts category (電源); this readout is 功率
     if (tele.power !== undefined) rows.push([tc('Power', 'telemetry'), fmtEng(tele.power, 'W')])
-    if (tele.ledBrightness !== undefined)
-      rows.push([t('Brightness'), `${Math.round(Math.max(0, Math.min(1, tele.ledBrightness)) * 100)}%`])
+    // an LED: the old I / 10 mA percent of the same eye-averaged current as the Current row (led-light.ts)
+    const b = classicLedBrightness(tele)
+    if (b !== undefined) rows.push([t('Brightness'), `${Math.round(Math.max(0, Math.min(1, b)) * 100)}%`])
   } else if (waveformOut) {
     // one instant of an AC current is no reading (QA clarity FG-RAIL (3)): say so, and where to look
     const what = [
@@ -1503,28 +1651,46 @@ function LiveGroup({
     ].filter((x): x is string => x !== null)
     if (what.length > 0) acTitle = what.length === 2 ? t('{a} and {b}|quantities', { a: what[0], b: what[1] }) : what[0]
   } else {
-    if (tele.current !== undefined) rows.push([tc('Current', 'telemetry'), noLoad ? t('≈ 0 A (no load)') : fmtReadingCurrent(tele.current)])
+    // an LED whose eye-averaged current averages a switching (PWM) current says so: 「平均 2.98 mA」,
+    // its on-current 「峰值 4.07 mA」 under the title (a single LED; an RGB LED's row is the common lead's sum)
+    const avg = typeof tele.light === 'number' && isAveragedLed(tele)
+    const avgText = (v: string) => (avg ? t('average {v}|reading', { v }) : v)
+    if (tele.current !== undefined) rows.push([tc('Current', 'telemetry'), noLoad ? t('≈ 0 A (no load)') : avgText(fmtReadingCurrent(tele.current))])
+    if (avg && !tele.leds) rowSubs[tc('Current', 'telemetry')] = t('peak {v}|reading', { v: fmtReadingCurrent(tele.values?.iPeak) })
     // plain "Power" is the parts category (電源); this readout is 功率
-    if (tele.power !== undefined) rows.push([tc('Power', 'telemetry'), noLoad ? t('≈ 0 W') : fmtReadingPower(tele.power, tele.current)])
-    if (tele.ledBrightness !== undefined) rows.push([t('Brightness'), fmtBrightness(tele.ledBrightness)])
+    if (tele.power !== undefined) rows.push([tc('Power', 'telemetry'), noLoad ? t('≈ 0 W') : avgText(fmtReadingPower(tele.power, tele.current))])
+    if (typeof tele.light === 'number') {
+      const b = ledBrightnessValue(tele, entry)
+      rows.push([t('Brightness'), b.value])
+      if (b.over) rowSubs[t('Brightness')] = b.over
+    } else if (tele.ledBrightness !== undefined) rows.push([t('Brightness'), fmtBrightness(tele.ledBrightness)])
+    // a part with a thermal model (resistor, LED): its temperature rise relative to the rated one
+    if (typeof tele.heat === 'number') rows.push([t('Temperature (relative to rated)'), fmtHeat(tele.heat)])
   }
   if (tele.sounding !== undefined) rows.push([t('Sounding'), tele.sounding ? t('Yes') : t('No')])
-  if (rows.length === 0 && acTitle === null && !tele.burned) return null
+  const banner = !classic && partId ? damageText(partId, entry, tele) !== null : false
+  if (rows.length === 0 && acTitle === null && !tele.burned && !banner) return null
   return (
     <>
-      {tele.burned && (
-        <div className="prs-burned" role="alert">
-          {classic
-            ? t('Burned out — replace this LED and add a series resistor.')
-            : t('Burned out — add a series resistor and run the simulation again: the simulated LED recovers.')}
-        </div>
-      )}
+      {classic
+        ? tele.burned && (
+            <div className="prs-burned" role="alert">
+              {t('Burned out — replace this LED and add a series resistor.')}
+            </div>
+          )
+        : partId
+          ? <DamageBanner id={partId} entry={entry} tele={tele} />
+          : tele.burned && (
+              <div className="prs-burned" role="alert">
+                {t('Burned out — add a series resistor and run the simulation again: the simulated LED recovers.')}
+              </div>
+            )}
       {(rows.length > 0 || acTitle !== null) && (
         <ListGroup header={tc('Live', 'telemetry')}>
           {acTitle !== null && <ListRow title={acTitle} subtitle={waveformLiveText()} />}
           {acTitle !== null && waveformOut && <ScopeOnOutput terminal={waveformOut} />}
           {rows.map(([k, v]) => (
-            <ListRow key={k} title={k} trailing={<span className="prs-mono lg-tabular">{v}</span>} />
+            <ListRow key={k} title={k} subtitle={rowSubs[k]} trailing={<span className="prs-mono lg-tabular">{v}</span>} />
           ))}
           {expected && (expected.quantity === 'current' || expected.quantity === 'led-brightness') && (
             <div className="lg-row insp-expect-row" role="listitem">
@@ -1535,6 +1701,30 @@ function LiveGroup({
       )}
     </>
   )
+}
+
+/**
+ * An LED's 亮度 value on the app's one scale (F4): telemetry `light` = I /
+ * its rated current (catalog ifMax, 20 mA), with that current — 「20 %（4.07
+ * mA）」, 「106 %（21.1 mA）」 with 「超過額定 20 mA」 under the row title,
+ * 「0 %（已燒毀）」. An RGB LED's light is its brightest INTACT die, so the
+ * current shown is that die's (light × rated), not the common lead's sum;
+ * its `burned` means any die burned while the others may still light (the
+ * burned die keeps conducting): it shows the lit dies' brightness, and
+ * 「0 %（有晶粒燒毀）」 only when nothing lights.
+ */
+function ledBrightnessValue(tele: ComponentTelemetry, entry: CatalogEntry | undefined): { value: string; over: string | null } {
+  const ifMax = entry?.ratings?.ifMax
+  const rated = typeof ifMax === 'number' && ifMax > 0 ? ifMax : LED_LIGHT_RATED_A
+  const rgb = entry?.sim.kind === 'device' && entry.sim.model === 'rgb_led'
+  // a PWM LED's current is the eye mean of a switching current: 「15 %（平均 2.98 mA）」
+  const average = isAveragedLed(tele)
+  if (rgb) {
+    const light = typeof tele.light === 'number' ? tele.light : 0
+    if (tele.burned === true && !(light > 0)) return { value: t('0 % (a die burned out)|led'), over: null }
+    return ledLightParts(tele.light, light * rated, { rated, average })
+  }
+  return ledLightParts(tele.light, tele.current, { rated, burned: tele.burned === true, average })
 }
 
 /**
@@ -1564,8 +1754,36 @@ function ScopeOnOutput({ terminal }: { terminal: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Remove (confirmed via ActionSheet)
+// Remove (product chrome: at once with 〔復原〕; classic: confirmed via ActionSheet)
 // ---------------------------------------------------------------------------
+
+/**
+ * The header's trash button (product chrome — operation simplification):
+ * delete the selected part / wire in one tap from where its name is — on a
+ * phone the Properties sheet rests at half height and the 「移除」 row sits
+ * below the fold. Same action and toast (〔復原〕) as the Delete key.
+ */
+function HeaderDelete({ id, wire = false, onDone }: { id: string; wire?: boolean; onDone: () => void }) {
+  const name = wire ? t('Wire {id}', { id }) : id
+  // 「刪除導線 W3」: no space between two Chinese words (release QA SH-F11)
+  const label = tidyCjkSpaces(t('Delete {name}|header', { name }))
+  return (
+    <button
+      type="button"
+      className="prs-head-del lg-pressable"
+      aria-label={label}
+      title={tidyCjkSpaces(t('Delete {name} — undo brings it back|header', { name }))}
+      {...pressProps}
+      onClick={() => {
+        removeSelectedWithFeedback()
+        tick(16)
+        onDone()
+      }}
+    >
+      <TrashIcon size={18} />
+    </button>
+  )
+}
 
 function RemoveGroup({
   label,
@@ -1582,7 +1800,16 @@ function RemoveGroup({
   onDone: () => void
 }) {
   const removeSelected = useStore((s) => s.removeSelected)
+  const classic = useContext(ClassicBody)
   const [confirm, setConfirm] = useState(false)
+  // product chrome (operation simplification): 「移除」 acts at once — one undo
+  // step brings it back (its wires and firmware binding too) and the toast
+  // carries 〔復原〕; the classic chrome keeps its confirmation
+  const removeNow = () => {
+    removeSelectedWithFeedback()
+    tick(16)
+    onDone()
+  }
   return (
     <>
       <ListGroup>
@@ -1590,11 +1817,11 @@ function RemoveGroup({
           destructive
           leading={<TrashIcon size={20} />}
           title={label}
-          onPress={() => setConfirm(true)}
+          onPress={classic ? () => setConfirm(true) : removeNow}
         />
       </ListGroup>
       <ActionSheet
-        open={confirm}
+        open={confirm && classic}
         onDismiss={() => setConfirm(false)}
         title={confirmTitle}
         message={message ?? t('This also disconnects it from the circuit.')}
@@ -1759,19 +1986,25 @@ function WireEditor({
       </>
     )
   }
+  // product chrome: the colour follows the net (contract C1) — the header
+  // says what it means (「紅色：電源正極（5 V 網路）」), nothing to pick
+  const role = wireRoleOf(layout, wire.id)
   return (
     <>
       <SheetHeader
         title={t('Wire')}
         id={wire.id}
         anchor={`insp-${wire.id}`}
-        subtitle={wire.color ? wireColorLabel(wire.color) : t('default color')}
+        subtitle={<span className="prs-wire-role">{role.reason}</span>}
         trailing={
-          <span
-            className="prs-swatch prs-swatch-lg"
-            style={{ background: wireColorHex(wire.color) }}
-            title={wire.color ? wireColorLabel(wire.color) : t('default')}
-          />
+          <>
+            <span
+              className="prs-swatch prs-swatch-lg"
+              style={{ background: wireColorHex(role.color) }}
+              title={wireColorLabel(role.color)}
+            />
+            <HeaderDelete id={wire.id} wire onDone={onDone} />
+          </>
         }
       />
       <WireNetGroup wire={wire} />

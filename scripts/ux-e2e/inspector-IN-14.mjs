@@ -8,8 +8,9 @@
  *  - PS1 + the 5V pin wired, GND not yet: at most 4 problem rows; the pin
  *    readings (−1261957 V) fold under 「U1 的 GND 沒接」 with their values as
  *    「—」; no DOM text matches /[-−]?\d{4,}(\.\d+)? ?V/ (with every 詳細 open)
- *  - a burned LED reads 「> 2 A（短路）」 / 「—（短路）」 in the readout and the
- *    ERC text (never 267 A / 622 W); a reversed LED reads 「0 A」 (never
+ *  - a burned LED (burned open, honesty F11) reads its real open-circuit current
+ *    and 「0 %（已燒毀）」, the same current in the readout and the ERC text
+ *    (never 267 A / 622 W); a reversed LED reads 「0 A」 (never
  *    −0 pA); an unloaded PSU shows 「5.00 V」 large, 「≈ 0 A（未接負載）」, 「≈ 0 W」
  * Exit code 1 on any failed check.
  */
@@ -178,8 +179,13 @@ const PS = { id: 'PS1', type: 'power_supply', params: { voltage: 5 } }
   await pause(page)
   await select(page, 'LED1')
   let insp = await inspectorText(page)
-  check(/電流\s*> 2 A（短路）/.test(insp) && /功率\s*—（短路）/.test(insp), 'burned LED readout: 「> 2 A（短路）」 and 「—（短路）」')
-  check(/模擬目前量測到流經它的電流為 > 2 A（短路）/.test(insp), 'the ERC text uses the same words')
+  // honesty F11 (LED thermal model): an LED straight across the supply burns OPEN within 1 ms — it
+  // stops conducting, so the readout is the real open-circuit current (the old model kept it
+  // conducting and read 「> 2 A（短路）」). The intent is unchanged: no fake number, and the readout and
+  // the ERC text say the same current.
+  const cur = (insp.split('即時讀數')[1] ?? '').match(/電流\s*([^\n]+)/)?.[1]?.trim() ?? ''
+  check(/^[\d.]+ [pnµ]?A$|^0 A$/.test(cur) && /亮度\s*0 %（已燒毀）/.test(insp), 'burned LED readout: its real open-circuit current (≤ µA) and 「0 %（已燒毀）」', cur)
+  check(!!cur && insp.includes(`模擬目前量測到流經它的電流為 ${cur}`), 'the ERC text uses the same words', cur)
   check(!/\d{3} A\b|\d{3} W\b|> 2A/.test(insp), 'never 267 A / 622 W / 「> 2A」')
   await select(page, 'LED2')
   insp = await inspectorText(page)

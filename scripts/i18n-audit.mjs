@@ -663,8 +663,14 @@ async function classic(browser) {
       await sheet.getByText(/^(Clear board|清除.*|清空.*)$/).first().click({ timeout: 3000 })
       await sleep(page, 500)
       await audit(page, 'more-clear-confirm', errors)
-      await page.keyboard.press('Escape')
+      // the product chrome clears at once (no confirmation — operation simplification) and
+      // offers 〔復原〕 in the toast: take it, so the later states still have the board; the
+      // classic chrome's confirmation is dismissed with Escape as before
+      const undo = page.locator('.lg-toast').getByRole('button', { name: /^(復原|Undo)$/ })
+      if (await undo.count()) await undo.first().click({ timeout: 3000 })
+      else await page.keyboard.press('Escape')
       await sleep(page, 400)
+      if ((await store(page, 'return st.layout.components.length')) === 0) throw new Error('the board stayed cleared')
     })
     await step('more-import', async () => {
       await sheet.getByText(/^(Import circuit JSON|匯入.*JSON.*)$/).first().click({ timeout: 3000 })

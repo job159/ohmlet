@@ -11,7 +11,8 @@
  *   4 floating-input     rules-mcu.ts
  *   5 i2c-pullup         rules-mcu.ts
  *   6 supply-range       rules-power.ts  /  logic-level  rules-mcu.ts
- *   7 over-rating        rules-live.ts   (telemetry / issues only)
+ *   7 over-rating        rules-live.ts   (telemetry / issues), plus the
+ *                        static reversed electrolytic in rules-damage.ts
  *   8 open-lead          rules-open.ts   (a two-lead part with a lead on an empty net,
  *                                          or only on a rail no supply feeds)
  *     rail-unpowered     rules-open.ts   (a rail with parts / wires and no supply)
@@ -26,6 +27,7 @@ import { checkPower, checkSupplyRange, checkSupplyShorts } from './rules-power'
 import { checkLeds } from './rules-led'
 import { checkFloatingInputs, checkGpioModes, checkGpioVoltages, checkI2c, checkPinRatings } from './rules-mcu'
 import { checkLive } from './rules-live'
+import { checkDamage } from './rules-damage'
 import { checkOpenLeads, checkUnpoweredRails } from './rules-open'
 
 export type { ErcFinding, ErcLevel, ErcOptions, ErcRuleId, ErcRuleInfo } from './api'
@@ -55,6 +57,7 @@ export function runErc(layout: CircuitLayout, opts: ErcOptions = {}): ErcFinding
   checkPower(c, out)
   const leds = new Set(out.filter((f) => f.rule === 'led-current' && f.level !== 'info').map((f) => f.componentIds[0]))
   checkLive(c, out, leds)
+  checkDamage(c, out)
 
   // dedupe by id (first wins), then sort
   const seen = new Set<string>()

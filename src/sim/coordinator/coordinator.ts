@@ -282,7 +282,13 @@ export class SimulationCoordinator implements StimulusHost {
 
   // ---- issues / log
   private readonly coordIssues = new Map<string, SimIssue>()
-  private engineIssuesSeen = 0
+  /**
+   * engine issues already written to the log — by identity, not by index:
+   * the engine retracts a standing issue that is no longer true (a supply's
+   * over-current that ended, SimEngine.checkRuntimeIssues), which shrinks
+   * engine.issues; an index would then skip the NEXT new issue's log line
+   */
+  private engineIssuesLogged = new WeakSet<SimIssue>()
   private logBuf: SimLogEntry[] = []
   private logDropped = 0
 
@@ -295,6 +301,9 @@ export class SimulationCoordinator implements StimulusHost {
   private rates: Rates = { realtimeFactor: 0, stepsPerSecond: 0, busyMs: 0 }
 
   private readonly services: DigitalServices
+
+  /** 顯示電流: every engine this coordinator builds tracks element currents (setCurrentTracking) */
+  private currentTracking = false
 
   constructor(opts: CoordinatorOptions = {}) {
     this.makeMcu = opts.createMcu ?? ((model) => createMcu(model))
@@ -313,6 +322,23 @@ export class SimulationCoordinator implements StimulusHost {
   }
 
   // ================================================================ API
+
+  /**
+   * 顯示電流 (contract C2): track every element's terminal currents from the
+   * solver's stamps — telemetry then carries ComponentTelemetry.pinCurrents
+   * and SimTelemetry.wireCurrents / stripCurrents (means over the interval
+   * since the previous telemetry). Never changes a solution (bit-identical);
+   * survives rebuilds. Off by default (zero cost).
+   */
+  setCurrentTracking(on: boolean): void {
+    this.currentTracking = on
+    if (this.eng) this.eng.trackCurrents = on
+  }
+
+  /** Whether element currents are tracked (setCurrentTracking). */
+  get currentTrackingOn(): boolean {
+    return this.currentTracking
+  }
 
   /** Current virtual time (s): every MCU, device and recorder has reached it. */
   get time(): number {
@@ -383,8 +409,9 @@ export class SimulationCoordinator implements StimulusHost {
     }
     this.coordIssues.delete('load')
     engine.time = prevTime
+    engine.trackCurrents = this.currentTracking
     this.eng = engine
-    this.engineIssuesSeen = 0
+    this.engineIssuesLogged = new WeakSet()
     this.curTime = this.tNow
     const comps: ComponentInstance[] = Array.isArray(layout?.components) ? layout.components : []
 
@@ -1478,8 +1505,10 @@ export class SimulationCoordinator implements StimulusHost {
     const engine = this.eng
     if (!engine) return
     const issues = engine.issues
-    while (this.engineIssuesSeen < issues.length) {
-      const i = issues[this.engineIssuesSeen++]
+    for (let k = 0; k < issues.length; k++) {
+      const i = issues[k]
+      if (this.engineIssuesLogged.has(i)) continue
+      this.engineIssuesLogged.add(i)
       this.pushLog(i.level, 'sim', i.message, i.componentId)
     }
   }

@@ -22,7 +22,11 @@
  *  - chips may stamp CMOS output stages against their own rails
  *    (ChipStepCtx.setRailPins / drivePinStageAt) and report issues;
  *  - an armed diagnostic step records each node's total stamped conductance
- *    (used for floating-input detection) without changing any result.
+ *    (used for floating-input detection) without changing any result;
+ *  - opt-in current tracking (`trackCurrents`, 顯示電流) records the device
+ *    stamps through a forwarding proxy (bit-identical solution) and publishes
+ *    ComponentTelemetry.pinCurrents + SimTelemetry.wireCurrents/stripCurrents
+ *    (./coordinator/current-tracker.ts, ./coordinator/wire-currents.ts).
  */
 
 import '../model/catalog'
@@ -53,6 +57,10 @@ import { MnaSystem, NR_MAX_ITERS, solveNewton } from './mna'
 import type { StampContext } from './mna'
 import { createDevice, LedDevice, PowerSupplyDevice } from './devices'
 import type { AnalogDevice } from './devices'
+import { CurrentTracker } from './coordinator/current-tracker'
+import type { TrackedChip, TrackedDevice } from './coordinator/current-tracker'
+import { WireFlowModel } from './coordinator/wire-currents'
+import type { FlowPart } from './coordinator/wire-currents'
 
 /** Default simulation time step (seconds). */
 export const DEFAULT_DT = 5e-5
@@ -62,6 +70,31 @@ export const GROUND_NODE = -1
 /** Node index meaning "this pin maps to no net" (ground is -1). */
 export const NO_NODE = -2
 const NO_NET = NO_NODE
+
+/** A bench supply / battery delivering more than this (A) is shorted or grossly overloaded. */
+export const SUPPLY_OVERCURRENT_A = 2
+/**
+ * Simulated time (s) a supply must deliver more than SUPPLY_OVERCURRENT_A
+ * before 'supply … current > 2A (possible short circuit)' is raised — and
+ * stay at or below it before that issue is retracted (honesty fix M2).
+ *
+ * A start-up surge is not a short: a bulk capacitor across the ideal supply
+ * charges within microseconds (100 µF on 5 V: one 50 µs step at ≈ 10 A, then
+ * nothing — τ = 10 mΩ · C; 2200 µF: ≈ 0.1 ms), and an LED straight across a
+ * supply burns open within LED_PEAK_TIME (1 ms) — after that nothing flows,
+ * so nothing may still say "short". A real short keeps going: it is reported
+ * 10 ms after it starts, and only while it lasts.
+ */
+export const SUPPLY_OVERCURRENT_HOLD_S = 0.01
+/**
+ * Below the limit, the accumulated over-current time drains at this fraction
+ * of the simulated time: a pulsed overload (a shorted PWM output at 50 %
+ * duty) still adds up and is reported (after ≈ 27 ms), while occasional
+ * surges (a capacitor switched in now and then) never are.
+ */
+const SUPPLY_OVER_LEAK = 0.25
+/** float slack of the hold comparisons (200 × 50 µs ≠ 0.01 exactly) */
+const HOLD_EPS = 1e-9
 
 const MSG_NO_POWER = 'no power supply'
 const MSG_SINGULAR = 'circuit matrix is singular — check connections'
@@ -82,6 +115,9 @@ class ChipRuntime {
   stageDown: Float64Array | null = null
   railHiNode = NO_NET
   railLoNode = NO_NET
+  /** catalog pin index of the stage rails (current tracking: where stage currents return) */
+  railHiIdx = -1
+  railLoIdx = -1
   readonly ctx: ChipCtx
   readonly supplyPinIdx: number
   readonly supplyPinName: string
@@ -166,6 +202,8 @@ class ChipCtx implements ChipStepCtx {
     const nodes = this.rt.pinNodes
     this.rt.railHiNode = high >= 0 && high < nodes.length ? nodes[high] : NO_NET
     this.rt.railLoNode = low >= 0 && low < nodes.length ? nodes[low] : NO_NET
+    this.rt.railHiIdx = high >= 0 && high < nodes.length ? high : -1
+    this.rt.railLoIdx = low >= 0 && low < nodes.length ? low : -1
   }
 
   drivePinStageAt(index: number, gUp: number, gDown: number): void {
@@ -260,10 +298,49 @@ function modelEntryOf(model: string): CatalogEntry | undefined {
   return undefined
 }
 
+/**
+ * Current tracking (TrackedDevice.terminal): per pin of a device whose pins
+ * are the catalog pins `names` of `entry`, its terminal — the first such pin
+ * of the same internal conductor (catalog internalBridges, transitively: a
+ * pushbutton's A1/A2, a board's GND1/GND2/GND3), else the pin itself.
+ * Undefined when the part has no internal bridges.
+ */
+function bridgedTerminals(entry: CatalogEntry, names: readonly string[]): Int32Array | undefined {
+  const bridges = entry.internalBridges
+  if (!bridges || bridges.length === 0) return undefined
+  const parent = new Map<string, string>()
+  const find = (k: string): string => {
+    let r = k
+    while (parent.has(r) && parent.get(r) !== r) r = parent.get(r)!
+    return r
+  }
+  for (const [a, b] of bridges) {
+    const ra = find(a)
+    const rb = find(b)
+    if (ra !== rb) parent.set(ra, rb)
+  }
+  const out = new Int32Array(names.length)
+  for (let k = 0; k < names.length; k++) {
+    out[k] = k
+    const root = find(names[k])
+    for (let j = 0; j < k; j++) {
+      if (find(names[j]) === root) {
+        out[k] = j
+        break
+      }
+    }
+  }
+  return out
+}
+
 // ------------------------------------------------------------------ engine
 
 export class SimEngine {
-  /** Static + runtime issues, deduplicated by message. */
+  /**
+   * Static + runtime issues, deduplicated by message. Append-only, except
+   * that a supply's over-current issue is removed again once the
+   * over-current has ended (SUPPLY_OVERCURRENT_HOLD_S).
+   */
   readonly issues: SimIssue[] = []
   time = 0
   /**
@@ -287,6 +364,23 @@ export class SimEngine {
   set strictConvergence(on: boolean) {
     this.strictAssigned = on
   }
+  /**
+   * Opt-in current tracking (default OFF). While on, every step records the
+   * device stamps through a forwarding proxy — the solution stays
+   * bit-identical — and integrates each part pin's current; telemetry() then
+   * publishes the mean currents since the previous telemetry() call as
+   * ComponentTelemetry.pinCurrents, plus SimTelemetry.wireCurrents /
+   * stripCurrents (the 顯示電流 flow layer, contract C2). Turning it off
+   * drops the integrals.
+   */
+  get trackCurrents(): boolean {
+    return this.tracker !== null
+  }
+  set trackCurrents(on: boolean) {
+    if (on === (this.tracker !== null)) return
+    this.tracker = on ? this.buildTracker() : null
+  }
+
   /** Some part of this layout needs strict Newton convergence (CatalogEntry.strictNewton). */
   readonly requiresStrictConvergence: boolean
   private strictAssigned = false
@@ -309,7 +403,16 @@ export class SimEngine {
   private readonly issueDevices: AnalogDevice[] = []
   private readonly issueOwner: string[] = []
   private readonly ledReported: Uint8Array
-  private readonly supplyWarned: Uint8Array
+  /**
+   * per supply: simulated seconds above SUPPLY_OVERCURRENT_A (leaky, see
+   * SUPPLY_OVER_LEAK), seconds continuously at or below it, and the
+   * over-current issue it raised (null = none standing)
+   */
+  private readonly supplyOver: Float64Array
+  private readonly supplyUnder: Float64Array
+  private readonly supplyIssue: (SimIssue | null)[]
+  /** id of each TrackedChip handed to the tracker (flowConcealed) */
+  private trackedChipIds: string[] = []
   private readonly isLinear: boolean
   private readonly issueKeys = new Set<string>()
   private readonly stampAllFn: (xv: Float64Array) => void
@@ -321,6 +424,13 @@ export class SimEngine {
   private diagCtx: DiagStampCtx | null = null
   private diagArmed = false
   private diagValid = false
+  /** the layout this engine was built from (current tracking's wire model) */
+  private readonly layoutRef: CircuitLayout
+  /** current tracking (null = off): recorder + per-part-pin integrals */
+  private tracker: CurrentTracker | null = null
+  /** global part-pin slot of catalog pin 0 per runtime (−1 = not simulated) */
+  private partBase: Int32Array | null = null
+  private flowModel: WireFlowModel | null = null
 
   constructor(layout: CircuitLayout) {
     // boardConfigOf(layout), hardened: never throw on weird layouts.
@@ -332,6 +442,7 @@ export class SimEngine {
       rows: isBoardRows(layout?.boardRows) ? layout.boardRows : 1,
     }
     this.netlist = buildNetlist(layout)
+    this.layoutRef = layout
     this.reportFn = (level, message, componentId) => this.addIssue(level, message, componentId)
     for (const w of this.netlist.warnings) this.addIssue('warning', w)
 
@@ -461,7 +572,9 @@ export class SimEngine {
     this.requiresStrictConvergence = strict
 
     this.ledReported = new Uint8Array(this.leds.length)
-    this.supplyWarned = new Uint8Array(this.supplies.length)
+    this.supplyOver = new Float64Array(this.supplies.length)
+    this.supplyUnder = new Float64Array(this.supplies.length)
+    this.supplyIssue = new Array<SimIssue | null>(this.supplies.length).fill(null)
 
     let linear = true
     for (const d of this.devices) {
@@ -522,13 +635,20 @@ export class SimEngine {
         else if (!res.converged) this.addIssue('warning', MSG_NO_CONVERGE)
       }
       // never let NaN/Inf propagate into future steps
+      let finite = true
       for (let i = 0; i < x.length; i++) {
         if (!Number.isFinite(x[i])) {
           x.fill(0)
           this.addIssue('warning', MSG_NUMERIC)
+          finite = false
           break
         }
       }
+      // current tracking: evaluate the recorded stamps at the solution
+      if (finite && this.tracker) this.tracker.accumulate(x, h)
+    } else if (this.tracker) {
+      // no solver node (every pin on the 0 V net): chips / devices still close KCL there
+      this.tracker.accumulate(x, h)
     }
     if (diagnose) {
       this.diagArmed = false
@@ -539,7 +659,7 @@ export class SimEngine {
     for (let i = 0; i < devices.length; i++) devices[i].endStep(x)
 
     // runtime issues
-    this.checkRuntimeIssues()
+    this.checkRuntimeIssues(h)
     if (!this.firstSolveDone) {
       this.firstSolveDone = true
       this.checkChipSupplies()
@@ -621,12 +741,128 @@ export class SimEngine {
       components[rt.comp.id] = tele
     }
 
-    return {
+    const out: SimTelemetry = {
       time: this.time,
       netVoltages,
       components,
       issues: this.issues.slice(),
     }
+    if (this.tracker) this.publishCurrents(out)
+    return out
+  }
+
+  /** Current tracking: pin means since the last telemetry + the wire / strip solve. */
+  private publishCurrents(out: SimTelemetry): void {
+    const tracker = this.tracker
+    const base = this.partBase
+    if (!tracker || !base) return
+    const means = tracker.drain()
+    if (!means) return
+    const pins = means.pins
+    // the parts whose loop cannot be closed honestly (flowConcealed): the chips whose output
+    // current has no honest return path first (the cause), then every part hidden with them
+    const concealed: string[] = []
+    for (let c = 0; c < this.trackedChipIds.length; c++) {
+      if (tracker.isHeld(c) && !concealed.includes(this.trackedChipIds[c])) concealed.push(this.trackedChipIds[c])
+    }
+    for (let r = 0; r < this.runtimes.length; r++) {
+      const b = base[r]
+      if (b < 0) continue
+      const rt = this.runtimes[r]
+      const tele = out.components[rt.comp.id]
+      if (!tele || !rt.entry || tele.pinCurrents) continue // duplicate ids: the first part wins
+      const names = rt.entry.pins
+      const pc: Record<string, number> = {}
+      let hidden = false
+      for (let k = 0; k < names.length; k++) {
+        const i = pins[b + k]
+        // unknown (concealed) stays ABSENT — never a guessed 0 (types.ts pinCurrents)
+        if (Number.isFinite(i)) pc[names[k]] = i
+        else hidden = true
+      }
+      tele.pinCurrents = pc
+      if (hidden && !concealed.includes(rt.comp.id)) concealed.push(rt.comp.id)
+    }
+    if (concealed.length > 0) out.flowConcealed = concealed
+    try {
+      if (!this.flowModel) {
+        const parts: FlowPart[] = []
+        for (let r = 0; r < this.runtimes.length; r++) {
+          const rt = this.runtimes[r]
+          if (base[r] >= 0 && rt.entry) parts.push({ comp: rt.comp, entry: rt.entry, base: base[r] })
+        }
+        this.flowModel = new WireFlowModel(
+          this.layoutRef,
+          this.board,
+          parts,
+          (ref) => this.netlist.netOf(ref),
+          this.netlist.ground,
+        )
+      }
+      const flow = this.flowModel.solve(pins, Number.isFinite(means.ref) ? means.ref : 0)
+      out.wireCurrents = flow.wires
+      out.stripCurrents = flow.strips
+    } catch {
+      /* never throw from telemetry: wire currents stay unknown */
+    }
+  }
+
+  /** Map every device / chip onto global part-pin slots and build the tracker. */
+  private buildTracker(): CurrentTracker {
+    const base = new Int32Array(this.runtimes.length).fill(-1)
+    let total = 0
+    for (let r = 0; r < this.runtimes.length; r++) {
+      const rt = this.runtimes[r]
+      if (!rt.entry || !rt.pinNodes || this.runtimeById.get(rt.comp.id) !== rt) continue
+      base[r] = total
+      total += rt.entry.pins.length
+    }
+    this.partBase = base
+    const info = new Map<AnalogDevice, TrackedDevice>()
+    const chips: TrackedChip[] = []
+    const chipIds: string[] = []
+    /** a device's own pin currents: only consulted while two of its terminals share a node */
+    const hookOf = (d: AnalogDevice): TrackedDevice['terminalCurrents'] =>
+      typeof d.terminalCurrents === 'function' ? (x, out, off) => d.terminalCurrents!(x, out, off) : undefined
+    for (let r = 0; r < this.runtimes.length; r++) {
+      const rt = this.runtimes[r]
+      const b = base[r]
+      if (b < 0 || !rt.entry || !rt.pinNodes) continue
+      const pinNodes = rt.pinNodes
+      if (rt.device) {
+        const slots = new Int32Array(pinNodes.length)
+        for (let k = 0; k < slots.length; k++) slots[k] = k < rt.entry.pins.length ? b + k : -1
+        // the device model: a regulator ('ldo') is a pass element a chip's return current crosses
+        const model = rt.entry.sim.kind === 'device' ? rt.entry.sim.model : undefined
+        const td: TrackedDevice = { nodes: pinNodes, slots, terminal: bridgedTerminals(rt.entry, rt.entry.pins), terminalCurrents: hookOf(rt.device) }
+        if (model) td.model = model
+        info.set(rt.device, td)
+      }
+      for (const sub of rt.subs ?? []) {
+        const slots = new Int32Array(sub.nodes.length)
+        for (let k = 0; k < slots.length; k++) {
+          const idx = rt.entry.pins.indexOf(sub.el.pins[k])
+          slots[k] = idx >= 0 ? b + idx : -1
+        }
+        // an LM7805's REG, a module's on-board regulator …: the sub-circuit element's model
+        info.set(sub.device, {
+          nodes: sub.nodes,
+          slots,
+          model: sub.el.model,
+          terminal: bridgedTerminals(rt.entry, sub.el.pins),
+          terminalCurrents: hookOf(sub.device),
+        })
+      }
+      if (rt.chip) {
+        chips.push({ drives: rt.chip, base: b })
+        chipIds.push(rt.comp.id)
+      }
+    }
+    this.trackedChipIds = chipIds
+    const devices: TrackedDevice[] = this.devices.map(
+      (d) => info.get(d) ?? { nodes: [], slots: [] }, // (unreachable: every device belongs to a runtime)
+    )
+    return new CurrentTracker(this.sys, devices, chips, total)
   }
 
   /**
@@ -883,7 +1119,19 @@ export class SimEngine {
       sys = this.diagCtx
     }
     const devices = this.devices
-    for (let i = 0; i < devices.length; i++) devices[i].stamp(sys, xv)
+    const tracker = this.tracker
+    if (tracker) {
+      // record each device's stamps (forwarded unchanged — bit-identical)
+      const rec = tracker.recorder
+      rec.begin(sys)
+      for (let i = 0; i < devices.length; i++) {
+        rec.owner = i
+        devices[i].stamp(rec, xv)
+      }
+      rec.owner = -1
+    } else {
+      for (let i = 0; i < devices.length; i++) devices[i].stamp(sys, xv)
+    }
     const chips = this.chips
     for (let i = 0; i < chips.length; i++) {
       const c = chips[i]
@@ -920,7 +1168,7 @@ export class SimEngine {
     }
   }
 
-  private checkRuntimeIssues(): void {
+  private checkRuntimeIssues(h: number): void {
     const leds = this.leds
     for (let i = 0; i < leds.length; i++) {
       if (this.ledReported[i] === 0 && leds[i].burned) {
@@ -933,15 +1181,29 @@ export class SimEngine {
         )
       }
     }
+    // a supply's over-current: only a SUSTAINED one, and only while it lasts (SUPPLY_OVERCURRENT_HOLD_S)
     const supplies = this.supplies
     for (let i = 0; i < supplies.length; i++) {
-      if (this.supplyWarned[i] === 0 && Math.abs(supplies[i].current) > 2) {
-        this.supplyWarned[i] = 1
-        this.addIssue(
-          'warning',
-          `supply ${supplies[i].comp.id} current > 2A (possible short circuit)`,
-          supplies[i].comp.id,
-        )
+      if (Math.abs(supplies[i].current) > SUPPLY_OVERCURRENT_A) {
+        this.supplyOver[i] += h
+        this.supplyUnder[i] = 0
+      } else {
+        this.supplyOver[i] = Math.max(0, this.supplyOver[i] - h * SUPPLY_OVER_LEAK)
+        this.supplyUnder[i] += h
+      }
+      const standing = this.supplyIssue[i]
+      if (standing === null && this.supplyOver[i] >= SUPPLY_OVERCURRENT_HOLD_S - HOLD_EPS) {
+        const message = `supply ${supplies[i].comp.id} current > 2A (possible short circuit)`
+        if (!this.issueKeys.has(message)) {
+          this.addIssue('warning', message, supplies[i].comp.id)
+          this.supplyIssue[i] = this.issues[this.issues.length - 1]
+        }
+      } else if (standing !== null && this.supplyUnder[i] >= SUPPLY_OVERCURRENT_HOLD_S - HOLD_EPS) {
+        // the short is gone (a switch opened, a part burned open, the voltage was lowered):
+        // a present-tense "short circuit" would now be false — retract it
+        this.retractIssue(standing)
+        this.supplyIssue[i] = null
+        this.supplyOver[i] = 0
       }
     }
     // device-reported diagnostics (AnalogDevice.issues), attributed to their part
@@ -985,5 +1247,19 @@ export class SimEngine {
     this.issueKeys.add(message)
     const issue: SimIssue = componentId ? { level, message, componentId } : { level, message }
     this.issues.push(issue)
+  }
+
+  /**
+   * Remove a standing issue that is no longer true (a supply's over-current
+   * that ended — checkRuntimeIssues). It may be raised again later (a new
+   * SimIssue object: a new event). The list shrinks, so no reader may keep
+   * an index into it: Coordinator.issues() slices it every frame, and the
+   * simulation log remembers the issues it wrote by identity
+   * (Coordinator.syncEngineIssues).
+   */
+  private retractIssue(issue: SimIssue): void {
+    const k = this.issues.indexOf(issue)
+    if (k >= 0) this.issues.splice(k, 1)
+    this.issueKeys.delete(issue.message)
   }
 }

@@ -225,12 +225,19 @@ describe('CatalogEntry.subcircuit', () => {
     )
     const nets = e.nodeCount
     expect(nets).toBeGreaterThanOrEqual(2) // the @m node is an extra solver node
-    e.advance(0.003)
+    // honesty F11: an LED above its 150 mA peak rating burns within a millisecond and is then OPEN —
+    // read the current before the burn, the burn after it
+    e.advance(0.0005)
+    const before = e.telemetry().components.S1.sub!
+    expect(Object.keys(before).sort()).toEqual(['L', 'R'])
+    expect(before.L.current!).toBeGreaterThan(0.1) // 5 V into a red LED + 10 Ω
+    expect(before.R.current).toBeCloseTo(before.L.current!, 6)
+    expect(before.L.burned).toBe(false)
+    e.advance(0.0025)
     const sub = e.telemetry().components.S1.sub!
-    expect(Object.keys(sub).sort()).toEqual(['L', 'R'])
-    expect(sub.L.current!).toBeGreaterThan(0.1) // 5 V into a red LED + 10 Ω
     expect(sub.L.pinVoltages.A).toBeCloseTo(5, 2)
     expect(sub.R.current).toBeCloseTo(sub.L.current!, 6)
+    expect(Math.abs(sub.L.current!)).toBeLessThan(1e-6) // burned open
     expect(sub.L.burned).toBe(true)
     const burn = e.issues.find((i) => i.message.startsWith('LED S1.L burned out'))
     expect(burn?.componentId).toBe('S1') // attributed to the parent part

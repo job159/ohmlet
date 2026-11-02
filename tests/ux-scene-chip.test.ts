@@ -93,7 +93,8 @@ describe('SC-4 live hover chip', () => {
 
   it('a part that can be held down in 3D says so while a session exists', () => {
     const sw = holeChipTextFor(LAYOUT, 'f50', telemetry(LAYOUT, {}))
-    expect(sw).toMatch(/^SW1 .+ · 0 V · f50 · 按住即可按下$/)
+    // (+ the keep-pressed latch's double-click — tests/latch-scene.test.ts)
+    expect(sw).toMatch(/^SW1 .+ · 0 V · f50 · 按住即可按下 · 雙擊保持按下$/)
     expect(holeChipTextFor(LAYOUT, 'f50')).not.toMatch(/按住/)
   })
 

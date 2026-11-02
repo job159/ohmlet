@@ -2,14 +2,16 @@
  * MoreSheet — settings / import / export / examples / issues, as iOS inset
  * grouped lists (snap 0.55/0.92).
  *
- * Groups: [Simulation] speed Segmented + Reset row · [Circuit] Import
+ * Groups: [Simulation] speed Segmented (+ 顯示電流 switch, product chrome)
+ * + Reset row · [Circuit] Import
  * (sub-view: file picker + paste-JSON with inline error list, ported from
  * the old ImportDialog), Export (download + clipboard copy + toast), Clear
  * board (destructive, ActionSheet confirm), Examples (the curated library
  * of src/ui/workspace/examples.ts, one group per category, opened through
  * lab.importProject with an ActionSheet confirm when the board is not
  * empty — ExampleGroups) · [Issues] live level-colored list (tap selects the
- * component and dismisses) · [Settings] shared ApiKeyRow + About.
+ * component and dismisses) · [Settings] 音效 switch (product chrome),
+ * shared ApiKeyRow + About.
  * [Graphics]: render-mode Segmented (Performance/Enhanced/Studio) with a
  * per-mode caption and a device-default badge, backed by the store's
  * renderMode contract.
@@ -39,7 +41,7 @@
  * ≥ 1100 px with a fine pointer).
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useStore } from '../../state/store'
+import { clearBoardRecordsUndo, useStore } from '../../state/store'
 import { WORKSPACE_MEDIA_QUERY, useLab } from '../embedded/lab'
 import {
   boardHasContent,
@@ -55,6 +57,9 @@ import {
 import { pushCapsuleDetail } from '../chrome/StatusBar'
 import { useLegacyChrome } from '../chrome/legacy'
 import { frameCircuit } from '../workspace/scene-bridge'
+import { editCue, undoableToast } from '../chrome/edit-feedback'
+import { FlowViewRow } from '../chrome/FlowToggle'
+import { SoundSettingRow } from '../fx/SoundSettingRow'
 import { ProblemsList, useProblems } from '../embedded/problems'
 import { BOARD_SIZES, boardOf, isBoardRows, MAX_BOARD_COUNT, MAX_BOARD_ROWS } from '../../model/types'
 import type { BoardSizeId, CircuitLayout, SimIssue } from '../../model/types'
@@ -242,6 +247,26 @@ export function saveProjectFile(): Promise<boolean> {
   return saveInFlight
 }
 
+/**
+ * 清空麵包板 at once (product chrome): the camera comes back to the whole
+ * breadboard (SH-F4), and the toast says 「已清空麵包板」 with 〔復原〕 exactly
+ * when the store recorded an undo step — parts, wires, or a rig that was not
+ * the default one (board size, several boards, extra rows: the same test as
+ * the store, clearBoardRecordsUndo) — else 「麵包板已經是空的」.
+ */
+export function clearBoardNow(): void {
+  const st = useStore.getState()
+  const undoable = clearBoardRecordsUndo(st.layout)
+  st.clearBoard()
+  const after = useStore.getState().layout
+  frameCircuit()
+  tick(16)
+  if (undoable) {
+    undoableToast(t('Board cleared'), after)
+    editCue('delete')
+  } else showToast(t('The board is already empty'))
+}
+
 export interface MoreSheetProps {
   open: boolean
   onDismiss: () => void
@@ -315,6 +340,9 @@ export function MoreSheet({
       setSnap(0)
     }
   }, [open])
+
+  /** 清空麵包板 at once (product chrome): 「已清空麵包板」 + 〔復原〕 whenever an undo step was recorded. */
+  const clearNow = clearBoardNow
 
   const onSaveProject = async () => {
     if (projectBusy) return
@@ -403,11 +431,13 @@ export function MoreSheet({
 
             {!legacy && problemCount > 0 && (
               // any fix / 「在電路板上標示」 in the list closes the sheet so the
-              // board (or the properties it opens) can show
+              // board (or the properties it opens) can show; the list's own
+              // disclosures (詳細／收合, 「另 n 個」 — class erc-more) unfold in place
               <div
                 className="asm-problems"
                 onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('button')) onDismiss()
+                  const b = (e.target as HTMLElement).closest('button')
+                  if (b && !b.classList.contains('erc-more')) onDismiss()
                 }}
               >
                 {/* its header counts as the 更多 badge and the pill do (SH-13 (4)) */}
@@ -467,8 +497,11 @@ export function MoreSheet({
                   onChange={(v) => setSimSpeed(Number(v))}
                   options={speedOptions(legacy)}
                   aria-label={t('Simulation speed')}
+                  className={legacy ? undefined : 'asm-seg-speed'}
                 />
               </div>
+              {/* product chrome: 顯示電流 — the chip beside the run capsule and the C key, as a switch (review F6) */}
+              {!legacy && <FlowViewRow />}
               <ListRow
                 leading={<ResetIcon size={20} />}
                 title={t('Reset simulation')}
@@ -606,7 +639,10 @@ export function MoreSheet({
                 leading={<TrashIcon size={20} />}
                 title={t('Clear board')}
                 destructive
-                onPress={() => setConfirmClear(true)}
+                // product chrome (operation simplification): clears at once —
+                // one undo step brings the whole board back (and its firmware
+                // bindings), the toast carries 〔復原〕; classic: confirmation
+                onPress={() => (legacy ? setConfirmClear(true) : clearNow())}
               />
             </ListGroup>
 
@@ -683,6 +719,8 @@ export function MoreSheet({
                   aria-label={t('Interface language')}
                 />
               </div>
+              {/* product chrome: 音效 — the success chime, the burn pop and the quiet edit clicks (review F6) */}
+              {!legacy && <SoundSettingRow />}
               <ListRow
                 title={t('Embedded workspace')}
                 subtitle={

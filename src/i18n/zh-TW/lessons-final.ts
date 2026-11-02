@@ -4,8 +4,9 @@
  * and the More sheet's keys, 'Reset MCU' / 'Reset simulation'), and the
  * runtime stimulus a measuring check performs while it runs
  * (src/lessons/engine/format.ts stimulusText, src/lessons/engine/evaluate.ts,
- * src/ui/lessons/*). Terms: 勾選 a checkbox param the way the lesson texts
- * say it (「勾選 SW1 的「按下」」), times in 秒 after power-on (上電).
+ * src/ui/lessons/*). Terms: 勾選 a checkbox param (a button's 'pressed' reads
+ * 「按住 SW1」 / 「放開 SW1」 instead — keys in latch.ts), times in 秒 after
+ * power-on (上電).
  */
 const zh: Record<string, string> = {
   // ---- reset step actions ----

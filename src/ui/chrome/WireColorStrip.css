@@ -95,3 +95,100 @@
     height: 30px;
   }
 }
+
+/* product chrome (operation simplification — contract C1): no swatches to
+   pick; the strip says what the automatic colours mean, then 「完成」 */
+.app-wire-strip.is-legend {
+  gap: 8px;
+  /* its natural one-row width (review F8): a fixed box at left 50 % would
+     otherwise shrink-wrap into half the viewport and stack the legend into
+     three lines that reach up under the raised undo pill */
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding-left: 14px;
+}
+.app-wire-legend {
+  display: flex;
+  flex-wrap: wrap; /* a narrow column (or a longer language) takes two lines, never spills */
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  color: var(--label, rgba(255, 255, 255, 0.92));
+  font: 500 13px/18px var(--lg-font);
+  white-space: nowrap;
+}
+.app-wire-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.app-wire-legend-dots {
+  display: inline-flex;
+}
+.app-wire-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.app-wire-legend-dot + .app-wire-legend-dot {
+  margin-left: -4px;
+}
+/* the phone form of an item (wireLegendItems short): hidden elsewhere */
+.app-wire-legend-short {
+  display: none;
+}
+/* phones (review F8): ONE row 「● 電源正　● 地　●●● 訊號 │ 完成」 — the
+   dot shows the colour, so the words drop it; the strip stays 50 px tall
+   and ends below the undo pill the wire mode raises (UndoPill.css bottom
+   + 145 px). The full words stay readable to screen readers. */
+@media (max-width: 430px) {
+  .app-wire-legend {
+    flex-wrap: nowrap;
+    gap: 0 10px;
+    font-size: 13px;
+  }
+  .app-wire-legend-dot {
+    width: 11px;
+    height: 11px;
+  }
+  .app-wire-legend-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .app-wire-legend-short {
+    display: inline;
+  }
+}
+
+/* the desktop workspace: the free scene column is narrow (1366 × 768: 590 px)
+   and the undo / redo / 對準電路 pill holds its bottom-left corner — the
+   legend strip lines up right after the pill's slot, one bottom toolbar row
+   (「↶ ↷ ⌖ │ ● 紅＝電源正 ● 黑＝地 ●●● 其他顏色＝訊號 │ 完成」), always at
+   the same place (the slot is kept while the pill hides) */
+body.ws-on .app-wire-strip.is-legend {
+  left: calc(var(--ws-inset-left) + 158px);
+  transform: none;
+  max-width: calc(100vw - var(--ws-inset-left) - var(--ws-inset-right) - 158px);
+  animation-name: app-wire-legend-in;
+}
+@keyframes app-wire-legend-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.ws-on .app-wire-strip.is-legend {
+    animation: none;
+  }
+}

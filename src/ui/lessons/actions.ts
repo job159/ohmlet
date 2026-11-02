@@ -25,7 +25,7 @@
  * wire in one click (「拆掉 j11 → bot-7 這條線」).
  */
 import { create } from 'zustand'
-import { useStore } from '../../state/store'
+import { stripTransientParams, useStore } from '../../state/store'
 import { WORKSPACE_MEDIA_QUERY, useLab } from '../embedded/lab'
 import { getEntry } from '../../model/catalog'
 import type { CircuitLayout } from '../../model/types'
@@ -47,8 +47,12 @@ import { fmtSpan } from '../../instruments/format'
 import { terminalLabel } from '../../i18n/parts'
 import { revealInstrument } from '../embedded/instruments/instrument-request'
 import { focusInspector, noteMcuReset } from '../embedded/problems'
+import { latchedIn, releaseLatched } from '../embedded/latch'
 import { resetWireColorPick } from '../chrome/wire-convention'
-import { useLessonProgress } from '../../lessons/progress'
+import { isLegacyChrome } from '../chrome/legacy'
+import { firmwareAtRisk, undoableToast } from '../chrome/edit-feedback'
+import { useLessonProgress, type LessonLoadStamps } from '../../lessons/progress'
+import { lessonEarned, lessonPassToast, noteRunUsesSolution, passUsesSolution, stampsUseSolution } from '../fx/lesson-pass'
 import { LESSONS, lessonById } from '../../lessons'
 import { isStructuralCheck, missingStartParts } from '../../lessons/diagnose'
 import {
@@ -64,12 +68,12 @@ import { hasBundled } from '../../lessons/engine/assets'
 import { hasBundledFirmware, loadBundledFirmware } from '../../firmware-assets'
 import { parseProject } from '../../state/project'
 import { sha256Hex } from '../../mcu/loader'
-import { showToast, subscribeToasts, tick } from '../kit'
+import { dismissToast, getToasts, showToast, subscribeToasts, tick } from '../kit'
 import { t } from '../../i18n'
 import { tMessage } from '../../i18n/messages'
 import { runOrResume } from '../chrome/run-control'
 import { focusInScene, frameTargets, setArmFocusSource, type ArmFocus } from '../workspace/scene-bridge'
-import { runKey, useLessonUi, type LessonSection } from './state'
+import { runKey, useLessonUi, type CheckRun, type LessonSection } from './state'
 
 // ---------------------------------------------------------------- browser
 
@@ -112,10 +116,15 @@ export function firstLesson(): Lesson | undefined {
  * 「從第一課開始」 (UX contract K9 — onboarding, empty state): open the first
  * beginner lesson and load its starting circuit, which starts the coach on
  * step 1. The desktop workspace shows the lesson in its Lessons tab (the
- * coach card docks above it); phones keep the board visible (no sheet). A
- * board that holds anything asks first through the usual "replace the
- * current circuit?" confirmation (LessonOverlay) — the guide then starts
- * when the learner confirms.
+ * coach card docks above it); phones keep the board visible (no sheet).
+ * Like 下一課 / 開始引導 (navigateToStart, review F7 — 「不要做 double
+ * check」), the product chrome loads at once over a board that holds
+ * something: the circuit it replaces is one undo step away and the toast
+ * carries 〔復原〕. It asks only when the load would overwrite a board's
+ * loaded firmware (loadNeedsConfirm — undo cannot bring that back). The
+ * classic chrome asks for any non-empty board through the usual "replace
+ * the current circuit?" confirmation (LessonOverlay) — the guide then
+ * starts when the learner confirms.
  *   'loaded'  — circuit (and its firmware) loaded, guide on step 1
  *   'confirm' — waiting for the replace confirmation
  *   'failed'  — the circuit or its firmware could not be loaded (toasted)
@@ -129,7 +138,7 @@ export async function startFirstLesson(): Promise<'loaded' | 'confirm' | 'failed
     const lab = useLab.getState()
     lab.setWorkspace({ left: { ...lab.workspace.left, open: true, tab: 'lessons' } })
   }
-  if (!boardEmpty()) {
+  if (!boardEmpty() && (isLegacyChrome() || loadNeedsConfirm(lesson, 'start', useStore.getState().layout, false))) {
     useLessonUi.getState().setConfirm({ lessonId: lesson.id, which: 'start' })
     return 'confirm'
   }
@@ -153,9 +162,8 @@ export function nextLevelStart(lesson: Lesson): Lesson | undefined {
  * Leave a lesson for another one (「下一課：…」, 「跳到中級：…」 — LS-F1): the
  * finished lesson's guide stops (and the wire tool it armed), the browser
  * opens on the new lesson's steps and its starting circuit goes on the board
- * — at once on an empty board, else after the usual "replace the current
- * circuit?" (取消 keeps the old board; the new lesson then offers 載入起始電路).
- * A board that already holds the new lesson's own circuit just resumes its guide.
+ * (navigateToStart). A board that already holds the new lesson's own circuit
+ * just resumes its guide.
  */
 export function goToLesson(target: Lesson): void {
   tick()
@@ -164,7 +172,23 @@ export function goToLesson(target: Lesson): void {
   leaveCoachWiring()
   openLessons(target.id, 'steps')
   if (lessonOnBoard(target, useStore.getState().layout)) startGuide(target)
-  else requestLoad(target, 'start')
+  else navigateToStart(target)
+}
+
+/**
+ * Put `lesson`'s starting circuit on the board for a navigation (下一課,
+ * 開始引導 off the lesson's circuit). An empty board loads at once. The
+ * product chrome (review F7 — 「不要做 double check」, exactly like 載入完整答案)
+ * loads at once over any other board too: the circuit it replaces is one
+ * undo step away and the toast carries 〔復原〕; it asks only when the load
+ * would overwrite a board's loaded firmware (loadNeedsConfirm — undo cannot
+ * bring that back), and then the sheet names the board. The classic chrome
+ * asks for any non-empty board (取消 keeps it; the lesson then offers 載入起始電路).
+ */
+function navigateToStart(lesson: Lesson): void {
+  const layout = useStore.getState().layout
+  if (boardEmpty() || (!isLegacyChrome() && !loadNeedsConfirm(lesson, 'start', layout, false))) void loadLessonCircuit(lesson, 'start')
+  else useLessonUi.getState().setConfirm({ lessonId: lesson.id, which: 'start' })
 }
 
 // ------------------------------------------------------------ the guide
@@ -286,14 +310,14 @@ export function watchObserveFraming(delayMs = 350): () => void {
 /**
  * Start (or resume) the coach card on `lesson` at `step` (default: the saved
  * step). The guide only ever describes the lesson's OWN circuit (LS-F1):
- * while the board does not hold it (lessonOnBoard), an empty board gets the
- * starting circuit — which starts the guide on step 1 — and any other board
- * asks first (「要取代目前的電路嗎？」; 取消 starts nothing).
+ * while the board does not hold it (lessonOnBoard), the starting circuit goes
+ * on the board first (navigateToStart: at once — 〔復原〕 in the toast — unless
+ * it would overwrite loaded firmware, or the classic chrome, which ask; 取消
+ * starts nothing). The loaded circuit starts the guide on step 1.
  */
 export function startGuide(lesson: Lesson, step?: number): void {
   if (!lessonOnBoard(lesson, useStore.getState().layout)) {
-    if (boardEmpty()) void loadLessonCircuit(lesson, 'start')
-    else useLessonUi.getState().setConfirm({ lessonId: lesson.id, which: 'start' })
+    navigateToStart(lesson)
     return
   }
   const progress = useLessonProgress.getState()
@@ -445,10 +469,134 @@ function staleLoad(gen: number, target: CircuitLayout): boolean {
   return gen !== loadGen || (now !== target && circuitReplaced(target, now))
 }
 
+/**
+ * Board provenance of the answer-pass rule (lesson-pass.ts): "was the answer
+ * loaded" must describe the circuit ON the board, also after 〔復原〕 / ↶ /
+ * Ctrl+Z / ↷ crosses a lesson load — peeking at the answer and undoing back
+ * to one's own circuit is not a copied answer; undoing a start load back to
+ * the answer is. Every lesson load marks the objects (parts and wires — the
+ * identity rule of lessonOnBoard: edits keep the untouched objects, undo /
+ * redo restore the very objects) of the board it REPLACES with the lesson's
+ * load stamps from before the load, and the objects of the circuit it puts
+ * down with the stamps after it (progress.loaded). When a replacement brings
+ * marked objects back (undo / redo), followLoadProvenance puts that board's
+ * stamps back in the lesson's progress record, so every reader of the rule —
+ * passUsesSolution, entryUsesSolution (the coach's 「卡住了？」 and pass
+ * line, the 驗收 pass block), progress.complete — and the persisted record
+ * agree with the board. Only a changed verdict is written. A board with no
+ * marked object (after a page reload, an example, a file) keeps the record
+ * as it is. An empty board a load replaced is marked on its layout object
+ * (undo restores that object), only with stamps that say "not the answer",
+ * and only an undo landing on it (redo still possible) reads that mark — an
+ * empty board never holds the answer. A freshly emptied board (清空麵包板, or
+ * the last part deleted: nothing to redo) holds no answer either, so
+ * forgetAnswerLoads clears the answer stamp of every record that has one:
+ * what the learner builds next is their own. 〔復原〕 brings the marked
+ * answer objects back, and with them the stamps.
+ */
+const loadMarks = new WeakMap<object, Map<string, LessonLoadStamps>>()
+
+function loadStampsOf(lessonId: string): LessonLoadStamps {
+  const e = useLessonProgress.getState().lessons[lessonId]
+  return { startLoadedAt: e?.startLoadedAt, solutionLoadedAt: e?.solutionLoadedAt }
+}
+
+function markLoadProvenance(layout: CircuitLayout, lessonId: string, stamps: LessonLoadStamps): void {
+  const mark = (o: object) => {
+    const m = loadMarks.get(o) ?? new Map<string, LessonLoadStamps>()
+    m.set(lessonId, stamps)
+    loadMarks.set(o, m)
+  }
+  if (layout.components.length === 0 && layout.wires.length === 0) {
+    if (!stampsUseSolution(stamps)) mark(layout)
+    return
+  }
+  for (const c of layout.components) mark(c)
+  for (const w of layout.wires) mark(w)
+}
+
+/**
+ * The lesson load stamps `layout` carries (per lesson: the first marked
+ * object's), for a board a replacement just put down; `undoLanded` — the
+ * store can redo (an empty board's mark is read only then).
+ */
+export function loadProvenanceOf(layout: CircuitLayout, undoLanded: boolean): Map<string, LessonLoadStamps> {
+  const found = new Map<string, LessonLoadStamps>()
+  const take = (o: object) => {
+    const m = loadMarks.get(o)
+    if (m) for (const [id, st] of m) if (!found.has(id)) found.set(id, st)
+  }
+  if (layout.components.length === 0 && layout.wires.length === 0) {
+    if (undoLanded) take(layout)
+    return found
+  }
+  for (const c of layout.components) take(c)
+  for (const w of layout.wires) take(w)
+  return found
+}
+
+/** Put the stamps of the board now shown back in each lesson's record whose verdict they change. */
+export function followLoadProvenance(layout: CircuitLayout, undoLanded: boolean): void {
+  for (const [id, stamps] of loadProvenanceOf(layout, undoLanded)) {
+    const progress = useLessonProgress.getState()
+    if (stampsUseSolution(progress.lessons[id]) !== stampsUseSolution(stamps)) progress.restoreLoadStamps(id, stamps)
+  }
+}
+
+/** The board was emptied: no record says its circuit is the loaded answer any more. */
+function forgetAnswerLoads(): void {
+  for (const [id, e] of Object.entries(useLessonProgress.getState().lessons)) {
+    if (stampsUseSolution(e)) useLessonProgress.getState().restoreLoadStamps(id, { startLoadedAt: e?.startLoadedAt })
+  }
+}
+
+let provenanceWatch: (() => void) | null = null
+
+/** Follow the board's provenance from the first lesson load on (marks exist only after one). */
+function watchLoadProvenance(): void {
+  if (provenanceWatch) return
+  provenanceWatch = useStore.subscribe((s, prev) => {
+    if (s.layout === prev.layout || loadingLesson !== null) return
+    // an edit keeps the board's objects, so its provenance: only a replaced (or emptied) board can change it
+    if (!circuitReplaced(prev.layout, s.layout)) return
+    if (s.layout.components.length === 0 && s.layout.wires.length === 0 && !s.canRedo) forgetAnswerLoads()
+    else followLoadProvenance(s.layout, s.canRedo)
+  })
+}
+
 /** Load a lesson circuit, asking first when the board holds anything. */
 export function requestLoad(lesson: Lesson, which: 'start' | 'solution'): void {
-  if (boardEmpty()) void loadLessonCircuit(lesson, which)
+  if (!loadNeedsConfirm(lesson, which, useStore.getState().layout, isLegacyChrome())) void loadLessonCircuit(lesson, which)
   else useLessonUi.getState().setConfirm({ lessonId: lesson.id, which })
+}
+
+/**
+ * Does a load replacing the board with `lesson`'s circuit ask first — an
+ * explicit 載入 button (載入起始電路 / 重新載入起始電路 / 載入完整答案) and,
+ * in the product chrome, a navigation (下一課, 開始引導 — navigateToStart;
+ * review F7) and 從第一課開始 (startFirstLesson)? Never for an empty board. The classic chrome asks for any other board (as before). The
+ * product chrome (operation simplification — 「不要做 double check」) loads at
+ * once whatever undo restores: the circuit always is (one undo step; the
+ * toast carries 〔復原〕), and so is the firmware of a board the load takes
+ * away (the lab keeps a removed board's binding for the undo). Only firmware
+ * the load OVERWRITES is not in the undo history: a board of this circuit
+ * holding a binding whose id the lesson's circuit gives an MCU of its own
+ * (the lesson binds or clears that id) — asked about, unless the board is
+ * this lesson's own circuit (its firmware is the lesson's).
+ */
+export function loadNeedsConfirm(
+  lesson: Lesson,
+  which: 'start' | 'solution',
+  layout: CircuitLayout,
+  legacy: boolean,
+  firmware: Record<string, unknown> = useLab.getState().firmware,
+): boolean {
+  if (layout.components.length === 0 && layout.wires.length === 0) return false
+  if (legacy) return true
+  if (lessonOnBoard(lesson, layout)) return false
+  const circuit = which === 'start' ? lesson.start : lesson.solution
+  const lessonMcus = new Set(circuit.layout.components.filter((c) => !!getEntry(c.type)?.mcu).map((c) => c.id))
+  return firmwareAtRisk(layout, firmware, lessonMcus).length > 0
 }
 
 /**
@@ -462,6 +610,12 @@ export function requestLoad(lesson: Lesson, which: 'start' | 'solution'): void {
 export async function loadLessonCircuit(lesson: Lesson, which: 'start' | 'solution'): Promise<boolean> {
   const gen = ++loadGen
   const circuit: LessonCircuit = which === 'start' ? lesson.start : lesson.solution
+  // a board that held something: the toast offers 〔復原〕 (product chrome)
+  const prior = useStore.getState().layout
+  const replaced = prior.components.length > 0 || prior.wires.length > 0
+  // the lesson's load stamps of the board this load replaces (undo brings both back together)
+  const priorStamps = loadStampsOf(lesson.id)
+  watchLoadProvenance()
   loadingLesson = lesson.id
   let res: ReturnType<ReturnType<typeof useStore.getState>['loadLayout']>
   try {
@@ -478,9 +632,26 @@ export async function loadLessonCircuit(lesson: Lesson, which: 'start' | 'soluti
   const target = useStore.getState().layout
   lessonLayout = target
   lessonLayoutId = lesson.id
+  // the replaced board and the undo snapshot of it (a held button's 'pressed' stripped): its own stamps
+  markLoadProvenance(prior, lesson.id, priorStamps)
+  markLoadProvenance(stripTransientParams(prior), lesson.id, priorStamps)
+  // the board holds a new circuit NOW: an earlier pass must not show over it while the firmware
+  // loads — nor read 「課程完成」 for an answer's pass the moment the start circuit's load is recorded.
+  // A check of this lesson still running evaluates the circuit just replaced: it is aborted AND
+  // forgotten, so it publishes nothing (no 「完成！」 for the answer over the start circuit)
+  {
+    for (const [key, ac] of [...controllers]) {
+      if (!key.startsWith(`${lesson.id}|`)) continue
+      ac.abort()
+      controllers.delete(key)
+    }
+    const ui = useLessonUi.getState()
+    for (const key of Object.keys(ui.runs)) if (key.startsWith(`${lesson.id}|`)) ui.setRun(key, null)
+  }
   // the analyzer keeps only the channels THIS lesson reads (LS-F5): i1's PA5 / PC13 never carry into a3
   pruneLessonChannels(lesson, target)
   useLessonProgress.getState().loaded(lesson.id, which)
+  markLoadProvenance(target, lesson.id, loadStampsOf(lesson.id))
   const lab = useLab.getState()
   const failures: string[] = []
   for (const comp of target.components) {
@@ -525,8 +696,20 @@ export async function loadLessonCircuit(lesson: Lesson, which: 'start' | 'soluti
   ui.setFocus(null)
   if (failures.length > 0) {
     showToast(t('Circuit loaded, but the firmware could not be loaded: {error}', { error: failures[0] }), { duration: 5200 })
+  } else if (!isLegacyChrome() && replaced) {
+    // product chrome: the board it replaced is one tap away (operation simplification)
+    undoableToast(
+      which === 'start' ? t('Loaded the starting circuit of “{title}”', { title: lesson.title }) : t('Loaded the full answer of “{title}”', { title: lesson.title }),
+      target,
+    )
   } else {
-    showToast(which === 'start' ? t('Loaded the starting circuit of “{title}”', { title: lesson.title }) : t('Loaded the solution of “{title}”', { title: lesson.title }))
+    showToast(
+      which === 'start'
+        ? t('Loaded the starting circuit of “{title}”', { title: lesson.title })
+        : isLegacyChrome()
+          ? t('Loaded the solution of “{title}”', { title: lesson.title })
+          : t('Loaded the full answer of “{title}”', { title: lesson.title }),
+    )
   }
   return failures.length === 0
 }
@@ -701,13 +884,27 @@ function watchPlacement(type: string, before: ReadonlySet<string>): void {
       const added = s.layout.components.find((c) => c.type === type && !before.has(c.id))
       if (added) {
         stop()
+        // product chrome (P3): the placing click's own handler re-arms repeat placement right
+        // after this commit (App.tsx — a leads part), and its mode hint 「已放置 R1——繼續點孔位可再
+        // 放一顆…」 then flashed over the opening sheet's one-tap values on phones — saying the
+        // opposite of what happens. That re-arm is taken back in the same synchronous turn (the
+        // store's last listener, before React renders): the screen never shows it. The classic
+        // chrome keeps its sequence.
+        const takeBack = isLegacyChrome() ? null : takeBackRearm(type)
         // after the placement click's own handler (it re-arms repeat placement in the same tick)
         setTimeout(() => {
+          takeBack?.()
           const st = useStore.getState()
           if (!st.layout.components.some((c) => c.id === added.id)) return
           if (st.mode.kind === 'place' && st.mode.type === type) st.setMode({ kind: 'select' })
           focusInspector(added.id)
-          showToast(t('Placed {id} — its properties are open', { id: added.id }), { duration: 3600 })
+          // product chrome (final walkthrough P3): the properties sheet / inspector that just opened IS
+          // the feedback — a toast there sat right over the sheet's one-tap value chips (「設為 330 Ω」)
+          // on phones. An earlier 〔復原〕 toast (the lesson load's) goes too: with this placement the
+          // board changed, so it would undo nothing now (undoAction), and it covered the same chips.
+          // The classic chrome keeps its toast.
+          if (isLegacyChrome()) showToast(t('Placed {id} — its properties are open', { id: added.id }), { duration: 3600 })
+          else for (const x of getToasts()) if (x.action?.label === t('Undo')) dismissToast(x.id)
         }, 0)
         return
       }
@@ -715,6 +912,24 @@ function watchPlacement(type: string, before: ReadonlySet<string>): void {
     if (s.mode.kind !== 'place' || s.mode.type !== type) stop()
   })
   placementWatch = stop
+}
+
+/**
+ * Until the returned stop runs: the moment placement of `type` is re-armed
+ * with no hole picked (the placing click's repeat placement), go back to
+ * select — synchronously, inside that same store update, so nothing renders
+ * the re-armed tool (nor its 「繼續點孔位可再放一顆」 hint). Subscribed from
+ * inside the commit's own store update, it is the store's last listener:
+ * every other one has already seen the re-arm when the select arrives, in
+ * order.
+ */
+function takeBackRearm(type: string): () => void {
+  const unsub = useStore.subscribe((s, prev) => {
+    if (s.mode === prev.mode || s.mode.kind !== 'place' || s.mode.type !== type || s.mode.pickedHoles.length > 0) return
+    unsub()
+    useStore.getState().setMode({ kind: 'select' })
+  })
+  return unsub
 }
 
 /** The lesson highlight a wiring step points at (only its own key is cleared again). */
@@ -1122,13 +1337,68 @@ export function runStepAction(a: LessonStepAction, step?: { lesson: Lesson; inde
 // ---------------------------------------------------- live evaluation
 
 /**
- * The live document as evaluator input: the store's layout and the bytes of
- * every bound firmware — bundled images straight from firmware/dist when the
- * binding is byte-identical to one, otherwise from the lab's project export
- * (the user's own files).
+ * How a check finds the buttons the learner has pressed (保持按下 — latch.ts;
+ * the transient 'pressed' params): 'released' = stripped, so every button
+ * starts released at power-on unless the check presses it itself — the
+ * verdict depends only on the circuit and the firmware, never on where the
+ * learner's hand is; 'live' = as the learner left them (a step that looks at
+ * the circuit as it is now).
  */
-export async function liveEvalInput(): Promise<EvalInput> {
-  const layout = useStore.getState().layout
+export type CheckHands = 'released' | 'live'
+
+/** Does `c` operate inputs itself (a stimulus anywhere in it — it presses / turns what it needs)? */
+export function drivesInputs(c: LessonCheck): boolean {
+  if (c.kind === 'all') return c.checks.some(drivesInputs)
+  return (c.kind === 'measure' || c.kind === 'uart-contains') && (c.stimulus?.length ?? 0) > 0
+}
+
+/**
+ * The hands a step's own check runs with: a check that presses / turns its
+ * inputs itself owns them ('released' — a part the learner left kept
+ * pressed cannot break or fake it); a check that only observes (the step
+ * asks the learner to press or release, then looks) sees the circuit as it
+ * is now ('live'). The acceptance is always 'released' (runAcceptance).
+ */
+export function stepCheckHands(c: LessonCheck): CheckHands {
+  return drivesInputs(c) ? 'released' : 'live'
+}
+
+/**
+ * The check kinds whose verdict a kept-pressed button can change: what the
+ * simulation measures or prints (measure, uart-contains) and the ERC, whose
+ * switch model reads 'pressed' (erc-clean). The netlist (has-part /
+ * connected / not-connected), a bound firmware (firmware-loaded) and a
+ * firmware's own test bench (firmware-checks) never see a button's hand.
+ */
+const HOLD_SENSITIVE: ReadonlySet<LessonCheck['kind']> = new Set<LessonCheck['kind']>(['measure', 'uart-contains', 'erc-clean'])
+
+function failedLeaves(results: readonly EvaluatedCheck[]): EvaluatedCheck[] {
+  return results.flatMap((r) => (r.pass ? [] : r.children?.length ? failedLeaves(r.children) : [r]))
+}
+
+/**
+ * Could the buttons the learner left kept pressed explain this failed run
+ * (runStepCheck's 「SW1 保持按下中」 toast)? Only when every failed check
+ * (the leaves of an 'all') is one the button state changes (HOLD_SENSITIVE)
+ * and really ran — a wiring / part / firmware failure, a check that could
+ * not be evaluated (error) or one naming parts the board lacks (missing) is
+ * not the hand's doing, and 〔放開〕 would not fix it.
+ */
+export function holdsMayExplain(results: readonly EvaluatedCheck[]): boolean {
+  const failed = failedLeaves(results)
+  return failed.length > 0 && failed.every((r) => HOLD_SENSITIVE.has(r.kind) && !r.error && !(r.missing?.length ?? 0))
+}
+
+/**
+ * The live document as evaluator input: the store's layout (`hands`
+ * 'released', the default: without its transient params — CheckHands) and
+ * the bytes of every bound firmware — bundled images straight from
+ * firmware/dist when the binding is byte-identical to one, otherwise from
+ * the lab's project export (the user's own files).
+ */
+export async function liveEvalInput(hands: CheckHands = 'released'): Promise<EvalInput> {
+  const live = useStore.getState().layout
+  const layout = hands === 'released' ? stripTransientParams(live) : live
   const records = useLab.getState().firmware
   const firmware: Record<string, FirmwareFile> = {}
   const missing: string[] = []
@@ -1175,7 +1445,19 @@ export function isStructural(c: LessonCheck): boolean {
   return isStructuralCheck(c)
 }
 
-async function runChecksInto(key: string, checks: Lesson['acceptance']): Promise<EvaluatedCheck[] | null> {
+/**
+ * Run `checks` on the live circuit into the run entry `key`. `viaSolution`
+ * (acceptance runs): the answer-pass verdict of the circuit read at the
+ * start — the published run carries it (lesson-pass.ts runUsesSolution).
+ * A run whose controller was replaced or forgotten (a newer run, a lesson
+ * load) publishes nothing.
+ */
+async function runChecksInto(
+  key: string,
+  checks: Lesson['acceptance'],
+  hands: CheckHands = 'released',
+  viaSolution?: boolean,
+): Promise<EvaluatedCheck[] | null> {
   controllers.get(key)?.abort()
   const ac = new AbortController()
   controllers.set(key, ac)
@@ -1186,7 +1468,7 @@ async function runChecksInto(key: string, checks: Lesson['acceptance']): Promise
   if (ui.focus?.key.startsWith(`${key}#`)) ui.setFocus(null)
   try {
     const structural = checks.every(isStructural)
-    const input: EvalInput = structural ? { layout: useStore.getState().layout, firmware: {} } : await liveEvalInput()
+    const input: EvalInput = structural ? { layout: useStore.getState().layout, firmware: {} } : await liveEvalInput(hands)
     const results = await runLessonChecks(input, checks, {
       worker: structural ? false : undefined,
       signal: ac.signal,
@@ -1196,7 +1478,10 @@ async function runChecksInto(key: string, checks: Lesson['acceptance']): Promise
       },
     })
     if (controllers.get(key) !== ac) return null
-    useLessonUi.getState().setRun(key, { status: 'done', progress: null, results, at: Date.now() })
+    const done: CheckRun = { status: 'done', progress: null, results, at: Date.now() }
+    // before it is published: the success watch reads it as the run lands
+    if (viaSolution !== undefined) noteRunUsesSolution(done, viaSolution)
+    useLessonUi.getState().setRun(key, done)
     return results
   } catch (err) {
     if (controllers.get(key) !== ac) return null
@@ -1227,14 +1512,23 @@ export function goToAcceptance(lesson: Lesson): void {
 export async function runAcceptance(lesson: Lesson): Promise<void> {
   if (lesson.runnable === 'not-yet' || lesson.acceptance.length === 0) return
   useLessonProgress.getState().start(lesson.id)
-  const results = await runChecksInto(runKey(lesson.id), lesson.acceptance)
+  // cheer: the loaded answer passing is not the lesson — judged NOW, for the very circuit this run
+  // evaluates (the live board is read synchronously below): an undo / redo while the run is in
+  // flight cannot turn the answer's pass into an earned one, nor the learner's own into a copy
+  followLoadProvenance(useStore.getState().layout, useStore.getState().canRedo)
+  const viaSolution = passUsesSolution(lesson.id)
+  const results = await runChecksInto(runKey(lesson.id), lesson.acceptance, 'released', viaSolution)
   if (!results) return
   const passed = results.filter((r) => r.pass).length
   useLessonProgress.getState().recordCheck(lesson.id, passed, results.length)
   if (passed === results.length) {
     tick()
-    useLessonProgress.getState().complete(lesson.id)
-    showToast(t('Lesson complete — all {n} acceptance checks pass.', { n: results.length }), { duration: 4200 })
+    // the 「完成！」 badge (already up) replaces the toast
+    // a lesson already earned on the learner's own circuit stays earned (the toast then only names the answer)
+    const earned = lessonEarned(useLessonProgress.getState().lessons[lesson.id])
+    useLessonProgress.getState().complete(lesson.id, viaSolution)
+    const passText = lessonPassToast(results.length, viaSolution, earned)
+    if (passText) showToast(passText, { duration: viaSolution && !isLegacyChrome() ? 5200 : 4200 })
   } else {
     // 「驗收 3 / 5 項通過 · 查看原因」: the outcome and 最可能的原因, wherever the learner is now (LS-12)
     showToast(t('{passed} of {n} acceptance checks pass', { passed, n: results.length }), {
@@ -1254,18 +1548,32 @@ export function showAcceptanceCause(lesson: Lesson): void {
 /**
  * The current step's own check on the live circuit. `attempt` (default)
  * marks the step as tried by the learner — a failure then reads ✕; the
- * automatic re-check after a lesson load passes false.
+ * automatic re-check after a lesson load passes false. The buttons:
+ * stepCheckHands — a check that presses its inputs itself runs with every
+ * button released at power-on; an observing check sees the circuit as it is
+ * now, and when it fails on the learner's 檢查此步驟 while parts are kept
+ * pressed, in a way the button state can explain (holdsMayExplain — never a
+ * wiring / part / firmware failure), a toast says so with 〔放開〕 (product
+ * chrome).
  */
 export async function runStepCheck(lesson: Lesson, stepIndex: number, opts: { attempt?: boolean } = {}): Promise<void> {
   const step = lesson.steps[stepIndex]
   if (!step?.check || lesson.runnable === 'not-yet') return
   const key = runKey(lesson.id, step.id)
   if (opts.attempt !== false) useLessonUi.getState().markAttempted(key)
-  const results = await runChecksInto(key, [step.check])
+  const hands = stepCheckHands(step.check)
+  // what the check sees kept pressed (保持按下 — latch.ts), when it looks at the circuit as it is
+  const kept = hands === 'live' ? latchedIn(useStore.getState().layout) : []
+  const results = await runChecksInto(key, [step.check], hands)
   if (!results) return
   if (results.every((r) => r.pass)) {
     tick()
     useLessonProgress.getState().markStepDone(lesson.id, step.id)
+  } else if (kept.length > 0 && opts.attempt !== false && !isLegacyChrome() && holdsMayExplain(results)) {
+    showToast(t('{ids} is kept pressed — this step checks the circuit as it is now|latch', { ids: kept.join(t(', |list-separator')) }), {
+      duration: 5200,
+      action: { label: t('Release|latch'), run: () => void releaseLatched(kept) },
+    })
   }
 }
 

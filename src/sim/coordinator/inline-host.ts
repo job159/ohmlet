@@ -14,6 +14,7 @@ import type { CircuitLayout, ParamValue } from '../../model/types'
 import type { FirmwareImage } from '../../mcu/firmware'
 import { SimulationCoordinator } from './coordinator'
 import type { CoordinatorOptions } from './coordinator'
+import { registerTrackingTarget } from './tracking'
 import type {
   HostQuery,
   HostQueryResult,
@@ -72,6 +73,8 @@ export class InlineSimHost implements SimHost {
   private handle: unknown = null
   private lastWall: number | null = null
   private disposed = false
+  /** leave the 顯示電流 tracking registry (./tracking.ts) */
+  private readonly untrack: () => void
 
   constructor(
     private readonly callbacks: SimHostCallbacks,
@@ -84,6 +87,7 @@ export class InlineSimHost implements SimHost {
     const co = opts.coordinator
     this.coordinator =
       co instanceof SimulationCoordinator ? co : new SimulationCoordinator({ clock: this.clock, ...co })
+    this.untrack = registerTrackingTarget(this)
   }
 
   get isRunning(): boolean {
@@ -165,6 +169,10 @@ export class InlineSimHost implements SimHost {
     this.coordinator.setLogicChannels(channels)
   }
 
+  setCurrentTracking(on: boolean): void {
+    if (!this.disposed) this.coordinator.setCurrentTracking(on)
+  }
+
   query(q: HostQuery): Promise<HostQueryResult> {
     try {
       return Promise.resolve(this.coordinator.query(q))
@@ -177,6 +185,7 @@ export class InlineSimHost implements SimHost {
     this.running = false
     this.unschedule()
     this.disposed = true
+    this.untrack()
     this.coordinator.dispose()
   }
 

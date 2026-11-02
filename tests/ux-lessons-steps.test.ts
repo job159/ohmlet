@@ -180,7 +180,10 @@ describe('「拿一顆電阻」 selects what it placed (LS-11 a)', () => {
     vi.runAllTimers()
     expect(useStore.getState().mode).toEqual({ kind: 'select' })
     expect(useStore.getState().selection).toEqual(['R1'])
-    expect(lastToast()).toBe('已放置 R1——屬性面板已打開')
+    // P3 (final walkthrough): in the product chrome the opened properties sheet is the
+    // feedback, so no 「已放置…」 toast covers its one-tap value chips. The classic chrome's
+    // 'Placed R1 — its properties are open' is covered in tests/qa-lessons.test.ts.
+    expect(getToasts().some((x) => x.text.startsWith('已放置'))).toBe(false)
   })
 
   it('leaving placement another way stops watching', () => {

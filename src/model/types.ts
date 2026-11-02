@@ -263,21 +263,70 @@ export function boardConfigOf(
 export interface ComponentTelemetry {
   /** pin name → node voltage (V) */
   pinVoltages: Record<string, number>
-  /** main branch current (A) where meaningful (2-lead devices) */
+  /**
+   * main branch current (A) where meaningful (2-lead devices). LEDs (the 5 mm
+   * LED, every board's on-board LED, the RGB LED): eye-averaged — the MEAN
+   * over the last 20 ms of simulated time (devices.ts LED_EYE_S, LedWindow),
+   * so a PWM-driven LED reports its average current (what the eye and an
+   * ammeter see) and a slow blinker reads on or off; `power`, `light` and
+   * the RGB LED's `leds` / `rgb` / values iR·iG·iB are eye means too. A
+   * steady LED reads the same as an instant sample.
+   */
   current?: number
   power?: number
-  /** 0..1 visual brightness for LEDs */
+  /**
+   * 0..1 visual brightness for LEDs: the INSTANT current / 10 mA, clamped
+   * (the engine's per-step value). The classic chrome shows this scale of
+   * the eye-averaged `current` instead (src/instruments/led-light.ts
+   * classicLedBrightness), so its Current and Brightness rows agree.
+   */
   ledBrightness?: number
   /** latched true when an LED exceeded its max current */
   burned?: boolean
   /** 7-segment display: segment name (a..g, dp) → lit */
   segments?: Record<string, boolean>
+  /**
+   * 7-segment display: each segment's relative luminous intensity, like an
+   * LED's `light` — its junction current / the rated 20 mA, rounded to
+   * 0.001, NOT clamped (> 1 = over-driven). Absent = the model does not
+   * publish per-segment light (the 3D view then shows an honest ON).
+   */
+  segmentLight?: Record<'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'dp', number>
   /** chip logic outputs: pin name → high/low (for visualization) */
   outputs?: Record<string, boolean>
   /** pushbutton runtime state echo */
   pressed?: boolean
   /** buzzer is audibly driven */
   sounding?: boolean
+  /**
+   * LED-like emitters: relative luminous intensity = forward current / the
+   * part's rated continuous current (20 mA for a 5 mm LED). 0 = dark, 1 =
+   * rated (full, dazzling), > 1 = over-driven (published unclamped so the
+   * 3D view can show the harsh over-drive look). Light output of an LED is
+   * close to linear in its current; the 3D view maps it perceptually.
+   * Eye-averaged: the mean current over the last 20 ms of simulated time
+   * (see `current`), so a PWM LED fades instead of strobing. Rounded to 0.001.
+   * Absent = the model does not emit light.
+   */
+  light?: number
+  /**
+   * Thermal stress of a part with a thermal model (first-order filter of the
+   * dissipated power the solver computes), published only from 0.5 on
+   * (rounded to 0.01):
+   *  - a resistor with a power rating: body temperature rise / the rise at
+   *    rated power (RES_THERMAL_TAU = 10 s); 1 = at the rating, > 1 hotter
+   *    than the part is made for (it burns open at 10);
+   *  - an LED: junction temperature rise / the rise at its 100 °C maximum
+   *    junction temperature (LED_THERMAL_TAU = 5 s); 1 = 100 °C
+   *    (overheating), ≈ 1.67 = 150 °C (it burns open).
+   */
+  heat?: number
+  /**
+   * Damage the part's OWN model latched (or a hot state it is in): only
+   * from real electrical conditions, cleared when the simulation is reset /
+   * rebuilt (a fresh model) — see PartDamage.
+   */
+  damage?: PartDamage
 
   // ---- embedded-platform extensions (all optional, additive) ----
   /**
@@ -290,7 +339,18 @@ export interface ComponentTelemetry {
   mcu?: McuTelemetry
   /** display modules: framebuffer snapshot (bump `version` on change) */
   display?: DisplayTelemetry
-  /** sensors / motors / instruments: named scalar outputs (angle, rpm, distance, reading…) */
+  /**
+   * sensors / motors / instruments: named scalar outputs (angle, rpm,
+   * distance, reading…). LEDs: `iPeak` (A) — present only while the eye
+   * means (`current`, `light`) average a SWITCHING current (PWM / a blink:
+   * a whole on or off phase inside the 20 ms eye window and a whole on/off
+   * cycle within two windows, i.e. 25 Hz or faster), the highest
+   * instantaneous current in the window; every reader then says
+   * 平均 / average (src/instruments/led-light.ts isAveragedLed: the
+   * inspector's 電流 / 功率 / 亮度 rows with 「峰值」, the board's on-board
+   * LEDs, the 3D LED label). RGB LED: iR / iG / iB (die eye means, A), burnedR /
+   * burnedG / burnedB = 1 for each die its model burned out.
+   */
   values?: Record<string, number>
   /** addressable / RGB LEDs: packed 0xRRGGBB per LED (linear brightness already applied) */
   rgb?: number[]
@@ -298,6 +358,40 @@ export interface ComponentTelemetry {
   leds?: Record<string, number>
   /** multimeter / text displays: preformatted lines */
   text?: string[]
+  /**
+   * Terminal currents (A) the solver knows, keyed by catalog pin name;
+   * positive = conventional current flowing INTO the part at that pin; the
+   * mean over the telemetry window. Only pins whose current is computed from
+   * the real stamps appear: an ABSENT pin is UNKNOWN, never 0. A region
+   * whose loop cannot be closed honestly is published as unknown, whole: a
+   * net with an unknown pin or whose pin currents miss Kirchhoff's current
+   * law by more than 2.5 µA (current-tracker.ts KCL_HIDE_A), plus every part
+   * and net exchanging ≥ 2.5 µA with it; a chip whose output current had no
+   * honest return path stays unknown for 3 s of simulated time
+   * (SimTelemetry.flowConcealed names them). Present only while current
+   * tracking (顯示電流) is on. Drives the 顯示電流 flow layer.
+   */
+  pinCurrents?: Record<string, number>
+}
+
+/**
+ * A damage state a part's simulation model reports (ComponentTelemetry.damage):
+ *  - 'burned'      destroyed by over-current / over-power (an LED's die, a
+ *                  resistor burned open) — latched;
+ *  - 'overheating' dissipating beyond its rating right now (hot, smoking),
+ *                  not yet destroyed — clears when it cools;
+ *  - 'vented'      an electrolytic capacitor's vent opened (reverse
+ *                  voltage) — latched;
+ *  - 'overvoltage' / 'overcurrent'  a pin driven beyond its absolute maximum
+ *                  rating — the simulation no longer guarantees the part's
+ *                  behaviour — latched.
+ * `since` = simulation time (s) the state began.
+ */
+export interface PartDamage {
+  kind: 'burned' | 'overheating' | 'vented' | 'overvoltage' | 'overcurrent'
+  since: number
+  /** the pins concerned (IC pin damage), catalog pin names */
+  pins?: string[]
 }
 
 /** MCU execution state published with a board's telemetry. */
@@ -362,6 +456,36 @@ export interface SimTelemetry {
   netVoltages: Record<string, number>
   components: Record<string, ComponentTelemetry>
   issues: SimIssue[]
+  /**
+   * Wire id → current through that wire (A), signed: positive = conventional
+   * current flowing from the wire's `from` end to its `to` end. Solved per net
+   * from KCL with the pin currents at its holes / terminals (wires and strip
+   * metal as small length-proportional resistances). Absent wire = UNKNOWN,
+   * never 0: every wire of a net with an unknown pin current (a concealed
+   * region — see ComponentTelemetry.pinCurrents) is left out. Present only
+   * while current tracking (顯示電流) is on.
+   */
+  wireCurrents?: Record<string, number>
+  /**
+   * Breadboard strip / rail metal between two used holes, keyed
+   * "<holeA>><holeB>" (canonical hole refs joined by '>', e.g. "c12>e12",
+   * "top+3>top+10", "1:a5>1:d5") → current (A), positive = from holeA to
+   * holeB. Same KCL solve as wireCurrents; only segments carrying more than
+   * 1 nA are listed. A missing segment carries no current only on a net
+   * whose currents are known: on a concealed net (an unknown pin current)
+   * nothing is listed and the metal's current is UNKNOWN. Published together
+   * with wireCurrents.
+   */
+  stripCurrents?: Record<string, number>
+  /**
+   * Current tracking (顯示電流): ids of the parts whose current loop could
+   * not be closed honestly in this window, so the flow layer shows nothing
+   * for them (their pinCurrents are partly absent). The chips whose output
+   * current has no honest return path come first (the cause — e.g. a
+   * legacy chip fed through a resistor), then every part concealed with
+   * them. Absent = every loop closes (or tracking is off).
+   */
+  flowConcealed?: string[]
 }
 
 /** One oscilloscope sample: time + voltage per channel (1..4 → index 0..3). NaN = channel unattached. */

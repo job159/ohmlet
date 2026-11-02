@@ -67,6 +67,7 @@ import type {
 } from './lab-types'
 import {
   getSimHost,
+  layoutLoadCount,
   onSimHostEvent,
   peekSimHost,
   resumeAfterDebugHalt,
@@ -711,6 +712,33 @@ const lastInstance = new Map<string, ComponentInstance>()
  * board that merely reuses the id is a different object and starts empty.
  */
 const detached = new Map<string, Binding & { instance: ComponentInstance | undefined }>()
+/**
+ * One physical MCU board across its edits. Every edit (a drag, a rotation,
+ * moving the whole circuit, growing the grid) replaces the board's immutable
+ * object with a new one of the same id: that copy continues the lineage of
+ * the object it replaced. A board a wholesale load (store.loadLayout — a
+ * lesson circuit, an example, an import) brings starts a lineage of its own.
+ *
+ * `displaced`: a load took this board off while it had NO firmware. When undo
+ * brings any object of the lineage back, a binding made since then on another
+ * board under the same id (the loaded one) is not this board's: it is
+ * detached (redo restores it with that board), so 〔復原〕 gives the learner's
+ * board back as it was. Firmware loaded onto ANY copy of the board clears the
+ * flag — it is the learner's own, and follows the board through its edits
+ * and their undo as before.
+ */
+interface BoardLineage {
+  displaced: boolean
+}
+let lineages = new WeakMap<ComponentInstance, BoardLineage>()
+/**
+ * Every component object a layout this module saw held. Undo / redo only
+ * bring back such objects (history keeps the immutable references), so an
+ * object never seen before is new: an edit's copy, or a load's board.
+ */
+const seenParts = new WeakSet<ComponentInstance>()
+/** store.layoutLoadCount() as last seen by the layout subscription */
+let seenLayoutLoads = layoutLoadCount()
 /** original file bytes of every image this session (export without an IndexedDB round trip) */
 const bytesCache = new Map<string, Uint8Array>()
 /** blobs being written right now — never garbage-collected */
@@ -792,22 +820,82 @@ function bind(componentId: string, b: Binding, opts: { createHost: boolean }): v
   bindings.set(componentId, b)
   detached.delete(componentId)
   const comp = findComponent(useStore.getState().layout, componentId)
-  if (comp) lastInstance.set(componentId, comp)
+  if (comp) {
+    lastInstance.set(componentId, comp)
+    // firmware loaded onto this board (any copy of it) is its own
+    const line = lineages.get(comp)
+    if (line) line.displaced = false
+  }
   publishFirmware()
   // a host created right here already synced every binding with its boot load
   const h = opts.createHost ? getSimHost() : peekSimHost()
   if (h) syncHostFirmware(h)
 }
 
+function lineageOf(c: ComponentInstance): BoardLineage {
+  let line = lineages.get(c)
+  if (!line) {
+    line = { displaced: false }
+    lineages.set(c, line)
+  }
+  return line
+}
+
 /**
- * Drop bindings whose board left `layout` (deleted, or no longer an MCU) and
- * restore detached ones whose exact board instance came back (undo/redo).
+ * The layout went from `prev` to `next`. An edit's new copy of an MCU board
+ * (never seen, same id as a board of `prev`) continues that board's lineage;
+ * undo / redo bring back objects already seen, a load brings boards of their
+ * own. A wholesale load also marks the boards it took away while they had no
+ * firmware as displaced. The live host's reload may already have reconciled
+ * the bindings with `next` (the store's own subscription runs first): a board
+ * of `prev` had firmware when its id is still bound (the binding moved on to
+ * the loaded board), when its binding was detached from exactly this
+ * instance, or when its restore is pending.
+ */
+function followBoards(next: CircuitLayout, prev: CircuitLayout): void {
+  const loads = layoutLoadCount()
+  const loaded = loads !== seenLayoutLoads
+  seenLayoutLoads = loads
+  for (const c of prev.components) seenParts.add(c) // the boot document's parts too
+  for (const c of next.components) {
+    if (seenParts.has(c)) continue
+    seenParts.add(c)
+    if (loaded || !getEntry(c.type)?.mcu) continue
+    const before = findComponent(prev, c.id)
+    if (before && before !== c && getEntry(before.type)?.mcu) lineages.set(c, lineageOf(before))
+  }
+  if (!loaded) return
+  const kept = new Set(next.components)
+  for (const c of prev.components) {
+    if (kept.has(c) || !getEntry(c.type)?.mcu) continue
+    if (bindings.has(c.id) || detached.get(c.id)?.instance === c || c.id in pendingRestore) continue
+    lineageOf(c).displaced = true
+  }
+}
+
+/**
+ * `comp` (bound under `id`) is a board a load displaced without firmware,
+ * brought back by undo while the binding sits on another board — the loaded
+ * one, not any copy of this one.
+ */
+function bindingIsForeign(id: string, comp: ComponentInstance): boolean {
+  const line = lineages.get(comp)
+  if (!line?.displaced) return false
+  const last = lastInstance.get(id)
+  return last !== comp && (last === undefined || lineages.get(last) !== line)
+}
+
+/**
+ * Drop bindings whose board left `layout` (deleted, or no longer an MCU) —
+ * or was swapped back by undo for a board a load had displaced without
+ * firmware (bindingIsForeign) — and restore detached ones whose exact board
+ * instance came back (undo/redo).
  */
 function reconcileBindings(layout: CircuitLayout): void {
   let changed = false
   for (const [id, b] of [...bindings]) {
     const comp = findComponent(layout, id)
-    if (comp && getEntry(comp.type)?.mcu) {
+    if (comp && getEntry(comp.type)?.mcu && !bindingIsForeign(id, comp)) {
       lastInstance.set(id, comp)
       continue
     }
@@ -1481,8 +1569,10 @@ function pruneStaleChannels(layout: CircuitLayout): void {
 
 // bindings follow the document even when no host exists yet; the tray and
 // the logic channels follow wholesale circuit changes
+for (const c of useStore.getState().layout.components) seenParts.add(c)
 useStore.subscribe((state, prev) => {
   if (state.layout === prev.layout) return
+  followBoards(state.layout, prev.layout)
   reconcileBindings(state.layout)
   // a circuit REPLACED as a whole (an example, a lesson, an imported or new
   // file): none of its parts is a part of the previous document. Channels of
@@ -1547,6 +1637,9 @@ export function __rebootLabForTests(): Promise<void> {
   bindings.clear()
   detached.clear()
   lastInstance.clear()
+  lineages = new WeakMap()
+  for (const c of useStore.getState().layout.components) seenParts.add(c)
+  seenLayoutLoads = layoutLoadCount()
   syncedHost = null
   hostImages.clear()
   bytesCache.clear()

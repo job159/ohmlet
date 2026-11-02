@@ -1,9 +1,11 @@
 /**
  * SelectionPill — floating glass pill centered above the dock while the
  * multi-select holds 2+ items: "3 selected · Delete · Clear". Delete is the
- * destructive (red) action and removes the whole selection — confirmed via
- * an ActionSheet when more than 3 parts are selected; Clear just drops the
- * selection. Springs in/out on the house spring (transform/opacity only;
+ * destructive (red) action and removes the whole selection; Clear just drops
+ * the selection. Product chrome (operation simplification): Delete acts at
+ * once — one undo step brings everything back and the toast carries
+ * 〔復原〕 (edit-feedback removeSelectedWithFeedback). The classic chrome
+ * keeps its ActionSheet confirmation above 3 selected parts. Springs in/out on the house spring (transform/opacity only;
  * reduced motion collapses via the kit duration tokens), 44px touch targets,
  * haptics on press, safe-area aware. Portaled to <body> like the
  * UndoPill/Dock so it z-stacks predictably over the app shell.
@@ -14,13 +16,19 @@ import { useStore } from '../../state/store'
 import { ActionSheet, pressProps, tick, useIsDesktop } from '../kit'
 import { t, useLang } from '../../i18n'
 import { useLegacyChrome } from './legacy'
+import { removeSelectedWithFeedback } from './edit-feedback'
 import './SelectionPill.css'
 
 /** Matches the exit transition (--lg-dur-control 200ms) with a little slack. */
 const UNMOUNT_DELAY_MS = 240
 
-/** Confirm group deletes via ActionSheet above this many selected parts. */
-const CONFIRM_THRESHOLD = 3
+/** Classic chrome: confirm group deletes via ActionSheet above this many selected parts. */
+export const CONFIRM_THRESHOLD = 3
+
+/** Does a group delete of `count` items ask first? Only the classic chrome, above the threshold. */
+export function groupDeleteConfirms(count: number, legacy: boolean): boolean {
+  return legacy && count > CONFIRM_THRESHOLD
+}
 
 /**
  * Contract bridge — the concurrent store work widens `AppState.selection`
@@ -69,12 +77,14 @@ export function SelectionPill() {
   }
 
   const deleteAll = () => {
-    removeSelected()
+    // product chrome: the toast names what went, with 〔復原〕; the classic chrome stays silent
+    if (legacy) removeSelected()
+    else removeSelectedWithFeedback()
     tick(16) // delete haptic (DESIGN.md §1)
   }
 
   const onDelete = () => {
-    if (count > CONFIRM_THRESHOLD) setConfirm(true)
+    if (groupDeleteConfirms(count, legacy)) setConfirm(true)
     else deleteAll()
   }
 

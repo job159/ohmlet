@@ -56,6 +56,9 @@ export interface LessonProgressEntry {
   updatedAt: number
 }
 
+/** When the start circuit / the solution was last loaded — the two fields the answer-pass rule reads. */
+export type LessonLoadStamps = Pick<LessonProgressEntry, 'startLoadedAt' | 'solutionLoadedAt'>
+
 export interface LessonProgressState {
   lessons: Record<string, LessonProgressEntry>
   /** the lesson the coach card guides (restored on the next visit), null = none */
@@ -66,10 +69,20 @@ export interface LessonProgressState {
   setStep(id: string, step: number): void
   /** record a passed step check */
   markStepDone(id: string, stepId: string): void
-  /** record a full pass of the acceptance checks */
-  complete(id: string): void
+  /**
+   * record a full pass of the acceptance checks; `viaSolution` — whether the
+   * circuit that passed was the loaded answer, as the run saw it when it
+   * started (runAcceptance) — overrides the load stamps' rule
+   */
+  complete(id: string, viaSolution?: boolean): void
   /** the start circuit or the solution was loaded onto the board */
   loaded(id: string, which: 'start' | 'solution'): void
+  /**
+   * put back the load stamps a board had (undo / redo across a lesson load —
+   * src/ui/lessons/actions.ts followLoadProvenance): exactly these two
+   * fields, an absent one is removed
+   */
+  restoreLoadStamps(id: string, stamps: LessonLoadStamps): void
   /** record an acceptance run's score */
   recordCheck(id: string, passed: number, total: number): void
   /** remember which lesson the coach guides (null = none) */
@@ -208,10 +221,10 @@ export const useLessonProgress = create<LessonProgressState>()((set, get) => {
         stepsDone: e.stepsDone.includes(stepId) ? e.stepsDone : [...e.stepsDone, stepId],
       }))
     },
-    complete(id) {
+    complete(id, via) {
       update(id, (e, at) => {
         // the solution was loaded and no start circuit since: a copied result
-        const viaSolution = e.solutionLoadedAt !== undefined && e.solutionLoadedAt > (e.startLoadedAt ?? -1)
+        const viaSolution = via ?? (e.solutionLoadedAt !== undefined && e.solutionLoadedAt > (e.startLoadedAt ?? -1))
         const next: LessonProgressEntry = { ...e, startedAt: e.startedAt ?? at }
         if (e.completedAt === undefined) {
           next.completedAt = at
@@ -228,6 +241,16 @@ export const useLessonProgress = create<LessonProgressState>()((set, get) => {
       update(id, (e, at) =>
         which === 'start' ? { ...e, startedAt: e.startedAt ?? at, startLoadedAt: at } : { ...e, solutionLoadedAt: at },
       )
+    },
+    restoreLoadStamps(id, stamps) {
+      update(id, (e) => {
+        const next: LessonProgressEntry = { ...e }
+        if (isTime(stamps.startLoadedAt)) next.startLoadedAt = stamps.startLoadedAt
+        else delete next.startLoadedAt
+        if (isTime(stamps.solutionLoadedAt)) next.solutionLoadedAt = stamps.solutionLoadedAt
+        else delete next.solutionLoadedAt
+        return next
+      })
     },
     recordCheck(id, passed, total) {
       if (!isCount(passed) || !isCount(total) || total === 0 || passed > total) return

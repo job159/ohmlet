@@ -55,7 +55,8 @@ function buttonLayout(pin: string): CircuitLayout {
 describe('GPIO output stage', () => {
   it('push-pull high through 330 Ω lights a red LED with I ≈ (VDD − Vf)/(330 + 50)', () => {
     const { co } = make(ledLayout(), (f) => (f.pins.drives[PA5] = { mode: PIN_OUT_PP, level: 1, af: false }))
-    co.advance(0.002)
+    // past the power-up: an LED's current is its mean over the eye window (devices.ts LED_EYE_S = 20 ms)
+    co.advance(0.03)
     const t = co.telemetry()
     const led = t.components.D1
     const vf = led.pinVoltages.anode - led.pinVoltages.cathode

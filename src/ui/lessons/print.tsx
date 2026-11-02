@@ -32,6 +32,8 @@ import { sha256Hex } from '../../mcu/loader'
 import { useStore } from '../../state/store'
 import { useLab } from '../embedded/lab'
 import { wireColorLabel } from '../wire-colors'
+import { wireRoleOf } from '../wire-roles'
+import { isLegacyChrome } from '../chrome/legacy'
 import { tc } from '../format'
 import { durationText, lessonCode, runnableName } from './labels'
 import { LessonInline, LessonText } from './LessonText'
@@ -102,6 +104,16 @@ function endText(ref: string, layout: CircuitLayout): string {
   return ref.includes(':') ? terminalLabel(ref, layout) : ref
 }
 
+/**
+ * A wire's colour in the handout: the product chrome names the colour the
+ * board draws (its net's role, contract C1 — 「紅色：電源正極（5 V 網路）」);
+ * the classic chrome the stored colour.
+ */
+function wireColorText(layout: CircuitLayout, id: string, stored: string | undefined): string {
+  if (!isLegacyChrome()) return wireRoleOf(layout, id).reason
+  return stored ? wireColorLabel(stored) : '—'
+}
+
 function placeText(holes: string[] | undefined, at: string | undefined): string {
   if (holes && holes.length > 0) return holes.join('、')
   if (at) return at
@@ -148,7 +160,8 @@ function CircuitTables({ layout }: { layout: CircuitLayout }) {
                 <td translate="no">{w.id}</td>
                 <td translate="no">{endText(w.from, layout)}</td>
                 <td translate="no">{endText(w.to, layout)}</td>
-                <td>{w.color ? wireColorLabel(w.color) : '—'}</td>
+                {/* product chrome: the colour the board shows — its net's role (contract C1) */}
+                <td>{wireColorText(layout, w.id, w.color)}</td>
               </tr>
             ))}
           </tbody>

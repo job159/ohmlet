@@ -12,7 +12,7 @@ const SWITCH_CONTACT = '接點：閉合 20 S（50 mΩ）／斷開 1 nS'
 const MOS_BODY = '本體二極體：Shockley 接面 Is = 1 pA、n = 1.2（1 A 時約 0.86 V）'
 const MOS_LIMITS = ['無閘極電容與閘極電荷（瞬間切換）', '無次臨界導通、無崩潰、無熱模型']
 const NO_DISCHARGE = '無放電：未模擬容量、電量狀態與逐漸下降的放電曲線'
-const SHORT_FLAG = '電流超過 2 A 時標示為可能短路'
+const SHORT_FLAG = '電流超過 2 A 持續 10 ms 才標示為可能短路（電容剛通電的充電湧浪不算）；電流回到 2 A 以下 10 ms 後警告就解除'
 const SOURCE_ONLY = '輸出只能供出電流（不能吸入）'
 const IQ = '由 IN 流向 GND 的靜態電流 5 mA'
 
@@ -28,10 +28,14 @@ export const PARTS_ZH: Record<string, PartText> = {
     simulated: [
       '三個 LED 接面（Shockley，n = 2）接到共同端，依 10 mA 時的順向電壓擬合：紅 1.95 V、綠 3.1 V、藍 3.1 V（20 mA 時約 2.0／3.2／3.2 V）',
       '共陰極或共陽極（參數）',
-      '各晶粒亮度與電流成正比，10 mA 時全亮；環氧樹脂外殼顯示混合後的顏色',
-      '晶粒電流持續超過 30 mA 達 1 ms 以上即燒毀（仍會導通，但不再發光）',
+      '亮度 = 各晶粒電流 ÷ 額定 20 mA（20 mA 時 100 %；屬性面板顯示最亮的晶粒）；3D 中各晶粒依人眼的感受發光，環氧樹脂外殼顯示混合後的顏色',
+      '晶粒電流超過 150 mA（峰值額定）達 1 ms 以上即燒毀（仍會導通，但不再發光）',
     ],
-    limits: ['無逆向崩潰', '亮度與電流呈線性（無各色發光效率或人眼感光曲線）'],
+    limits: [
+      '無逆向崩潰',
+      '沒有接面溫度模型（5 mm LED 有）：晶粒超過額定 20 mA 不會過熱，超過 150 mA 才會燒毀',
+      '沒有各色發光效率：相同電流下每種顏色一樣亮',
+    ],
     params: { common: '共同端' },
     options: { common: { cathode: '共陰極', anode: '共陽極' } },
   },

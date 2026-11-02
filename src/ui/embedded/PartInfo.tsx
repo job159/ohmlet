@@ -46,6 +46,7 @@ import { getNetLive, netLiveText, netLiveTitle } from './instruments/net-activit
 import type { NetLive } from '../../instruments/measure'
 import type { UartRxInfo } from '../../sim/coordinator/api'
 import { fmtBrightness, fmtReadingCurrent, fmtReadingPower, fmtReadingVoltage } from './format'
+import { fmtLedLight, isAveragedLed } from '../../instruments/led-light'
 import './embedded.css'
 import './inspector.css'
 
@@ -650,7 +651,11 @@ export function SubcircuitGroup({
         const st = tele?.sub?.[el.id]
         let value = '—'
         if (st) {
-          if (st.ledBrightness !== undefined) {
+          if (typeof st.light === 'number') {
+            // the one brightness scale (F4): I / rated 20 mA, with the LED current — 「20 %（4.07 mA）」;
+            // a PWM-driven LED's current is an eye mean: 「15 %（平均 2.98 mA）」
+            value = fmtLedLight(st.light, st.current, { burned: st.burned === true, average: isAveragedLed(st) })
+          } else if (st.ledBrightness !== undefined) {
             value = fmtBrightness(st.ledBrightness)
           } else if (st.current !== undefined) {
             value = fmtReadingCurrent(st.current)

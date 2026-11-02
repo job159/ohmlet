@@ -181,9 +181,12 @@ export const ERC_RULES: readonly ErcRuleInfo[] = [
   },
   {
     id: 'over-rating',
-    title: 'Over rating (live)',
+    // not "(live)" any more: a reversed electrolytic across two rails is a
+    // static error, said before Run (rules-damage.ts, fact 'reversed:<id>')
+    title: 'Over rating',
     levels: {
-      error: 'the simulation’s own model reports the part destroyed (LED burned out)',
+      error:
+        'the simulation’s own model reports the part destroyed (an LED or RGB die burned out, a resistor burned open, an electrolytic capacitor vented); or, before Run, a polarized capacitor sits reversed by more than 1 V between two rails, so it will vent once powered',
       risk: 'measured power/current above the part’s rating, a regulator in current limit or dropout, or a GPIO driver above 25 mA',
     },
   },

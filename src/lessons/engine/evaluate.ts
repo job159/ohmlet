@@ -28,7 +28,11 @@
  *                        it), whole periods only (signal.ts);
  *        current         |I| of the part's telemetry, mean of jittered
  *                        samples over the second half of the window;
- *        led-brightness  the LED model's brightness (0..1), same sampling.
+ *        led-brightness  the LED's brightness on the app's one scale (F4):
+ *                        telemetry `light` = I / its rated 20 mA (> 1 is
+ *                        over-driven, 0 when burned), same sampling; the
+ *                        result prints it with the LED current —
+ *                        「量測值 49 %（9.70 mA）」.
  *      A voltage at a bench meter's terminal whose IN or COM lead has no
  *      connection fails without simulating: 「DMM1 IN 端還沒接線，量不到電壓」.
  *      duty / led-brightness ranges are fractions 0..1; a range whose max
@@ -69,7 +73,7 @@
  * lesson-check worker, and inline on the main thread as a fallback (where it
  * yields to the event loop every few milliseconds).
  */
-import type { CircuitLayout, ComponentInstance, ComponentTelemetry } from '../../model/types'
+import type { CircuitLayout, ComponentInstance, ComponentTelemetry, SimTelemetry } from '../../model/types'
 import { getEntry, paramOf } from '../../model/catalog'
 import { parseTerminalRef } from '../../model/breadboard'
 import { buildNetlist, type Netlist } from '../../sim/netlist'
@@ -80,6 +84,7 @@ import { ERC_LEVEL_ORDER, runErc, type ErcFinding } from '../../sim/erc'
 import { loadFirmwareFile, sha256Hex } from '../../mcu/loader'
 import type { FirmwareImage } from '../../mcu/firmware'
 import { t } from '../../i18n'
+import { fmtLedLight, fmtLight, isAveragedLed, ledFindingMessage, LED_LIGHT_RATED_A } from '../../instruments/led-light'
 import { tMessage } from '../../i18n/messages'
 import { terminalLabel } from '../../i18n/parts'
 import type { CheckResult, Lesson, LessonCheck, LessonCircuit, LessonStimulus } from '../types'
@@ -826,6 +831,18 @@ async function evalFirmwareLoaded(
   )
 }
 
+/**
+ * An LED's rated continuous current (A) — the catalog's ifMax, 100 % of the
+ * brightness scale (F4); a board's on-board LED ("U1/LED_PC13") and a part
+ * without a rating use the 5 mm LED's 20 mA.
+ */
+function ledRatedCurrent(layout: CircuitLayout, id: string): number {
+  if (id.includes('/')) return LED_LIGHT_RATED_A
+  const comp = layout.components.find((x) => x.id === id)
+  const ifMax = comp ? getEntry(comp.type)?.ratings?.ifMax : undefined
+  return typeof ifMax === 'number' && ifMax > 0 ? ifMax : LED_LIGHT_RATED_A
+}
+
 /** telemetry of a part or of a board's sub-circuit element ("U1/LED_PC13") */
 function telemetryOf(comps: Record<string, ComponentTelemetry>, id: string): ComponentTelemetry | undefined {
   const slash = id.indexOf('/')
@@ -902,13 +919,16 @@ async function measureOnce(c: MeasureCheck, ctx: EvalContext, key: string, appli
       await ctx.advanceTo(s, t1)
       return sampleStats(values)
     }
+    // an LED's min / max with the very rounding of its measured value (fmtLight, P1): 「量測值 49 %」
+    // beside 「最大 48.5 %」 would contradict itself
+    const spreadValue = (v: number): string => (q === 'led-brightness' ? fmtLight(v) : fmtMeasured(q, v, c.min, c.max))
     const withSpread = (st: SeriesStats): string =>
       st.count > 0 && Math.abs(st.max - st.min) > 1e-9 * Math.max(1, Math.abs(st.max))
         ? ` ${t('Average over {from} – {to} s of simulated time (min {min}, max {max}).', {
             from: Number(tMid.toFixed(3)),
             to: Number(t1.toFixed(3)),
-            min: fmtMeasured(q, st.min, c.min, c.max),
-            max: fmtMeasured(q, st.max, c.min, c.max),
+            min: spreadValue(st.min),
+            max: spreadValue(st.max),
           })}`
         : ''
 
@@ -992,22 +1012,47 @@ async function measureOnce(c: MeasureCheck, ctx: EvalContext, key: string, appli
 
     // current / led-brightness of a part
     const id = partId as string
+    // an LED's brightness is printed with its current (F4): the current sampled at the same instants
+    const ledCurrents: number[] = []
+    // a PWM / fast-blink LED's telemetry is the eye mean of a switching current: say 平均 as the
+    // inspector and the 3D label do (「15 %（平均 3.07 mA）」)
+    let switching = false
+    // an LED burned out at every sampled instant prints 「0 %（已燒毀）」 as the inspector, the
+    // properties panel and the 3D label do — never 「0 %（0 A）」 (a mean that still includes light
+    // from before a burn mid-window keeps its numbers)
+    let ledSamples = 0
+    let burnedSamples = 0
     const st = await averaged(() => {
       const tel = telemetryOf(s.co.telemetry().components, id)
       if (!tel) return NaN
       if (q === 'current') return tel.current === undefined ? NaN : Math.abs(tel.current)
-      return tel.ledBrightness ?? NaN
+      if (typeof tel.light !== 'number') return NaN
+      if (isAveragedLed(tel)) switching = true
+      ledSamples++
+      if (tel.burned) burnedSamples++
+      ledCurrents.push(tel.burned ? 0 : typeof tel.current === 'number' ? Math.abs(tel.current) : NaN)
+      return tel.light
     })
     if (st.count === 0) {
       const what = q === 'current' ? t('{id} reports no current.', { id }) : t('{id} reports no LED brightness.', { id })
       return result(c, key, false, what + simNotes(ctx, s), { focus })
     }
     const pass = inRange(st.mean, lo, hi)
+    let value = fmtMeasured(q, st.mean, c.min, c.max)
+    let range = expected
+    if (q === 'led-brightness') {
+      const rated = ledRatedCurrent(ctx.layout, id)
+      const iMean = sampleStats(ledCurrents).mean
+      const burned = ledSamples > 0 && burnedSamples === ledSamples
+      value = fmtLedLight(st.mean, iMean, { rated, average: switching, burned })
+      // the expected brightness with the currents it means: 「25 % – 150 %，即 5 mA – 30 mA」
+      range = t('{range}, i.e. {currents}|led-range', { range: expected, currents: fmtRange('current', lo * rated, hi * rated) })
+    }
     return result(
       c,
       key,
       pass,
-      t('Measured {value} (expected {range}).', { value: fmtMeasured(q, st.mean, c.min, c.max), range: expected }) + withSpread(st) + simNotes(ctx, s),
+      t('Measured {value} (expected {range}).', { value, range }) + withSpread(st) + simNotes(ctx, s),
       { focus },
     )
   } finally {
@@ -1197,10 +1242,12 @@ async function evalErc(c: Extract<LessonCheck, { kind: 'erc-clean' }>, ctx: Eval
   const level = c.level ?? 'error'
   const s = ctx.freshSession()
   let findings: ErcFinding[]
+  let telemetry: SimTelemetry
   let notes = ''
   try {
     await ctx.advanceTo(s, ERC_SETTLE_SECONDS, (f) => ctx.report(f))
-    findings = runErc(ctx.layout, { telemetry: s.co.telemetry(), issues: s.co.issues() })
+    telemetry = s.co.telemetry()
+    findings = runErc(ctx.layout, { telemetry, issues: s.co.issues() })
     notes = simNotes(ctx, s)
   } finally {
     s.dispose()
@@ -1219,7 +1266,8 @@ async function evalErc(c: Extract<LessonCheck, { kind: 'erc-clean' }>, ctx: Eval
         : t('No errors ({risk} risks, {info} notes).', { risk: counts.risk, info: counts.info }),
     )
   }
-  const first = bad.slice(0, 3).map((f) => tMessage(f.message))
+  // an LED's brightness on the app's one scale (F4), from the same readings — the brightness check and the inspector's percent
+  const first = bad.slice(0, 3).map((f) => tMessage(ledFindingMessage(f, telemetry)))
   return result(
     c,
     key,

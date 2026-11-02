@@ -502,9 +502,14 @@ describe('legacy catalog entries carry honest support annotations', () => {
 
   it('states the known model facts the engine actually implements', () => {
     const text = (t: string) => JSON.stringify(CATALOG[t].support)
-    expect(text('capacitor')).toMatch(/polarity is NOT modeled/)
+    // honesty F9 / F11: a reversed electrolytic now vents (its value is kept, so still 'partial'),
+    // and the LED burns from its junction temperature, not after 30 mA for 1 ms
+    expect(text('capacitor')).toMatch(/reversed by more than 1 V vents/)
+    expect(text('capacitor')).toMatch(/keeps its capacitance/)
     expect(CATALOG.capacitor.support!.level).toBe('partial')
-    expect(text('led')).toMatch(/30 mA for more than 1 ms/)
+    expect(text('led')).toMatch(/junction temperature/)
+    expect(text('led')).toMatch(/rated 20 mA/)
+    expect(text('resistor')).toMatch(/burns it open/)
     expect(text('nmos')).toMatch(/Vth = 2 V/)
     expect(text('buzzer')).toMatch(/300 Ω/)
     expect(CATALOG.buzzer.support!.level).toBe('partial')

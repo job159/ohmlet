@@ -86,6 +86,11 @@ async function lessonStep(page, lessonId, hole) {
       const s = lesson.steps.findIndex((st) => (st.highlight?.holes ?? []).includes(h) && /導線/.test(st.body))
       await A.loadLessonCircuit(lesson, 'start')
       A.startGuide(lesson, s)
+      // the load replaced the previous lesson's board, so its toast carries 〔復原〕 (operation
+      // simplification) — an actionable toast takes taps for ≥ 5 s, and on the phone it sits over
+      // the board's lower rows. This script is about 3D hole picking, not toasts: let it go first.
+      const K = await import('/src/ui/kit/toasts.ts')
+      for (const x of K.getToasts()) K.dismissToast(x.id)
       return s
     },
     [lessonId, hole],

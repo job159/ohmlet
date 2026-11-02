@@ -67,10 +67,16 @@ export const PARTS: CatalogEntry[] = [
       simulated: [
         'three LED junctions (Shockley, n = 2) to the common lead, fitted to their forward voltage at 10 mA: red 1.95 V, green 3.1 V, blue 3.1 V (≈ 2.0 / 3.2 / 3.2 V at 20 mA)',
         'common cathode or common anode (param)',
-        'per-die brightness proportional to current, full at 10 mA; the epoxy shows the mixed color',
-        'a die burns out when its current stays above 30 mA for more than 1 ms (keeps conducting, stops emitting)',
+        // the app's one brightness scale (src/instruments/led-light.ts): I / the rated 20 mA, like the 5 mm LED
+        'brightness = each die’s current / the rated 20 mA (100 % at 20 mA; the inspector shows the brightest die); in 3D each die glows as the eye sees that brightness and the epoxy shows the mixed color',
+        // src/sim/devices.ts LED_BURN_CURRENT / LED_BURN_TIME (= the 5 mm LED's gross-overload limit)
+        'a die burns out when its current stays above 150 mA (its peak rating) for more than 1 ms (keeps conducting, stops emitting)',
       ],
-      limits: ['no reverse breakdown', 'brightness is linear in current (no per-color efficiency or eye-sensitivity curve)'],
+      limits: [
+        'no reverse breakdown',
+        'no junction-temperature model (the 5 mm LED has one): a die over its 20 mA rating does not overheat, it only burns above 150 mA',
+        'no per-color luminous efficiency: the same current looks equally bright in every color',
+      ],
     },
     pinInfo: [
       { pin: 'R', kind: 'passive', note: 'Red die. Common cathode: anode of the red die. Common anode: its cathode.' },
@@ -363,7 +369,7 @@ export const PARTS: CatalogEntry[] = [
       level: 'partial',
       simulated: [
         'Thevenin cell: open-circuit voltage (param, 9 V) behind its internal resistance (param, 1.5 Ω) — the terminal voltage sags with load',
-        'flags currents above 2 A as a possible short circuit',
+        'flags a current above 2 A that lasts 10 ms as a possible short (a capacitor’s start-up surge is not one); the warning clears once the current stays under 2 A for 10 ms',
       ],
       limits: [
         'no discharge: capacity, state of charge and the falling discharge curve are not modeled',
@@ -399,7 +405,7 @@ export const PARTS: CatalogEntry[] = [
       level: 'partial',
       simulated: [
         'two cells in series as one Thevenin source: 3.0 V (param) behind 0.3 Ω (param, ≈ 0.15 Ω per alkaline cell)',
-        'flags currents above 2 A as a possible short circuit',
+        'flags a current above 2 A that lasts 10 ms as a possible short (a capacitor’s start-up surge is not one); the warning clears once the current stays under 2 A for 10 ms',
       ],
       limits: [
         'no discharge: capacity, state of charge and the falling discharge curve are not modeled',

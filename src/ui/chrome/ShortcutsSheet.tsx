@@ -76,6 +76,7 @@ export type ShortcutId =
   | 'save'
   | 'analysis-layout'
   | 'regions'
+  | 'current-flow'
 
 /** THE key table (English sources): what the sheet lists and what withKey announces. */
 export const SHORTCUTS: Readonly<Record<ShortcutId, ShortcutRow>> = {
@@ -96,6 +97,8 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, ShortcutRow>> = {
   'analysis-layout': { combos: [['Shift', 'A']], label: 'Analysis layout' },
   // F6 / Shift+F6 between the rail, the panels, the 3D view and the tray (SH-16)
   regions: { combos: [['F6'], ['Shift', 'F6']], label: 'Move between panels' },
+  // 顯示電流 — the chip beside the run capsule and 更多 → 模擬 (FlowToggle.tsx handles the key)
+  'current-flow': { combos: [['C']], label: 'Show current' },
 }
 
 /** Rows that only work in the desktop workspace (the sheet hides them elsewhere). */
@@ -108,7 +111,7 @@ export const SHORTCUT_GROUPS: readonly { title: string; rows: readonly ShortcutR
   },
   {
     title: 'View',
-    rows: [SHORTCUTS.frame, SHORTCUTS['analysis-layout'], SHORTCUTS.regions, SHORTCUTS.shortcuts],
+    rows: [SHORTCUTS.frame, SHORTCUTS['current-flow'], SHORTCUTS['analysis-layout'], SHORTCUTS.regions, SHORTCUTS.shortcuts],
   },
   {
     title: 'Editing',

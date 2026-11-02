@@ -222,8 +222,9 @@ const ELECTRICAL_RULES = `## Electrical golden rules
    rail and "-" wired to a blue (-) rail. The "-" terminal is circuit ground.
 2. Every IC's supply pins must be wired: VCC/VDD to the + rail, GND/VSS to the
    - rail (via a wire from a free hole in the pin's strip column).
-3. Every LED needs a series resistor (220Ω–1kΩ). Sustained current above 30mA
-   burns an LED out permanently.
+3. Every LED needs a series resistor (220Ω–1kΩ). Its rating is 20mA; far
+   above it the junction overheats and the LED burns out permanently (an LED
+   straight across the supply, or anything above 150mA, burns at once).
 4. A seven_segment display needs ~330Ω resistors on its segment lines (or a
    CD4511/CD4026 driver with resistors), and its COM pin wired to ground.
 5. Tie unused control pins deliberately: active-low pins (7474 CLR/PRE, 555

@@ -1,0 +1,76 @@
+/*
+ * 「保持按下」 — the keep-pressed latch toggle beside the inspector's 按住
+ * puck (controls.tsx LatchToggle, src/ui/embedded/latch.ts). The kit's glass
+ * capsule vocabulary (the .emb-chip slab), larger for a primary control:
+ * off = glass with an open padlock, on = the HOLD puck's filled blue with a
+ * closed padlock (the 3D lock badge's colour). No backdrop-filter (Tier-S).
+ */
+
+/* the 按住 puck and the toggle side by side (product chrome only) */
+.prs-holdrow.latch-holdrow {
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.latch-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 18px 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(130, 135, 152, 0.26), rgba(102, 106, 122, 0.16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(10, 132, 255, 0.45),
+    inset 0 -6px 10px -8px rgba(0, 0, 0, 0.35);
+  color: var(--label);
+  font: 600 15px/20px var(--lg-font);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  transition: transform var(--lg-dur-press) var(--lg-spring),
+    opacity var(--lg-dur-press) var(--lg-spring);
+}
+.latch-toggle-icon {
+  flex: 0 0 auto;
+  color: var(--ios-blue);
+}
+.latch-toggle[data-pressed='true'] {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+.latch-toggle.is-on {
+  background: linear-gradient(180deg, #3ea0ff, #0a84ff 56%, #0875e8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+    0 3px 12px rgba(10, 132, 255, 0.38);
+  color: #fff;
+}
+.latch-toggle.is-on .latch-toggle-icon {
+  color: #fff;
+}
+.latch-toggle:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .latch-toggle {
+    transition: none;
+  }
+  .latch-toggle[data-pressed='true'] {
+    transform: none;
+  }
+}
+
+/* the status pill's 「SW1 保持按下中」 line (StatusPill tone 'latched'): the
+   dot in the latch's blue gets the same blue halo; the 「放開」 button keeps
+   the pill's default blue tint */
+.app-status-pill.is-latched .app-pill-dot {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.28);
+}

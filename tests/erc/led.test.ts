@@ -140,9 +140,11 @@ describe('rule 2 — LED without a current-limiting element', () => {
   })
 
   it('upgrades to error and says so when the simulation burned the LED out', () => {
+    // honesty F11: the LED burns from its junction temperature or above its 150 mA peak rating —
+    // 47 Ω (66 mA) no longer burns it; 10 Ω (≈ 300 mA) does, within a millisecond
     const l = valid(
       railsWorld(
-        [part('R1', 'resistor', ['top+5', 'a40'], { resistance: 47 }), part('D1', 'led', ['b40', 'b45'])],
+        [part('R1', 'resistor', ['top+5', 'a40'], { resistance: 10 }), part('D1', 'led', ['b40', 'b45'])],
         [w('c45', 'top-5')],
       ),
     )
@@ -154,7 +156,8 @@ describe('rule 2 — LED without a current-limiting element', () => {
     expect(f, summary(f)).toHaveLength(1)
     expect(f[0].level).toBe('error')
     expect(f[0].message).toMatch(/burned it out/)
-    expect(f[0].message).toMatch(/measures \d+(\.\d+)? mA/)
+    // a burned LED is OPEN now (F11): what the simulation measures is the open junction's leakage
+    expect(f[0].message).toMatch(/measures \d+(\.\d+)? [nµm]?A/)
     // the live rule does not repeat it
     expect(ofRule(runErc(l, { telemetry }), 'over-rating')).toEqual([])
   })

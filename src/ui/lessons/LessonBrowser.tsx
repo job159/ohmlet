@@ -14,7 +14,10 @@
  *    顯示解答 / 開始引導 / 檢查我的電路; once it is (lessonOnBoard: the board
  *    descends from THIS lesson's load — release QA LS-F1) 檢查我的電路
  *    (filled) / 開始引導 / 重新載入起始電路, 顯示解答… behind ⋯
- *    (LS-14) — then the sections 目標 · 接線 · 原理 · 步驟 · 預期結果 · 常見錯誤 ·
+ *    (LS-14). Product chrome (operation simplification): 「載入完整答案」 is a
+ *    tinted button among those actions in both states (one tap — the board
+ *    it replaces is one undo away, the toast carries 〔復原〕), and the coach
+ *    card offers 「卡住了？載入完整答案」 (FullAnswerButton) — then the sections 目標 · 接線 · 原理 · 步驟 · 預期結果 · 常見錯誤 ·
  *    驗收 as a wrapping chip tab row. Steps navigate the guide (coach card +
  *    3D highlights + camera) and offer one-click actions (load a bundled
  *    firmware, ▶ run, take a part, start wiring, add analyzer channels, set a
@@ -58,6 +61,7 @@ import { useStore } from '../../state/store'
 import { useLab } from '../embedded/lab'
 import { useSimPhase, type SimPhase } from '../chrome/run-control'
 import { withKey } from '../chrome/ShortcutsSheet'
+import { useLegacyChrome } from '../chrome/legacy'
 import {
   BookIcon,
   CheckIcon,
@@ -104,6 +108,7 @@ import { CheckResults, runSummary } from './CheckResults'
 import { LessonInline, LessonText, splitFirstParagraph } from './LessonText'
 import { tc } from '../format'
 import { downloadReceipt, printLesson, readStudentName, saveStudentName } from './print'
+import { entryUsesSolution, lessonEarned, runUsesSolution } from '../fx/lesson-pass'
 import './lessons.css'
 
 /** The user asked for less motion (scrolls jump instead of gliding). */
@@ -240,6 +245,38 @@ function LessonCard({ lesson, progress, guiding }: { lesson: Lesson; progress?: 
   )
 }
 
+// ---------------------------------------------------------- the full answer
+
+/**
+ * 「載入完整答案」 (product chrome — operation simplification): the lesson's
+ * solution circuit and firmware in one tap, from the lesson header (a tinted
+ * button) or the coach card (`calm`: 「卡住了？載入完整答案」, a quiet link).
+ * The circuit it replaces is one undo away (the toast carries 〔復原〕); only a
+ * board whose loaded firmware the load would replace asks first (firmware is
+ * not part of the undo history — actions.loadNeedsConfirm). Passing with it
+ * still reads 「以解答完成」.
+ */
+export function FullAnswerButton({ lesson, calm = false }: { lesson: Lesson; calm?: boolean }) {
+  // the tooltip keeps the action's old name: it shows the solution (「以解答完成」 follows from it);
+  // it names firmware only when the lesson's answer has some (review F7: no firmware sentence without firmware)
+  const withFirmware = Object.keys(lesson.solution.firmware ?? {}).length > 0
+  const title = withFirmware
+    ? t('Show the solution: loads the lesson’s finished circuit and firmware — ↶ undoes it')
+    : t('Show the solution: loads the lesson’s finished circuit — ↶ undoes it')
+  if (calm) {
+    return (
+      <button type="button" className="lsn-link lsn-coach-answer" title={title} onClick={() => requestLoad(lesson, 'solution')}>
+        {t('Stuck? Load the full answer')}
+      </button>
+    )
+  }
+  return (
+    <PressableButton size="sm" variant="tinted" title={title} onClick={() => requestLoad(lesson, 'solution')}>
+      {t('Load the full answer')}
+    </PressableButton>
+  )
+}
+
 // ---------------------------------------------------------- the lesson view
 
 export function LessonView({ lesson, variant }: { lesson: Lesson; variant: 'panel' | 'sheet' }) {
@@ -261,6 +298,7 @@ export function LessonView({ lesson, variant }: { lesson: Lesson; variant: 'pane
   // check, the start circuit only reloads, the solution hides (LS-14)
   const layout = useStore((s) => s.layout)
   const working = useMemo(() => lessonOnBoard(lesson, layout), [lesson, layout])
+  const classic = useLegacyChrome()
 
   // the panel / sheet scroller is an ancestor: a lesson opens at its header (back, title — the
   // list may have been scrolled), a new section starts at the tab row
@@ -303,8 +341,9 @@ export function LessonView({ lesson, variant }: { lesson: Lesson; variant: 'pane
               { label: t('Print handout (student copy: no solution)'), run: () => printLesson(lesson, { student: true }) },
             ]}
           />
-          {/* while the learner works on the lesson, the solution is one deliberate step away (LS-14) */}
-          {working && (
+          {/* classic chrome: while the learner works on the lesson, the solution is one deliberate step
+              away (LS-14); the product chrome shows 「載入完整答案」 among the actions below */}
+          {working && classic && (
             <OverflowMenu label={t('More lesson actions')} items={[{ label: t('Show solution…'), run: () => requestLoad(lesson, 'solution') }]} />
           )}
         </span>
@@ -360,11 +399,17 @@ export function LessonView({ lesson, variant }: { lesson: Lesson; variant: 'pane
             <PressableButton size="sm" variant="filled" onClick={() => requestLoad(lesson, 'start')}>
               {t('Load starting circuit')}
             </PressableButton>
-            <PressableButton size="sm" variant="tinted" onClick={() => requestLoad(lesson, 'solution')}>
-              {t('Show solution')}
-            </PressableButton>
+            {classic && (
+              <PressableButton size="sm" variant="tinted" onClick={() => requestLoad(lesson, 'solution')}>
+                {t('Show solution')}
+              </PressableButton>
+            )}
           </>
         )}
+        {/* product chrome (operation simplification): the full answer is one visible tap — next to
+            載入起始電路 / 檢查我的電路, never behind a menu; the circuit it replaces is one undo away
+            (the toast carries 〔復原〕) and a pass with it still reads 「以解答完成」 */}
+        {!classic && <FullAnswerButton lesson={lesson} />}
         {lesson.steps.length > 0 && coachId !== lesson.id && (
           <PressableButton
             size="sm"
@@ -1204,11 +1249,25 @@ function StudentNameForm({ onDone, onCancel }: { onDone: (name: string) => void;
   )
 }
 
-/** The pass state: a springing check mark, the next lesson in one click (LS-4). */
+/**
+ * The pass state: a springing check mark, the next lesson in one click (LS-4).
+ * Product chrome: a pass with the loaded answer (lesson-pass.ts — the
+ * verdict the run took for the circuit it evaluated, runUsesSolution; the
+ * toast, the coach line and this headline say the same) reads
+ * 「全部 n 項條件都通過（用的是載入的解答）」 with a calm mark, never
+ * 「課程完成」, and its first action is 〔載入起始電路，自己接一次〕 (unless the
+ * lesson was already earned on the learner's own circuit: then 下一課 leads).
+ */
 function PassBlock({ lesson, total }: { lesson: Lesson; total: number }) {
   const viaSolution = useLessonProgress((s) => !!s.lessons[lesson.id]?.viaSolution)
+  const classic = useLegacyChrome()
+  const runVerdict = useLessonUi((s) => runUsesSolution(s.runs[runKey(lesson.id)]))
+  const boardAnswer = useLessonProgress((s) => entryUsesSolution(s.lessons[lesson.id]))
+  const answerPass = !classic && (runVerdict ?? boardAnswer)
+  const earned = useLessonProgress((s) => lessonEarned(s.lessons[lesson.id]))
   const next = nextLesson(lesson)
   const jump = nextLevelStart(lesson)
+  if (answerPass) return <AnswerPassBlock lesson={lesson} total={total} earned={earned} next={next} />
   return (
     <div className="lsn-pass" role="status" data-reveal>
       <div className="lsn-pass-line">
@@ -1234,6 +1293,51 @@ function PassBlock({ lesson, total }: { lesson: Lesson; total: number }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/** 〔載入起始電路，自己接一次〕: the lesson's start circuit (at once, 〔復原〕 in the toast), the guide on step 1. */
+export function BuildItYourselfButton({ lesson, variant = 'filled' }: { lesson: Lesson; variant?: 'filled' | 'tinted' | 'plain' }) {
+  return (
+    <PressableButton size="sm" variant={variant} className="lsn-build-own" onClick={() => requestLoad(lesson, 'start')}>
+      {t('Load the starting circuit and build it yourself')}
+    </PressableButton>
+  )
+}
+
+/** A pass with the loaded answer (product chrome): what passed, and the honest next step. */
+function AnswerPassBlock({ lesson, total, earned, next }: { lesson: Lesson; total: number; earned: boolean; next: Lesson | undefined }) {
+  return (
+    <div className="lsn-pass is-answer" role="status" data-reveal>
+      <div className="lsn-pass-line">
+        <span className="lsn-pass-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 9.4 7.4 12.8 14 5.6" />
+          </svg>
+        </span>
+        <span className="lsn-pass-text">{t('All {n} conditions pass (with the loaded solution)', { n: total })}</span>
+      </div>
+      {!earned && <p className="lsn-pass-note">{t('This pass used the loaded solution. Load the starting circuit and build it yourself to earn the lesson.')}</p>}
+      <div className="lsn-pass-actions">
+        {earned && next ? (
+          <>
+            <PressableButton size="sm" variant="filled" onClick={() => goToLesson(next)}>
+              {t('Next lesson: {title} →', { title: next.title })}
+            </PressableButton>
+            <BuildItYourselfButton lesson={lesson} variant="plain" />
+          </>
+        ) : (
+          <>
+            <BuildItYourselfButton lesson={lesson} />
+            {next && (
+              <PressableButton size="sm" variant="plain" onClick={() => goToLesson(next)}>
+                {t('Next lesson: {title} →', { title: next.title })}
+              </PressableButton>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1277,6 +1381,8 @@ function Acceptance({ lesson, onCheck }: { lesson: Lesson; onCheck: () => void }
     }
   }, [reveal])
   const completedAt = useLessonProgress((s) => s.lessons[lesson.id]?.completedAt)
+  const answerDone = useLessonProgress((s) => !!s.lessons[lesson.id]?.viaSolution)
+  const classic = useLegacyChrome()
   const runnable = lesson.runnable !== 'not-yet'
   const sum = runSummary(run)
   const running = run?.status === 'running'
@@ -1300,7 +1406,12 @@ function Acceptance({ lesson, onCheck }: { lesson: Lesson; onCheck: () => void }
           </div>
         ))}
       {!sum && completedAt !== undefined && !running && (
-        <div className="lsn-callout is-pass">{t('You completed this lesson on {date}.', { date: new Date(completedAt).toLocaleDateString(lang() === 'zh-TW' ? 'zh-TW' : 'en-US') })}</div>
+        // product chrome: a completion with the loaded answer is 「以解答完成」 here too, not 「你已完成」
+        !classic && answerDone ? (
+          <div className="lsn-callout">{t('Completed after loading the solution — load the starting circuit and build it yourself to earn it.')}</div>
+        ) : (
+          <div className="lsn-callout is-pass">{t('You completed this lesson on {date}.', { date: new Date(completedAt).toLocaleDateString(lang() === 'zh-TW' ? 'zh-TW' : 'en-US') })}</div>
+        )
       )}
       <CheckResults checks={lesson.acceptance} run={run} runId={key} onCancel={() => cancelRun(key)} lesson={lesson} />
       {runnable && (

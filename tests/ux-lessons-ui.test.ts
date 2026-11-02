@@ -127,7 +127,9 @@ describe('hole / terminal chips and lesson codes (LS-7)', () => {
 
   it('the checklist states what each check expects', () => {
     const b1 = lesson('b1-led-resistor')
-    expect(b1.acceptance.map(expectedText)).toEqual(['—', '220 Ω – 560 Ω', '—', '5 mA – 15 mA', '50 % – 100 %', '—'])
+    // honesty F4: the brightness check is on the app's one scale (I / rated 20 mA) — the same
+    // 5–30 mA that read 「50 % – 100 %」 of the old I / 10 mA scale
+    expect(b1.acceptance.map(expectedText)).toEqual(['—', '220 Ω – 560 Ω', '—', '5 mA – 15 mA', '25 % – 150 %', '—'])
   })
 })
 

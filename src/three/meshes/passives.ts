@@ -11,10 +11,13 @@
  */
 
 import * as THREE from 'three'
-import type { ComponentInstance } from '../../model/types'
+import type { ComponentInstance, ComponentTelemetry } from '../../model/types'
 import type { CatalogEntry } from '../../model/catalog'
 import { paramOf } from '../../model/catalog'
 import type { RoutedComponent } from '../internal/wire-router'
+import { ledHaloTexture } from './led-look'
+import { asFxSprite } from './led-glow-render'
+import { noteLookStructureChange } from '../internal/fx/registry'
 import {
   BuildResult,
   alignFrameToAxis,
@@ -259,6 +262,7 @@ export function buildResistor(
     ])
   })
   frame.add(new THREE.Mesh(bodyGeo, resistorLacquer()))
+  const heatLook = resistorHeatLook(frame, bodyGeo)
 
   const resistance = Number(paramOf(comp.params, entry, 'resistance') ?? 1000)
   const bands = resistorBandColors(resistance)
@@ -326,7 +330,141 @@ export function buildResistor(
   }
   for (const m of mergeStatic(statics)) group.add(m)
 
-  return { object: group, pinWorld: pins.map((p) => p.clone()) }
+  return { object: group, pinWorld: pins.map((p) => p.clone()), update: (_c2, _e2, t) => heatLook(t) }
+}
+
+/** the resistor's heat shells: [along the body, across it] × the body (they cover the colour bands) */
+const CHAR_SCALE = [1.004, 1.09] as const
+const GLOW_SCALE = [1.006, 1.11] as const
+
+/**
+ * vivid: a resistor's thermal state from its OWN model (telemetry `heat` =
+ * body temperature rise / the rise at rated power; `damage`):
+ *  - heat 0.8 … 2: the lacquer browns (a darkening shell) — hot, not glowing
+ *    (a ¼ W film resistor at its rating is ≈ 155 °C);
+ *  - heat ≥ 2: a dull red glow growing to orange-yellow at the burn point
+ *    (heat 4 ≈ several hundred °C) — the smoke comes from SceneFx;
+ *  - burned open: charred black body with a burnt-through gap.
+ * Shells are created lazily (a cool resistor carries no extra object) from
+ * the cached body geometry, slightly enlarged to cover the colour bands;
+ * their materials are per instance (disposed with the part). A hidden shell
+ * shrinks back onto the body and the haze is point-bounded, so a resistor
+ * that cooled (or was reset) has exactly its never-hot box (selection box,
+ * framing, the SceneFx burst origin). A shell appearing or going is a
+ * structure change (noteLookStructureChange: the Studio BVH and the
+ * Enhanced pre-pass skip list follow it).
+ */
+function resistorHeatLook(frame: THREE.Group, bodyGeo: THREE.BufferGeometry): (t: ComponentTelemetry | null) => void {
+  let char: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null = null
+  let glow: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null = null
+  let gap: THREE.Mesh | null = null
+  let haze: THREE.Sprite | null = null
+  /** which damage meshes show ('' = none): a change is a structure change */
+  let lookKey = ''
+  const cool = new THREE.Color(0xd42a00)
+  const hot = new THREE.Color(0xffc060)
+  /** show a shell at its look scale; hidden, it sits exactly on the body */
+  const setShell = (m: THREE.Mesh, on: boolean, sx: number, syz: number) => {
+    m.visible = on
+    if (on) m.scale.set(sx, syz, syz)
+    else m.scale.set(1, 1, 1)
+    m.updateMatrix()
+  }
+  const ensureHaze = () => {
+    if (haze) return haze
+    // the incandescent glow around the body: a warm tint (normal blending —
+    // an additive glow clips to white on the white board and vanishes);
+    // point-bounded and never in the SAO normal/depth pre-pass (asFxSprite)
+    haze = asFxSprite(
+      new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: ledHaloTexture(), color: 0xff6a1a, transparent: true, opacity: 0, depthWrite: false }),
+      ),
+    )
+    haze.raycast = () => {}
+    haze.userData.bbNoStudio = true
+    haze.name = 'res-haze'
+    frame.add(haze)
+    haze.updateMatrix()
+    return haze
+  }
+  const ensureChar = () => {
+    if (char) return char
+    char = new THREE.Mesh(
+      bodyGeo,
+      new THREE.MeshStandardMaterial({ color: 0x2a1a0e, roughness: 0.95, metalness: 0, transparent: true, opacity: 0, depthWrite: false }),
+    )
+    char.scale.set(CHAR_SCALE[0], CHAR_SCALE[1], CHAR_SCALE[1])
+    char.renderOrder = 1
+    char.name = 'res-char'
+    frame.add(char)
+    char.updateMatrix()
+    return char
+  }
+  const ensureGlow = () => {
+    if (glow) return glow
+    glow = new THREE.Mesh(
+      bodyGeo,
+      new THREE.MeshBasicMaterial({ color: cool.clone(), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+    )
+    glow.scale.set(GLOW_SCALE[0], GLOW_SCALE[1], GLOW_SCALE[1])
+    glow.renderOrder = 2
+    glow.raycast = () => {}
+    glow.userData.bbNoStudio = true
+    glow.name = 'res-glow'
+    frame.add(glow)
+    glow.updateMatrix()
+    return glow
+  }
+  return (t) => {
+    const burned = t?.damage?.kind === 'burned'
+    const heat = burned ? 0 : typeof t?.heat === 'number' ? t.heat : 0
+    // browning / charring
+    const charA = burned ? 1 : heat > 0.8 ? Math.min(0.75, (heat - 0.8) * 0.4) : 0
+    if (charA > 0) {
+      const c = ensureChar()
+      c.material.opacity = charA
+      c.material.color.setHex(burned ? 0x120c08 : 0x3a2412)
+      c.material.depthWrite = burned
+      setShell(c, true, CHAR_SCALE[0], CHAR_SCALE[1])
+    } else if (char) setShell(char, false, 1, 1)
+    // glowing red → orange-yellow from heat 2 to 4 (several hundred °C)
+    if (heat >= 2) {
+      const g = ensureGlow()
+      const k = Math.min(1, (heat - 2) / 2)
+      g.material.color.copy(cool).lerp(hot, k * k)
+      g.material.opacity = 0.45 + 0.55 * k
+      setShell(g, true, GLOW_SCALE[0], GLOW_SCALE[1])
+      const h = ensureHaze()
+      h.material.opacity = 0.3 + 0.45 * k
+      h.material.color.copy(cool).lerp(hot, k)
+      h.scale.setScalar(2.4 + 1.8 * k)
+      h.updateMatrix()
+      h.visible = true
+    } else {
+      if (glow) setShell(glow, false, 1, 1)
+      if (haze) haze.visible = false
+    }
+    // burnt-through gap in the middle of the body
+    if (burned && !gap) {
+      gap = new THREE.Mesh(
+        cachedGeometry('res-gap', () => {
+          const g = new THREE.CylinderGeometry(0.3, 0.3, 0.09, 16)
+          g.rotateZ(Math.PI / 2)
+          return g
+        }),
+        cachedMaterial('res-gap-mat', () => new THREE.MeshBasicMaterial({ color: 0x050403 })),
+      )
+      gap.name = 'res-gap'
+      frame.add(gap)
+      gap.updateMatrix()
+    }
+    if (gap) gap.visible = burned
+    const key = `${char?.visible ? 'c' : ''}${glow?.visible ? 'g' : ''}${gap?.visible ? 'x' : ''}`
+    if (key !== lookKey) {
+      lookKey = key
+      noteLookStructureChange()
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -740,6 +878,226 @@ function kScoreTopMaterial(): THREE.Material {
   })
 }
 
+// --- the vented can (glow2 m3) ------------------------------------------------
+
+/** the scored top disc that tears open (its radius) */
+const VENT_TOP_R = CAN_R - 0.1
+/** the K score's rays (plan angles): one diameter + two arms — the top tears between them */
+const VENT_RAYS = [Math.PI / 6, Math.PI / 2, (5 * Math.PI) / 6, (3 * Math.PI) / 2]
+/** deterministic jitter (no Math.random in cached geometry) */
+const ventHash = (n: number): number => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453
+  return x - Math.floor(x)
+}
+/** RGBA vertex colours (itemSize 4 — see bakeMergedGeometry: the path tracer merges at 4) */
+function setVertexColors(g: THREE.BufferGeometry, colorAt: (i: number) => THREE.Color): void {
+  const n = g.getAttribute('position').count
+  const arr = new Float32Array(n * 4)
+  for (let i = 0; i < n; i++) {
+    const c = colorAt(i)
+    arr[i * 4] = c.r
+    arr[i * 4 + 1] = c.g
+    arr[i * 4 + 2] = c.b
+    arr[i * 4 + 3] = 1
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(arr, 4))
+}
+
+/**
+ * The torn top: one petal between each pair of K-score rays, hinged at the
+ * rim and curled up and outward (up to ≈ 60° at the torn tip), its metal
+ * scorched dark towards the tip. Frame-local (the can's centre is the origin).
+ */
+function ventPetalsGeometry(): THREE.BufferGeometry {
+  return cachedGeometry('cap-vent-petals', () => {
+    const R = VENT_TOP_R
+    const NR = 7
+    const NT = 6
+    const y0 = CAN_H / 2 + 0.012
+    const metal = new THREE.Color(0xb4b7ba)
+    const soot = new THREE.Color(0x2e261f)
+    const parts: THREE.BufferGeometry[] = []
+    VENT_RAYS.forEach((a0, k) => {
+      const a1 = k + 1 < VENT_RAYS.length ? VENT_RAYS[k + 1] : VENT_RAYS[0] + Math.PI * 2
+      const mid = (a0 + a1) / 2
+      const reach = R * (0.74 + 0.16 * ventHash(k + 1))
+      const pos: number[] = []
+      const tOf: number[] = []
+      // walk in from the hinge along the bending strip: φ(s) = φ0 + φc · s / R
+      let rr = R
+      let yy = 0
+      for (let i = 0; i <= NR; i++) {
+        const t = i / NR
+        if (i > 0) {
+          const ds = reach / NR
+          const phi = 0.42 + 0.8 * ((i - 0.5) * ds) / R
+          rr -= ds * Math.cos(phi)
+          yy += ds * Math.sin(phi)
+        }
+        for (let j = 0; j <= NT; j++) {
+          const u = j / NT
+          // narrower towards the torn tip, a gap along each score line
+          const half = ((a1 - a0) / 2 - 0.08) * (1 - 0.5 * t)
+          const th = mid + (u * 2 - 1) * half
+          // the torn edge: the tip row ragged
+          const rag = i === NR ? (ventHash(k * 17 + j) - 0.5) * 0.06 : 0
+          pos.push((rr + rag) * Math.cos(th), y0 + yy + rag * 0.5, (rr + rag) * Math.sin(th))
+          tOf.push(t)
+        }
+      }
+      const idx: number[] = []
+      for (let i = 0; i < NR; i++) {
+        for (let j = 0; j < NT; j++) {
+          const a = i * (NT + 1) + j
+          const b = a + NT + 1
+          idx.push(a, b, a + 1, a + 1, b, b + 1)
+        }
+      }
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      g.setIndex(idx)
+      g.computeVertexNormals()
+      const c = new THREE.Color()
+      setVertexColors(g, (i) => c.copy(metal).lerp(soot, Math.min(1, Math.pow(tOf[i], 1.3) * 0.95)))
+      parts.push(g)
+    })
+    const merged = bakeMergedGeometry(parts.map((geometry) => ({ geometry })))
+    for (const g of parts) g.dispose()
+    return merged
+  })
+}
+
+/** the sleeve's radius at frame height y (the lathe profile of buildElectrolytic's sleeve) */
+function sleeveRadiusAt(y: number): number {
+  const r = CAN_R + 0.022
+  const prof: [number, number][] = [
+    [0.05, r],
+    [CAN_H * 0.78, r],
+    [CAN_H * 0.84, r - 0.09],
+    [CAN_H * 0.9, r],
+    [CAN_H * 0.94, r],
+  ]
+  const h = y + CAN_H / 2
+  for (let i = 1; i < prof.length; i++) {
+    const [h0, r0] = prof[i - 1]
+    const [h1, r1] = prof[i]
+    if (h <= h1) return h <= h0 ? r0 : r0 + ((r1 - r0) * (h - h0)) / (h1 - h0)
+  }
+  return r
+}
+
+/**
+ * Everything matte of the vented can, one vertex-coloured geometry: the dark
+ * inside where the top tore, the scorched ring over the rim, light-brown
+ * electrolyte crust round the opening and boiled over the rim, and streaks
+ * of it running down the sleeve on every side (one always faces the camera).
+ */
+function ventDebrisGeometry(): THREE.BufferGeometry {
+  return cachedGeometry('cap-vent-debris', () => {
+    const top = CAN_H / 2
+    const parts: { geometry: THREE.BufferGeometry; matrix?: THREE.Matrix4; color?: number }[] = []
+    // the dark inside of the torn can
+    const hole = new THREE.CircleGeometry(VENT_TOP_R - 0.01, 24)
+    hole.rotateX(-Math.PI / 2)
+    hole.translate(0, top + 0.02, 0)
+    parts.push({ geometry: hole, color: 0x0d0906 })
+    // the scorch ring: soot over the top roll, hugging it just outside
+    const ring = new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(CAN_R + 0.014, top - 0.09),
+        new THREE.Vector2(CAN_R + 0.006, top - 0.045),
+        new THREE.Vector2(CAN_R - 0.035, top - 0.002),
+        new THREE.Vector2(VENT_TOP_R - 0.03, top + 0.026),
+      ],
+      28,
+    )
+    parts.push({ geometry: ring, color: 0x1b130d })
+    // a rough crust lump: an icosphere with a jittered surface (by position,
+    // so the duplicated face corners move together — no cracks)
+    const lump = new THREE.IcosahedronGeometry(1, 1)
+    const lp = lump.getAttribute('position') as THREE.BufferAttribute
+    for (let i = 0; i < lp.count; i++) {
+      const x = lp.getX(i)
+      const y = lp.getY(i)
+      const z = lp.getZ(i)
+      const k = 0.72 + 0.5 * ventHash(Math.round(x * 97) * 3 + Math.round(y * 89) * 7 + Math.round(z * 83) * 11)
+      lp.setXYZ(i, x * k, y * k, z * k)
+    }
+    lump.computeVertexNormals()
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const s = new THREE.Vector3()
+    const p = new THREE.Vector3()
+    const basis = new THREE.Matrix4()
+    const yAxis = new THREE.Vector3(0, 1, 0)
+    /** dried electrolyte: light, crusty browns */
+    const CRUST = [0xb07c3e, 0x9a6a33, 0xc08d4c, 0x8a5c2c]
+    // a crust band round the opening, over the scorched ring and between the petals
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + ventHash(i) * 0.35
+      const r = VENT_TOP_R * (0.62 + 0.42 * ventHash(i + 40))
+      p.set(r * Math.cos(a), top + 0.03, r * Math.sin(a))
+      s.set(0.1 + 0.07 * ventHash(i + 7), 0.022 + 0.022 * ventHash(i + 9), 0.09 + 0.07 * ventHash(i + 11))
+      q.setFromAxisAngle(yAxis, a + ventHash(i + 13) * 2)
+      parts.push({ geometry: lump, matrix: m.clone().compose(p, q, s), color: CRUST[i % CRUST.length] })
+    }
+    // darker crust inside the hole
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.4
+      const r = 0.06 + 0.16 * ventHash(i + 60)
+      p.set(r * Math.cos(a), top + 0.028, r * Math.sin(a))
+      s.set(0.08, 0.025, 0.07)
+      q.setFromAxisAngle(yAxis, a)
+      parts.push({ geometry: lump, matrix: m.clone().compose(p, q, s), color: 0x6a4725 })
+    }
+    // boiled over the rim, then running down the sleeve as glossy streaks
+    const DRIPS = [0.3, 1.15, 1.95, 2.85, 3.7, 4.55, 5.45]
+    DRIPS.forEach((a, k) => {
+      const radial = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
+      const tangent = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a))
+      basis.makeBasis(radial, yAxis, tangent)
+      // the spill over the rim
+      p.copy(radial).multiplyScalar(CAN_R - 0.02).setY(top - 0.015)
+      parts.push({ geometry: lump, matrix: new THREE.Matrix4().makeTranslation(p.x, p.y, p.z).multiply(basis).scale(s.set(0.06, 0.06, 0.13)), color: CRUST[k % CRUST.length] })
+      // the streak: overlapping flat segments hugging the sleeve, tapering, a drop at the end
+      const L = 0.36 + 0.42 * ventHash(k + 90)
+      const n = 10
+      for (let j = 0; j <= n; j++) {
+        const t = j / n
+        const y = top - 0.06 - L * t
+        const rr = sleeveRadiusAt(y) + 0.008
+        p.copy(radial).multiplyScalar(rr).setY(y)
+        const end = j === n
+        parts.push({
+          geometry: lump,
+          matrix: new THREE.Matrix4()
+            .makeTranslation(p.x, p.y, p.z)
+            .multiply(basis)
+            .scale(s.set(end ? 0.03 : 0.016, end ? 0.055 : (L / n) * 1.6, end ? 0.05 : 0.078 - 0.034 * t)),
+          color: end ? 0x7d5229 : CRUST[(k + (j >> 2)) % CRUST.length],
+        })
+      }
+    })
+    const merged = bakeMergedGeometry(parts)
+    hole.dispose()
+    ring.dispose()
+    lump.dispose()
+    return merged
+  })
+}
+
+function ventMetalMaterial(): THREE.Material {
+  return cachedMaterial('cap-vent-metal', () =>
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0.65, roughness: 0.5, side: THREE.DoubleSide }),
+  )
+}
+
+function ventCrustMaterial(): THREE.Material {
+  return cachedMaterial('cap-vent-crust', () =>
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, metalness: 0, roughness: 0.92, side: THREE.DoubleSide }),
+  )
+}
+
 function buildElectrolytic(
   comp: ComponentInstance,
   entry: CatalogEntry,
@@ -818,6 +1176,38 @@ function buildElectrolytic(
   frame.add(sleeve)
   group.add(frame)
 
+  // vivid / glow2 (m3): a vented can (its model latched reverse-voltage
+  // venting) looks plainly blown at working zoom once the puff has cleared:
+  // the top torn open along the K score into petals curling up, the dark
+  // inside, light-brown electrolyte crust boiled over the rim and streaking
+  // down the sleeve, a scorched ring round the top. Built lazily on the
+  // first vent (two draws: the torn metal, the matte crust / soot / hole);
+  // hidden again after a reset — and collapsed onto the can's centre, so a
+  // reset can has exactly its never-vented box (selection box, framing).
+  let vent: THREE.Group | null = null
+  const ventLook = (t: ComponentTelemetry | null) => {
+    const vented = t?.damage?.kind === 'vented'
+    const was = vent?.visible === true
+    if (vented && !vent) {
+      vent = new THREE.Group()
+      vent.name = 'cap-vented'
+      const petals = new THREE.Mesh(ventPetalsGeometry(), ventMetalMaterial())
+      petals.name = 'cap-vent-petals'
+      const debris = new THREE.Mesh(ventDebrisGeometry(), ventCrustMaterial())
+      debris.name = 'cap-vent-crust'
+      vent.add(petals, debris)
+      frame.add(vent)
+      vent.traverse((o) => o.updateMatrix())
+    }
+    if (vent && vent.visible !== vented) {
+      vent.visible = vented
+      vent.scale.setScalar(vented ? 1 : 0)
+      vent.updateMatrix()
+    }
+    // the torn top appearing / going is a structure change (Studio BVH)
+    if (vented !== was) noteLookStructureChange()
+  }
+
   const statics: THREE.Object3D[] = []
   if (rp) {
     for (const leg of rp.legs) {
@@ -836,7 +1226,7 @@ function buildElectrolytic(
     }
   }
   for (const m of mergeStatic(statics)) group.add(m)
-  return { object: group, pinWorld: pins.map((p) => p.clone()) }
+  return { object: group, pinWorld: pins.map((p) => p.clone()), update: (_c2, _e2, t) => ventLook(t) }
 }
 
 // ---------------------------------------------------------------------------

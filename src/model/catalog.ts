@@ -282,6 +282,17 @@ const E = (e: CatalogEntry) => e
 // code, never from intent. Shown on library cards and in the inspector.
 // ---------------------------------------------------------------------------
 
+/**
+ * The legacy chips (555, 74xx, CD40xx, LM358) drive their outputs against the
+ * solver's 0 V reference (drivePin), so the current they drive does not pass
+ * through the supply in the SOLUTION: a bench supply's own reading (its
+ * inspector, 量測) leaves it out, while the current-flow view books it on
+ * the chip's supply pins and shows the real loop
+ * (src/sim/coordinator/current-tracker.ts). Release decision: say so plainly.
+ */
+const LEGACY_SUPPLY_READING =
+  'a bench supply’s own current reading leaves out the current these outputs drive: the solver returns it through circuit ground, not through the chip’s VCC and GND pins'
+
 /** Shared honesty notes for the behavioral logic ICs (src/sim/chips/*). */
 const LOGIC_LIMITS = [
   'behavioral, not transistor-level: inputs draw no current and the outputs draw no supply current from VCC/VDD',
@@ -289,6 +300,7 @@ const LOGIC_LIMITS = [
   'evaluated once per analog step (50 µs): no propagation delay or rise time below that',
   'outputs are ideal 50 Ω drivers referenced to circuit ground, not the chip GND pin; no fan-out limit',
   'supply below 2 V releases every output (no brown-out behavior in between)',
+  LEGACY_SUPPLY_READING,
 ]
 const LOGIC_INPUTS = 'inputs compared against 0.5·VCC; push-pull outputs (VCC / 0 V through 50 Ω)'
 const SWITCH_CONTACT = 'contact = 20 S (50 mΩ) closed / 1 nS open'
@@ -296,14 +308,25 @@ const SWITCH_CONTACT = 'contact = 20 S (50 mΩ) closed / 1 nS open'
 const LEGACY_SUPPORT: Record<string, SupportInfo> = {
   resistor: {
     level: 'full',
-    simulated: ["ideal linear resistance (Ohm's law)", 'branch current and power telemetry'],
-    limits: ['no power rating or self-heating', 'no tolerance or temperature coefficient', 'resistance clamped to 1 mΩ … 1 TΩ'],
+    simulated: [
+      "ideal linear resistance (Ohm's law)",
+      'branch current and power telemetry',
+      'self-heating against its ¼ W power rating (first-order thermal model, τ ≈ 10 s): above its rating it overheats and smokes; a sustained gross overload (the body at 10 times the rated temperature rise — 10 Ω across 12 V, 14.4 W, takes ≈ 2 s) burns it open, latched until the simulation is reset or the circuit is edited (the engine is rebuilt)',
+    ],
+    limits: [
+      'no tolerance or temperature coefficient: the resistance stays the same while it heats',
+      'resistance clamped to 1 mΩ … 1 TΩ',
+    ],
   },
   capacitor: {
     level: 'partial',
-    simulated: ['ideal capacitance (backward-Euler companion at the analog step)', 'charge persists while the simulation runs'],
+    simulated: [
+      'ideal capacitance (backward-Euler companion at the analog step)',
+      'charge persists while the simulation runs',
+      'a polarized (electrolytic) capacitor reversed by more than 1 V vents, latched until the simulation is reset or the circuit is edited (5 V reverse in ≈ 1 s, 2 V in ≈ 4 s, 1 V or less never)',
+    ],
     limits: [
-      'polarity is NOT modeled: a reversed electrolytic behaves like any capacitor (no failure)',
+      'a vented capacitor keeps its capacitance in the simulation (a real one loses it and may short)',
       'no ESR, leakage or voltage rating',
       'charge resets whenever the circuit is edited (the engine is rebuilt)',
     ],
@@ -332,10 +355,11 @@ const LEGACY_SUPPORT: Record<string, SupportInfo> = {
     level: 'full',
     simulated: [
       'Shockley junction (n = 2) fitted to the color forward voltage at 10 mA: red 1.8 V, yellow 2.0 V, green 2.2 V, blue 3.0 V, white 3.2 V',
-      'brightness proportional to current, full at 10 mA',
-      'burns out when the current stays above 30 mA for more than 1 ms (keeps conducting, stops emitting)',
+      'brightness = current / its rated 20 mA: 100 % at 20 mA, above 100 % it is over-driven (it flickers); current and brightness are the mean over the last 20 ms of simulated time, as the eye sees it: a PWM-dimmed LED fades smoothly and reads as an average, with its on-current as the peak',
+      'junction temperature from P = Vf · I (first-order: 350 K/W, τ ≈ 5 s): above 100 °C it overheats; at 150 °C it burns open (latched until the simulation is reset or the circuit is edited); above 150 mA for more than 1 ms it burns at once (31 mA from 100 Ω on 5 V never burns it)',
+      'the 3D look follows that brightness as the eye sees it (perceptual curve): dark at 0 mA; from about 0.5 mA a hot core brighter than the lens and a soft glow, both brighter and wider at every step (2, 4, 10 mA); toward 20 mA a white-hot core, rays and a dazzling flare; a white LED glows brighter than the white board, with a darker cool edge; a burned LED is charred and dark',
     ],
-    limits: ['no reverse breakdown', 'brightness is linear in current (no efficiency curve)'],
+    limits: ['no reverse breakdown', 'light output is linear in current (no efficiency droop, no dimming as it heats)'],
   },
   npn: {
     level: 'full',
@@ -369,8 +393,12 @@ const LEGACY_SUPPORT: Record<string, SupportInfo> = {
   },
   power_supply: {
     level: 'full',
-    simulated: ['ideal voltage source behind 10 mΩ', 'voltage adjustable while running', 'flags currents above 2 A as a possible short'],
-    limits: ['no current limit or foldback: a short is only flagged, never limited', 'no ripple or regulation dynamics'],
+    simulated: ['ideal voltage source behind 10 mΩ', 'voltage adjustable while running', 'flags a current above 2 A that lasts 10 ms as a possible short (a capacitor’s start-up surge is not one); the warning clears once the current stays under 2 A for 10 ms'],
+    limits: [
+      'no current limit or foldback: a short is only flagged, never limited',
+      'no ripple or regulation dynamics',
+      'its current reading leaves out the output current of the behavioral chips (555, 74xx, CD40xx, LM358): the solver returns it through circuit ground',
+    ],
   },
   function_generator: {
     level: 'full',
@@ -411,6 +439,7 @@ const LEGACY_SUPPORT: Record<string, SupportInfo> = {
       'no input bias current, offset or frequency response beyond slew limiting',
       'floating inputs read 0 V',
       'evaluated once per analog step (50 µs): tight loops with lag oscillate around the right mean',
+      LEGACY_SUPPLY_READING,
     ],
   },
   sn7400: { level: 'full', simulated: [LOGIC_INPUTS, 'four 2-input NAND gates'], limits: LOGIC_LIMITS },
@@ -575,7 +604,7 @@ export const CATALOG: Record<string, CatalogEntry> = {
     support: LEGACY_SUPPORT.led,
     // 5 mm indicator LED (e.g. Kingbright WP7113 series): IF 20 mA continuous
     ratings: { ifMax: 0.02 },
-    doc: 'LED. Anode (+) to the higher potential through a series resistor (220Ω–1kΩ); cathode (−) toward ground. Sustained current above 30mA burns it out permanently.',
+    doc: 'LED. Anode (+) to the higher potential through a series resistor (220Ω–1kΩ); cathode (−) toward ground. Rated 20 mA; far more current overheats it until it burns out (with no resistor at all, at once).',
   }),
   npn: E({
     type: 'npn',

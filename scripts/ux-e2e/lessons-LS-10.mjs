@@ -87,7 +87,8 @@ try {
   // 3. the real UI: i3 solution + the off-by-one mistake firmware → 檢查我的電路
   await page.locator('.ws-tabs').getByText('課程', { exact: true }).click()
   await page.locator('.lsn-card', { hasText: '計時器中斷' }).click()
-  await page.locator('.lsn-actions').getByRole('button', { name: /顯示解答/ }).click()
+  // operation simplification: the product chrome's one-tap 〔載入完整答案〕 (classic: 「顯示解答」)
+  await page.locator('.lsn-actions').getByRole('button', { name: /^(顯示解答|載入完整答案)$/ }).click()
   await sleep(400)
   const confirm = page.locator('[role="dialog"]').getByRole('button', { name: '載入解答' })
   if (await confirm.count()) await confirm.first().click()

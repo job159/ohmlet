@@ -308,13 +308,20 @@ export class SimEngine {
 ```
 
 Telemetry per component: pinVoltages always; `current` for 2-lead devices;
-`ledBrightness` 0..1 (≈ I/10mA clamped); `burned` latches when LED current
-> 30mA sustained for > 1ms (burned LEDs stop emitting light but still conduct);
+LEDs: `light` = I / rated 20 mA (the app's one brightness scale, not clamped),
+with `current` / `power` / `light` the mean over the last 20 ms of simulated
+time (LED_EYE_S — an eye average, so a PWM LED fades; `values.iPeak` is the
+on-current while it switches) and `ledBrightness` 0..1 the instant ≈ I/10mA
+clamped (the classic scale); `burned` latches when the junction passes about
+150 °C (LED_TJ_BURN_C, a thermal model) or more than 150 mA flows for over
+1 ms (a burned LED goes open: it stops emitting and conducting);
 `segments` for seven_segment; `outputs` from chips; `sounding` for buzzer
 (|V| > 1). Issue examples: "no power supply", "no ground", "chip U1 VCC pin
 not connected to a powered net" (checked statically), "LED D1 burned out
-(current 80mA — add a series resistor)", "supply current > 2A (short
-circuit?)".
+(current 80mA — add a series resistor)", "supply current > 2A (possible
+short circuit)" — raised only after more than 2 A has lasted 10 ms (a
+capacitor's start-up surge is not one) and withdrawn once the current stays
+under 2 A for 10 ms.
 
 Performance target: a 30-net circuit at dt=50µs must simulate ≥ 20k
 steps/sec (reuse buffers; don't allocate per step).

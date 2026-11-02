@@ -12,6 +12,8 @@
  *      (pillProblem)
  *   3. a debugger halt the problems store has not reported yet (amber,
  *      「繼續執行」 → runOrResume)
+ *   3b. a session runs (or is paused) with parts kept pressed (blue,
+ *      latch.ts): 「SW1 保持按下中」 + 「放開」 — a state, never above a problem
  *   4. nothing has run yet on a non-empty board (neutral): 「電路已就緒（空白鍵）」
  *      + 「執行模擬」 (touch screens: 「電路已就緒」, no key — the button
  *      carries the verb once, release QA SH-F10); not while a lesson coach
@@ -58,6 +60,7 @@ import { useLessonUi } from '../lessons/state'
 import { computeGeometry, useWorkspaceActive } from '../workspace/state'
 import { isWorkspaceShowing, useLegacyChrome } from './legacy'
 import { TONE_COLOR, runOrResume, stateColor, useMcuIdIn, useSimPhase, type SimPhase, type ToneState } from './run-control'
+import { latchedIn, latchedSummaryOf, releaseLatched, useLatchHolds } from '../embedded/latch'
 import './StatusPill.css'
 
 /** Matches the exit transition (--lg-dur-control 200 ms) with a little slack. */
@@ -73,7 +76,8 @@ function releaseFocus(e: MouseEvent<HTMLElement>): void {
   if (e.detail > 0) e.currentTarget.blur()
 }
 
-export type PillTone = 'error' | 'warning' | 'neutral'
+/** 'latched': parts kept pressed (保持按下) while a session runs — a state, not a problem */
+export type PillTone = 'error' | 'warning' | 'neutral' | 'latched'
 
 export interface PillAction {
   label: string
@@ -113,6 +117,11 @@ export interface PillInput {
    * 「電路已就緒」; false = say nothing yet (default true: pure callers)
    */
   settled?: boolean
+  /**
+   * parts kept pressed (保持按下 — latch.ts latchedIn): while a session runs
+   * and nothing above speaks, 「SW1 保持按下中」 + 「放開」 (default none)
+   */
+  latched?: readonly string[]
 }
 
 /** The board state an MCU state row is about (its H5 fact), else null. */
@@ -168,6 +177,7 @@ export function statusPillModel({
   guided = false,
   touch = false,
   settled = true,
+  latched = [],
 }: PillInput): PillModel | null {
   const top = pillProblem(problems)
   if (top) {
@@ -194,6 +204,19 @@ export function statusPillModel({
       more: 0,
       action: { label: t('Resume running'), run: () => runOrResume() },
       opensProblems: true,
+    }
+  }
+  // a session runs with parts kept pressed (保持按下): say so — below every problem
+  // and the halt (a held button never hides an error), with the way back
+  if (latched.length > 0 && (phase === 'running' || phase === 'paused')) {
+    const ids = [...latched]
+    return {
+      tone: 'latched',
+      dot: TONE_COLOR.blue, // the latch's blue (the 保持按下 switch, the 3D lock badge)
+      text: latchedSummaryOf(ids),
+      more: 0,
+      action: { label: t('Release|latch'), run: () => void releaseLatched(ids) },
+      opensProblems: false,
     }
   }
   // a lesson coach already says what to do next — one voice for "next step";
@@ -339,6 +362,7 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
   const coachRect = useLessonUi((s) => s.coachRect)
   const workspacePrefs = useLab((s) => s.workspace)
   const touch = !useMediaQuery('(pointer: fine)')
+  const held = useLatchHolds((s) => s.held)
   useLang()
 
   // phones: a sheet at a tall detent slides over the pill's spot (event-driven)
@@ -355,7 +379,17 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
   const settled = problemsSettled(problemsLayout, layout, firmware)
   const model = legacy
     ? null
-    : statusPillModel({ problems, counts, phase, haltedId, boardEmpty, guided: coachId != null, touch, settled })
+    : statusPillModel({
+        problems,
+        counts,
+        phase,
+        haltedId,
+        boardEmpty,
+        guided: coachId != null,
+        touch,
+        settled,
+        latched: latchedIn(layout, held),
+      })
   const phoneCoach = !isDesktop && (coachId != null || coachRect != null)
   const wanted = !legacy && !hidden && model != null && !phoneCoach && !underSheet
 

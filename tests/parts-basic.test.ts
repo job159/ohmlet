@@ -479,7 +479,8 @@ describe('batteries (Thevenin sag)', () => {
 
   it('a shorted battery is flagged like a shorted supply', () => {
     const e = new SimEngine(batLayout('battery_9v', 0.01))
-    e.step()
+    // reported once the over-current is sustained (engine SUPPLY_OVERCURRENT_HOLD_S = 10 ms — M2)
+    e.advance(0.02)
     expect(tele(e, 'B1').current!).toBeGreaterThan(5)
     expect(e.issues.some((i) => i.componentId === 'B1' && /possible short/.test(i.message))).toBe(true)
   })
@@ -711,9 +712,18 @@ describe('pc817 optocoupler', () => {
     const e = engineOf(optoLayout(330, 10_000))
     e.step()
     expect(pinV(e, 'U1', 'collector')).toBeLessThan(0.2)
+    // a converged saturation point, not a Newton iterate left past the knee
+    expect(pinV(e, 'U1', 'collector')).toBeGreaterThan(0.02)
+    expect(errorsOf(e)).toEqual([])
+    const weak = engineOf(optoLayout(1000, 10_000)) // IF ≈ 3.8 mA: still deep in saturation
+    weak.step()
+    expect(pinV(weak, 'U1', 'collector')).toBeGreaterThan(0.02)
+    expect(pinV(weak, 'U1', 'collector')).toBeLessThan(0.2)
+    expect(errorsOf(weak)).toEqual([])
     const off = engineOf(optoLayout(1e9, 10_000))
     off.step()
     expect(pinV(off, 'U1', 'collector')).toBeGreaterThan(4.99)
+    expect(errorsOf(off)).toEqual([])
   })
 
   it('the ctr param scales the output; the saturation curve is continuous', () => {

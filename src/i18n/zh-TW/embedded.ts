@@ -253,7 +253,6 @@ const zh: Record<string, string> = {
   'I²C pull-ups': 'I²C 上拉電阻',
   'Supply range': '電源電壓範圍',
   'Logic levels': '邏輯準位',
-  'Over rating (live)': '超出額定（即時）',
   'Ground reference': '共地參考',
   Unpowered: '未供電',
   // what each level means per rule (rule-title tooltips)
@@ -289,8 +288,6 @@ const zh: Record<string, string> = {
     '同上但經由電阻，或 3.3 V 輸出驅動 VIH 高於 3.3 V 的 5 V CMOS 輸入',
   'a 5 V output drives a 5 V-tolerant (FT) pin':
     '5 V 輸出驅動可耐受 5 V 的（FT）腳位',
-  'the simulation’s own model reports the part destroyed (LED burned out)':
-    '模擬模型回報元件已損毀（LED 燒毀）',
   'measured power/current above the part’s rating, a regulator in current limit or dropout, or a GPIO driver above 25 mA':
     '量測到的功率／電流超過元件額定、穩壓器處於限流或壓降不足狀態，或 GPIO 驅動電流超過 25 mA',
   'a chip’s or board’s GND pin is not connected to the circuit ground':

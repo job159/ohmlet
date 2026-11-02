@@ -50,7 +50,7 @@ export const LESSON: Lesson = {
   ),
   theory: doc(
     '**LED 是一種二極體**：電流只能從陽極（A）流向陰極（K），而且兩端電壓要達到**順向電壓 V_F** 才會明顯導通。模擬器中的 LED 在 10 mA 時 V_F 為：紅 1.8 V、黃 2.0 V、綠 2.2 V、藍 3.0 V、白 3.2 V。',
-    '**為什麼一定要限流電阻**：二極體的電流隨電壓呈指數變化——模擬器的 LED 模型中，電壓每多約 0.06 V，電流就變成約 3 倍。若把 LED 直接接在 5 V 與接地之間，沒有任何元件限制電流，電流會衝到數百 mA 以上；模擬器的 LED 在電流超過 30 mA 持續 1 ms 就會燒毀（仍會導通，但不再發光），真實的 5 mm LED 連續額定電流通常只有 20 mA。',
+    '**為什麼一定要限流電阻**：二極體的電流隨電壓呈指數變化——模擬器的 LED 模型中，電壓每多約 0.06 V，電流就變成約 3 倍。若把 LED 直接接在 5 V 與接地之間，沒有任何元件限制電流，電流會衝到數百 mA 以上，LED 立刻燒毀（燒斷後不再導通，也不會亮）。真實的 5 mm LED 連續額定電流通常只有 20 mA、絕對最大 30 mA；模擬器的亮度就以 20 mA 為 100 %，超過額定時 LED 會刺眼閃爍，電流再大，接面過熱就會燒毀。',
     '**計算限流電阻**（串聯迴路中電流處處相同）：',
     bullets(
       '電阻兩端電壓：V_R = V電源 − V_F = 5 V − 1.8 V = 3.2 V',
@@ -68,7 +68,7 @@ export const LESSON: Lesson = {
   start: { layout: START },
   solution: { layout: SOLUTION },
   expected: [
-    'LED1 電流約 9.7 mA（驗收範圍 5–15 mA），亮度約 97 %',
+    'LED1 電流約 9.7 mA（驗收範圍 5–15 mA），亮度約 49 %（以額定 20 mA 為 100 %）',
     'DMM1 讀數（LED1 兩端電壓）約 1.80 V',
     'R1 兩端電壓約 3.20 V，消耗功率約 31 mW',
     '換成 220 Ω：約 14.5 mA；換成 560 Ω：約 5.8 mA——兩者都還在 5–15 mA 的驗收範圍內',
@@ -91,9 +91,9 @@ export const LESSON: Lesson = {
       match: { ercRules: ['led-current:shorted'] },
     },
     {
-      symptom: 'LED 亮一下就熄滅，屬性面板顯示已燒毀，ERC 出現錯誤',
-      cause: '沒有串聯電阻，或用了太小的電阻（例如 100 Ω：(5 − 1.8) ÷ 100 ≈ 32 mA，超過 30 mA）',
-      fix: '串聯 330 Ω。修改電路後模擬器會重建，LED 恢復正常；真實的 LED 燒毀後無法復原，只能更換',
+      symptom: 'LED 亮得刺眼還會閃爍（亮度超過 150 %、電流超過 30 mA），或一通電就燒毀不亮；ERC 出現錯誤或風險',
+      cause: '限流電阻太小或根本沒有：用 100 Ω 時 (5 − 1.86) ÷ 100 ≈ 31 mA，超過 LED 30 mA 的絕對最大額定，長時間使用會過熱、縮短壽命；完全沒有電阻時電流只受電源內阻限制，LED 立刻燒毀',
+      fix: '串聯 330 Ω（220–560 Ω 都可以）。修改電路後模擬器會重建，燒毀的 LED 恢復正常；真實的 LED 燒毀後無法復原，只能更換',
       match: { checks: [1, 4], ercRules: ['led-current'] },
     },
     {
@@ -103,16 +103,23 @@ export const LESSON: Lesson = {
       match: { checks: [1], passes: [4], ercRules: ['led-current'] },
     },
     {
-      symptom: 'LED 幾乎不亮（亮度約 3 %），電流只有約 0.3 mA',
-      cause: '電阻值選錯，例如把 10 kΩ（棕黑橙）當成 330 Ω（橙橙棕）：(5 − 1.8) ÷ 10 kΩ ≈ 0.32 mA',
+      symptom: 'LED 很暗或幾乎不亮：電流不到 5 mA、亮度不到 25 %（例如 10 kΩ 時只有約 0.34 mA、亮度約 1.7 %）',
+      cause: '電阻值太大：例如新放的電阻預設 1 kΩ（約 3.3 mA），或把 10 kΩ（棕黑橙）當成 330 Ω（橙橙棕）：(5 − 1.62) ÷ 10 kΩ ≈ 0.34 mA（電流這麼小時，LED 的順向電壓只有約 1.62 V）',
       fix: '在屬性面板把 R1 的電阻值改成 330 Ω',
-      match: { checks: [1, 3], passes: [0] },
+      // the brightness check (4) fails too: a resistor just below 220 Ω (180 Ω, 88 %) is too BRIGHT, not too dim
+      match: { checks: [1, 3, 4], passes: [0] },
     },
     {
       symptom: 'LED 不亮，電流 0 mA，DMM1 讀數約 5 V',
       cause: 'LED 陰極那一欄沒有接到接地軌：迴路沒有閉合，電流無處可流，電阻上也就沒有壓降',
       fix: '用一條導線把 `a16`（LED 陰極那一欄）接到上方 − 電源軌，例如 `top-13`',
       match: { checks: [2], passes: [0, 1] },
+    },
+    {
+      symptom: 'LED 很亮，但電流超過本課 5–15 mA 的驗收範圍（例如 180 Ω 時約 17.6 mA、亮度約 88 %）',
+      cause: '電阻稍微偏小，例如 180 Ω：(5 − 1.83) ÷ 180 ≈ 17.6 mA。還在 LED 20 mA 的額定之內，但本課要用 220–560 Ω，把電流留在 5–15 mA',
+      fix: '把 R1 改成 330 Ω（220–560 Ω 都可以）',
+      match: { checks: [1, 3], passes: [0, 4] },
     },
   ],
   acceptance: [
@@ -146,11 +153,13 @@ export const LESSON: Lesson = {
       at: { component: 'LED1', pin: 'anode' },
       quantity: 'led-brightness',
       component: 'LED1',
-      min: 0.5,
-      max: 1,
+      // percent of the rated 20 mA (F4: the app's one brightness scale) — the same
+      // 5–30 mA as the old 50–100 % of 10 mA, whose LED burned out above 30 mA
+      min: 25,
+      max: 150,
       seconds: 0.05,
       fresh: true,
-      label: 'LED1 正常發光（沒有燒毀）',
+      label: 'LED1 正常發光：亮度 25–150 %（5–30 mA，未超過絕對最大額定）',
     },
     { kind: 'erc-clean', level: 'risk', label: '電氣規則檢查（ERC）沒有錯誤或風險' },
   ],

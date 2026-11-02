@@ -9,13 +9,17 @@
  */
 import type { PartText } from '../parts'
 
-// shared texts (catalog.ts LOGIC_LIMITS / LOGIC_INPUTS / SWITCH_CONTACT)
+// shared texts (catalog.ts LEGACY_SUPPLY_READING / LOGIC_LIMITS / LOGIC_INPUTS / SWITCH_CONTACT);
+// the supply-reading note adds where the product chrome's 顯示電流 books that current
+const LEGACY_SUPPLY_READING =
+  '電源供應器自己的電流讀數不含這些輸出驅動的電流：求解器讓它經電路接地返回，而不是經晶片的 VCC 與 GND 腳；「顯示電流」則把它算回晶片的電源腳，光點走的是真正的迴路'
 const LOGIC_LIMITS = [
   '行為模型而非電晶體層級：輸入不吸取電流，輸出也不從 VCC/VDD 汲取電源電流',
   '浮接輸入讀為 LOW（實際 TTL 浮接為 HIGH，實際 CMOS 浮接則不確定）',
   '每個類比步階（50 µs）計算一次：沒有短於此時間的傳播延遲或上升時間',
   '輸出為以電路接地（而非晶片 GND 腳位）為參考的理想 50 Ω 驅動器；沒有扇出限制',
   '電源低於 2 V 時釋放所有輸出（兩者之間沒有欠壓行為）',
+  LEGACY_SUPPLY_READING,
 ]
 const LOGIC_INPUTS = '輸入與 0.5·VCC 比較；推挽輸出（經 50 Ω 輸出 VCC／0 V）'
 const SWITCH_CONTACT = '接點：閉合 20 S（50 mΩ）／斷開 1 nS'
@@ -26,16 +30,24 @@ export const PARTS_ZH: Record<string, PartText> = {
   resistor: {
     label: '電阻',
     doc: '基本電阻。兩支接腳，各插入任一孔位。每顆 LED 都務必串聯 220Ω–1kΩ 的電阻。',
-    simulated: ['理想線性電阻（歐姆定律）', '支路電流與功率即時讀值'],
-    limits: ['無額定功率與自體發熱', '無誤差與溫度係數', '電阻值限制在 1 mΩ … 1 TΩ'],
+    simulated: [
+      '理想線性電阻（歐姆定律）',
+      '支路電流與功率即時讀值',
+      '依 ¼ W 額定功率模擬自體發熱（一階熱模型，τ 約 10 秒）：超過額定會過熱冒煙；持續嚴重過載（本體溫升達額定的 10 倍——10 Ω 接 12 V、14.4 W 約 2 秒）會燒斷成開路，直到重置模擬或修改電路（模擬引擎重建）',
+    ],
+    limits: ['無誤差與溫度係數：發熱時電阻值不變', '電阻值限制在 1 mΩ … 1 TΩ'],
     params: { resistance: '電阻值' },
   },
   capacitor: {
     label: '電容',
     doc: '電容。有極性（電解）電容的 p1 為 +、p2 為 −。用於 555 計時：t ≈ 1.1·R·C。',
-    simulated: ['理想電容（類比步階的後向尤拉等效模型）', '模擬執行期間保留電荷'],
+    simulated: [
+      '理想電容（類比步階的後向尤拉等效模型）',
+      '模擬執行期間保留電荷',
+      '有極性（電解）電容反接超過 1 V 會洩壓爆開，直到重置模擬或修改電路（反接 5 V 約 1 秒、2 V 約 4 秒，1 V 以下不會）',
+    ],
     limits: [
-      '未模擬極性：反接的電解電容與一般電容表現相同（不會損壞）',
+      '爆開後模擬仍沿用原本的容值（實際的電容會失去容量，還可能短路）',
       '無 ESR、漏電流與耐壓',
       '每次編輯電路時電荷都會重置（模擬引擎重建）',
     ],
@@ -72,13 +84,14 @@ export const PARTS_ZH: Record<string, PartText> = {
   },
   led: {
     label: '發光二極體 LED',
-    doc: 'LED。陽極（+）經串聯電阻（220Ω–1kΩ）接到較高電位；陰極（−）接往接地。持續超過 30mA 的電流會使其永久燒毀。',
+    doc: 'LED。陽極（+）經串聯電阻（220Ω–1kΩ）接到較高電位；陰極（−）接往接地。額定電流 20 mA；電流遠大於額定會過熱而燒毀（完全沒有電阻時會立刻燒毀）。',
     simulated: [
       'Shockley 接面（n = 2），依顏色擬合 10 mA 時的順向電壓：紅 1.8 V、黃 2.0 V、綠 2.2 V、藍 3.0 V、白 3.2 V',
-      '亮度與電流成正比，10 mA 時全亮',
-      '電流持續超過 30 mA 達 1 ms 以上即燒毀（仍會導通，但不再發光）',
+      '亮度 = 電流 ÷ 額定 20 mA：20 mA 時 100 %，超過 100 % 為過載（會閃爍）；電流與亮度是最近 20 ms（模擬時間）的平均，和眼睛看到的一樣：PWM 調光的 LED 平順地變亮變暗，讀數寫「平均」，導通時的電流寫「峰值」',
+      '由 P = Vf · I 計算接面溫度（一階：350 K/W，τ 約 5 秒）：超過 100 °C 會過熱；達 150 °C 燒斷成開路（直到重置模擬或修改電路）；電流超過 150 mA 達 1 ms 以上立刻燒毀（5 V 串 100 Ω 的 31 mA 不會燒毀）',
+      '3D 外觀依人眼的感受呈現這個亮度：0 mA 全暗，約 0.5 mA 起有比燈殼更亮的亮核與柔和的光暈，每增加一級（2、4、10 mA）都更亮、更大；接近 20 mA 時亮核轉為白熱，出現光芒與刺眼的星芒；白色 LED 的光比白色麵包板更亮，邊緣帶較深的冷色；燒毀的 LED 焦黑不亮',
     ],
-    limits: ['無逆向崩潰', '亮度與電流呈線性（無發光效率曲線）'],
+    limits: ['無逆向崩潰', '發光量與電流呈線性（無效率衰減，發熱時也不會變暗）'],
     params: { color: '顏色' },
     options: { color: { red: '紅色', green: '綠色', yellow: '黃色', blue: '藍色', white: '白色' } },
   },
@@ -105,7 +118,8 @@ export const PARTS_ZH: Record<string, PartText> = {
   pushbutton: {
     label: '按鈕（輕觸開關）',
     doc: '跨在中央溝槽上的瞬時型輕觸按鈕。`at` = 腳位 A1 的孔位（f 列）。佔用 e、f 兩列的第 at 與 at+2 欄。按下時 A 側與 B 側導通。A1/A2 在內部相連，B1/B2 亦同。本體也蓋住中間一欄（at+1 的 e、f 列）——這兩個孔位請保持空著。',
-    simulated: [`A 側 ↔ B 側，${SWITCH_CONTACT}`, '執行中可切換按下狀態'],
+    // the product chrome's words for a press and the keep-pressed latch (inspector 按住 / 保持按下, 3D double-click)
+    simulated: [`A 側 ↔ B 側，${SWITCH_CONTACT}`, '執行中可按住，或雙擊／打開「保持按下」讓它一直按著'],
     limits: ['無接點彈跳'],
     params: { pressed: '按下' },
   },
@@ -129,8 +143,12 @@ export const PARTS_ZH: Record<string, PartText> = {
   power_supply: {
     label: '直流電源供應器',
     doc: '可調式桌上型直流電源，置於麵包板外。將其端子（"ID:+" 與 "ID:-"）接到電源軌，例如 {"from":"PS1:+","to":"top+0"}。其 "-" 端子定義電路接地。每個電路都需要恰好一台。',
-    simulated: ['理想電壓源串聯 10 mΩ', '執行中可調整電壓', '電流超過 2 A 時標示為可能短路'],
-    limits: ['無限流或折返保護：短路只會被標示，不會被限制', '無漣波與穩壓動態'],
+    simulated: ['理想電壓源串聯 10 mΩ', '執行中可調整電壓', '電流超過 2 A 持續 10 ms 才標示為可能短路（電容剛通電的充電湧浪不算）；電流回到 2 A 以下 10 ms 後警告就解除'],
+    limits: [
+      '無限流或折返保護：短路只會被標示，不會被限制',
+      '無漣波與穩壓動態',
+      '電流讀數不含行為模型晶片（555、74xx、CD40xx、LM358）輸出的電流：求解器讓它經電路接地返回；「顯示電流」的光點則照真正的迴路流動',
+    ],
     params: { voltage: '電壓' },
   },
   function_generator: {
@@ -177,6 +195,7 @@ export const PARTS_ZH: Record<string, PartText> = {
       '無輸入偏壓電流與偏移電壓，除迴轉率限制外也沒有頻率響應',
       '浮接輸入讀為 0 V',
       '每個類比步階（50 µs）計算一次：帶延遲的緊密迴路會在正確平均值附近振盪',
+      LEGACY_SUPPLY_READING,
     ],
   },
   sn7400: {

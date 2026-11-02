@@ -21,7 +21,7 @@
  * mouse) and a circuit from a "previous session" on the board. The steps then
  * use only what a user uses: the library cards, clicks on breadboard holes and
  * terminal posts (aimed through the `?shotrig` camera rig, exactly where the
- * 3D scene draws them), the wire tool and its colour swatches, the
+ * 3D scene draws them), the wire tool (the circuit picks each colour), the
  * inspector's file picker / Run / Reset / HOLD controls, the status capsule,
  * the instrument tray and the More panel (Save project → a real download,
  * Open project… → a real file chooser).
@@ -72,20 +72,28 @@ const PLAN = {
   psu: { type: 'power_supply' },
 }
 
-/** [from, to, colour swatch index (0 red, 1 black, 2 yellow, 3 green, 4 blue, 5 white), meaning] */
+/**
+ * [from, to, the role of its net, meaning]. Nothing is picked: the product
+ * chrome colours a wire by its net's role (src/ui/wire-roles.ts) — supply
+ * red, ground black, a plain signal purple / teal / pink / brown / gray.
+ */
 const WIRES = [
-  ['PS:+', 'bot+0', 0, '電源 + → 下方紅色電源軌'],
-  ['PS:-', 'bot-0', 1, '電源 − → 下方藍色接地軌'],
-  ['j27', 'bot+21', 0, 'Blue Pill 5V（h27）→ +5 V 電源軌'],
-  ['j28', 'bot-22', 1, 'Blue Pill GND（h28）→ 接地軌'],
-  ['a20', 'a33', 2, 'PA5（c20）→ 電阻 R1'],
-  ['j37', 'bot-29', 1, 'LED 陰極 → 接地軌'],
-  ['j10', 'j45', 4, 'PB12（h10）→ 按鈕 A 側'],
-  ['j47', 'bot-37', 1, '按鈕 B 側 → 接地軌'],
+  ['PS:+', 'bot+0', 'supply', '電源 + → 下方紅色電源軌'],
+  ['PS:-', 'bot-0', 'ground', '電源 − → 下方藍色接地軌'],
+  ['j27', 'bot+21', 'supply', 'Blue Pill 5V（h27）→ +5 V 電源軌'],
+  ['j28', 'bot-22', 'ground', 'Blue Pill GND（h28）→ 接地軌'],
+  ['a20', 'a33', 'signal', 'PA5（c20）→ 電阻 R1'],
+  ['j37', 'bot-29', 'ground', 'LED 陰極 → 接地軌'],
+  ['j10', 'j45', 'signal', 'PB12（h10）→ 按鈕 A 側'],
+  ['j47', 'bot-37', 'ground', '按鈕 B 側 → 接地軌'],
 ]
-const WIRE_COLORS = ['red', 'black', 'yellow', 'green', 'blue', 'white']
+/** the colours each role may get (wire-roles.ts ROLE_COLOR / SIGNAL_PALETTE) */
+const ROLE_COLORS = { supply: ['red'], ground: ['black'], signal: ['purple', 'teal', 'pink', 'brown', 'gray'] }
+const ROLE_ZH = { supply: '電源正（紅色）', ground: '地（黑色）', signal: '訊號（紫、青綠等訊號色）' }
 /** zh-TW colour names for the report */
-const COLOR_ZH = { red: '紅色', black: '黑色', yellow: '黃色', green: '綠色', blue: '藍色', white: '白色' }
+const COLOR_ZH = { red: '紅色', black: '黑色', purple: '紫色', teal: '青綠色', pink: '粉紅色', brown: '棕色', gray: '灰色' }
+/** the colour the circuit gave each wire (step 4), for the report: `${from}>${to}` → colour */
+const wireColorSeen = new Map()
 
 /**
  * Overview camera for report screenshots: [px, py, pz, tx, ty, tz] (plan
@@ -470,18 +478,25 @@ async function runOnce(browser, runIndex, shotDir) {
     expect(s0.layout.components.length > 0, '啟動時應載入前一次工作階段的電路')
     say(rec, `啟動時麵包板上有前一次工作階段留下的電路：${s0.layout.components.length} 個元件、${s0.layout.wires.length} 條導線（examples/blinky-555.json）。`)
     const more = await openMore(page)
+    // the product chrome clears at once and offers 〔復原〕 (2026-11-02: no double check); it
+    // still asks first when loaded firmware would be lost — answer that sheet if it appears
     await more.getByText('清空麵包板', { exact: true }).click()
     const confirm = page.locator('.lg-asheet-btn.is-destructive', { hasText: '清空麵包板' })
-    await confirm.waitFor({ state: 'visible' })
-    await sleep(300)
-    await confirm.click()
+    const undo = page.locator('.lg-toast').getByRole('button', { name: '復原' })
+    await Promise.race([confirm.waitFor({ state: 'visible' }), undo.waitFor({ state: 'visible' })])
+    if (await confirm.isVisible()) {
+      await sleep(300)
+      await confirm.click()
+    }
     await until(page, async (p) => ((await state(p)).layout.components.length === 0 ? true : null), '麵包板清空')
+    const undoOffered = await undo.isVisible()
+    expect(undoOffered, '清空後應提示〔復原〕')
     await closeMore(page)
     const s1 = await state(page)
     expect(s1.layout.components.length === 0 && s1.layout.wires.length === 0, '清空後仍有元件或導線')
     expect(Object.keys(s1.firmware).length === 0, '清空後仍有韌體綁定')
     expect(s1.running === false && s1.simTime === 0, '清空後模擬應停止且時間歸零')
-    say(rec, '透過「更多 → 清空麵包板 → 確認」建立新專案：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。')
+    say(rec, '透過「更多 → 清空麵包板」建立新專案（不再二次確認，提示附〔復原〕）：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。')
     await shot(rec, '01-new-project', '新專案：空白麵包板（桌面工作區，繁體中文介面）')
   })
 
@@ -556,11 +571,14 @@ async function runOnce(browser, runIndex, shotDir) {
     let s = await state(page)
     expect(s.mode.kind === 'wire', '點「導線」後應進入接線模式')
     const resolve = (ref) => ref.replace(/^PS:/, `${ids.psu}:`)
-    for (const [a, b, color] of WIRES) {
+    // no colour to pick: the wire strip is a legend
+    const strip = page.locator('.app-wire-strip')
+    expect((await strip.locator('.app-swatch').count()) === 0, '接線模式不應有色票可選（顏色由電路決定）')
+    const legend = (await strip.innerText()).replace(/\s+/g, ' ')
+    expect(/紅＝電源正/.test(legend) && /黑＝地/.test(legend), `接線列應顯示圖例「紅＝電源正　黑＝地　其他顏色＝訊號」，實際「${legend}」`)
+    for (const [a, b, role] of WIRES) {
       const from = resolve(a)
       const to = resolve(b)
-      await page.locator('.app-wire-strip [role="radio"]').nth(color).click()
-      await sleep(120)
       await clickEndpoint(page, from)
       s = await state(page)
       expect(s.mode.kind === 'wire' && s.mode.from === from, `接線起點應為 ${from}（實際 ${s.mode.from}）`)
@@ -573,15 +591,16 @@ async function runOnce(browser, runIndex, shotDir) {
       const w = s.layout.wires[s.layout.wires.length - 1]
       const ok = (w.from === from && w.to === to) || (w.from === to && w.to === from)
       expect(ok, `新導線應連接 ${from} ↔ ${to}，實際 ${w.from} ↔ ${w.to}`)
-      expect(w.color === WIRE_COLORS[color], `導線顏色應為 ${WIRE_COLORS[color]}，實際 ${w.color}`)
+      expect(ROLE_COLORS[role].includes(w.color), `導線 ${from} → ${to} 應自動上色為${ROLE_ZH[role]}，實際 ${w.color}`)
+      wireColorSeen.set(`${a}>${b}`, w.color)
     }
     await page.keyboard.press('Escape')
     await sleep(200)
     s = await state(page)
     expect(s.layout.wires.length === WIRES.length, `應有 ${WIRES.length} 條導線，實際 ${s.layout.wires.length}`)
     expect(s.mode.kind === 'select', '按 Esc 後應離開接線模式')
-    for (const [a, b, color, meaning] of WIRES) say(rec, `${resolve(a)} → ${resolve(b)}（${COLOR_ZH[WIRE_COLORS[color]]}）：${meaning}`)
-    say(rec, `共 ${s.layout.wires.length} 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成，並以色票選擇導線顏色。`)
+    for (const [a, b, , meaning] of WIRES) say(rec, `${resolve(a)} → ${resolve(b)}（${COLOR_ZH[wireColorSeen.get(`${a}>${b}`)]}）：${meaning}`)
+    say(rec, `共 ${s.layout.wires.length} 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成；顏色由電路自動決定（電源正紅、地黑、訊號用其他顏色），不需選色。`)
     await shot(rec, '04-wired', '接線完成：電源、5V/GND、PA5 → 330 Ω → LED → GND、PB12 → 按鈕 → GND', { cam: CAM_OVERVIEW, settle: 400 })
   })
 
@@ -1100,7 +1119,7 @@ function writeReport(runs, meta) {
   lines.push('')
   lines.push('| 導線 | 顏色 | 用途 |')
   lines.push('| --- | --- | --- |')
-  for (const [a, b, c, m] of WIRES) lines.push(`| ${a.replace('PS:', 'PS1:')} → ${b} | ${COLOR_ZH[WIRE_COLORS[c]]} | ${m} |`)
+  for (const [a, b, role, m] of WIRES) lines.push(`| ${a.replace('PS:', 'PS1:')} → ${b} | ${COLOR_ZH[wireColorSeen.get(`${a}>${b}`)] ?? ROLE_ZH[role]} | ${m} |`)
   lines.push('')
   lines.push('韌體行為（`lab-acceptance`）：72 MHz；開機輸出 `boot ok` 與 `mode=0 blink 2 Hz`；PA5 依模式 0 → 1 → 2 → 3 為 2 Hz 閃爍 / 5 Hz 閃爍 / 恆亮 / 熄滅，按鈕（PB12，EXTI 下降緣，30 ms 去彈跳）切換模式並由 USART1 115200 8N1 回報；PC13 板載 LED 每秒亮 50 ms 作為心跳。所有時序都在 SysTick 中斷內完成，與 UART 輸出無關。')
   lines.push('')

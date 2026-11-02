@@ -259,6 +259,14 @@ export interface SimHost {
   setLogicChannels(channels: LogicChannelConfig[]): void
   query(q: HostQuery): Promise<HostQueryResult>
   dispose(): void
+  /**
+   * OPTIONAL (additive, 顯示電流 — contract C2): track element currents
+   * (SimulationCoordinator.setCurrentTracking) so frames carry
+   * ComponentTelemetry.pinCurrents and SimTelemetry.wireCurrents /
+   * stripCurrents. Hosts also follow ./tracking.ts (the flow preference)
+   * on their own; solutions never change.
+   */
+  setCurrentTracking?(on: boolean): void
 }
 
 // ======================================================================

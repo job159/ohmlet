@@ -70,6 +70,8 @@ import { pinLabel } from '../../i18n/parts'
 import type { McuFrameInfo, SimLogEntry } from '../../sim/coordinator/api'
 import { buildNetlist, type Netlist } from '../../sim/netlist'
 import { firmwareModesSettled, inSystemMemory, MODE_SETTLE_S, runErc, type ErcFinding } from '../../sim/erc'
+import { pinDamageFromIssues } from '../../sim/erc/rules-damage'
+import { ledFindingMessage } from '../../instruments/led-light'
 import type { FirmwareRecord } from '../../state/lab-types'
 import { canSwapLeads, useStore } from '../../state/store'
 import { onLangChange, t } from '../../i18n'
@@ -675,13 +677,14 @@ function tidyCjk(text: string): string {
 }
 
 /** One ERC finding as a problem (error→error, risk→warning, info→info). */
-export function ercProblem(f: ErcFinding, layout?: CircuitLayout): Problem {
+export function ercProblem(f: ErcFinding, layout?: CircuitLayout, telemetry?: SimTelemetry | null): Problem {
   const p: Problem = {
     id: `erc:${f.id}`,
     level: f.level === 'error' ? 'error' : f.level === 'risk' ? 'warning' : 'info',
     source: 'erc',
     title: tidyCjk(readablePins(ercTitle(f), f, layout, 'short')),
-    detail: tidyCjk(readablePins(tMessage(f.message), f, layout, 'full')),
+    // an LED's brightness on the app's one scale (F4), the inspector's percent
+    detail: tidyCjk(readablePins(tMessage(ledFindingMessage(f, telemetry)), f, layout, 'full')),
     componentIds: [...f.componentIds],
     holes: [...f.holes],
     rule: f.rule,
@@ -711,6 +714,11 @@ const SIM_ISSUE_FACTS: readonly [RegExp, (m: RegExpExecArray, id: string | null)
   [/^no (ground|power supply)\b/, () => 'power:*'],
   [/^(\S+) (\S+): driver (?:sources|sinks) [\d.]+ mA/, (m) => `overcurrent:${m[1]}:${m[2]}`],
   [/^LED (\S+) burned out/, (m) => `burned:${m[1]}`],
+  // vivid damage facts: a resistor's thermal model burned it open, an electrolytic vented,
+  // a board pin measured beyond its absolute maximum (one row with the ERC's finding of it)
+  [/^(\S+) burned open \(/, (m) => `burned:${m[1]}`],
+  [/^(\S+) vented: /, (m) => `vented:${m[1]}`],
+  [/^(\S+) (\S+): -?[\d.]+ V (?:exceeds |is below VSS − 0\.3 V)/, (m) => `absmax:${m[1]}:${m[2]}`],
   [/^supply (\S+) current > 2A/, (m) => `overcurrent-supply:${m[1]}`],
   // a CMOS input of a part (74HC595, a display driver) left floating (IN-16)
   [/^.+? input (\S+) is floating \(CMOS inputs must be driven\)/, (m, id) => (id ? `float:${id}:${m[1]}` : null)],
@@ -787,7 +795,7 @@ function fold(root: Problem, head: string, items: readonly string[]): void {
 export function deriveProblemsDetailed(input: ProblemsInput): { problems: Problem[]; cleared: Problem[] } {
   const layout = input.layout
   const out: Problem[] = []
-  for (const f of input.findings) out.push(ercProblem(f, layout))
+  for (const f of input.findings) out.push(ercProblem(f, layout, input.telemetry))
 
   const powerErc = input.findings.some((f) => (f.rule === 'unpowered' || f.rule === 'ground-reference') && f.level === 'error')
   // the raw message of each simulator row (folding reads it)
@@ -1079,6 +1087,21 @@ export function deriveProblemsDetailed(input: ProblemsInput): { problems: Proble
     }
     return merged
   })
+
+  // ---- damage honesty (vivid): a board pin the simulation MEASURED beyond its
+  // absolute maximum rating (DS5319 Table 7) — the chip may be damaged and the
+  // model's behaviour is no longer a promise; said once, on the row of that fact
+  const damaged = pinDamageFromIssues(input.issues)
+  if (damaged.length > 0) {
+    for (const p of rows) {
+      const m = p.fact ? /^(absmax|overcurrent):([^:]+):(.+)$/.exec(p.fact) : null
+      if (!m || !damaged.some((d) => d.componentId === m[2] && d.pin === m[3])) continue
+      p.detail = appendSentence(
+        p.detail,
+        t('Beyond its absolute maximum rating a real chip’s pin may already be damaged — from here on the simulation no longer guarantees how {id} behaves. Fix the cause, then reset the simulation.', { id: m[2] }),
+      )
+    }
+  }
 
   // ---- actions the rows' facts call for
   for (const p of rows) {

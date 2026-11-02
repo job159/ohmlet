@@ -128,9 +128,11 @@ describe('SC-12 chip texts through H1 / H3 / H4', () => {
     expect(holeChipTextFor(LAYOUT, 'PS1:+')).toBe('PS1 positive terminal')
   })
 
-  it('a part body or a wire in select mode: the neutral 「… · 點一下選取」 chip', () => {
+  it('a part body or a wire in select mode: the 「… · 點一下選取」 chip; a wire names its role (product chrome)', () => {
     expect(objectChipText('U1')).toBe('U1 · STM32F103C8T6 Blue Pill 開發板 · 點一下選取')
-    expect(objectChipText('W3')).toBe('導線 W3 · 點一下選取')
+    // the wire's automatic colour and why (F16 wire roles, the purple-first signal palette — term table:
+    // 紫色／青綠色／粉紅色／棕色／灰色 = 一般訊號), the same sentence the inspector shows
+    expect(objectChipText('W3')).toBe('導線 W3 · 紫色：訊號（U1 PA6）· 點一下選取')
     expect(objectChipText('nope')).toBeNull()
     __setLangForTests('en')
     expect(objectChipText('W3')).toBe('Wire W3 · Click to select')

@@ -33,7 +33,8 @@ describe('rule 7 — over-rating from telemetry', () => {
 
   it('a 1 Ω load: the engine’s > 2 A supply warning becomes a finding', () => {
     const l = valid(railsWorld([part('R1', 'resistor', ['top+5', 'top-5'], { resistance: 1 })]))
-    const f = ofRule(runErc(l, simulate(l)), 'over-rating')
+    // the engine reports a supply's over-current once it is SUSTAINED (SUPPLY_OVERCURRENT_HOLD_S = 10 ms — M2)
+    const f = ofRule(runErc(l, simulate(l, 0.02)), 'over-rating')
     expect(f.map((x) => x.id).sort(), summary(f)).toEqual(['over-rating:PS1:supply', 'over-rating:R1:p'])
   })
 

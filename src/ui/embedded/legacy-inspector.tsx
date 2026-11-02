@@ -50,6 +50,7 @@ import { t, useLang } from '../../i18n'
 import { tMessage } from '../../i18n/messages'
 import { partSupport } from '../../i18n/parts'
 import { fmtEng, fmtVolts } from '../format'
+import { classicLedBrightness } from '../../instruments/led-light'
 import { useLab } from './lab'
 import { firmwareDescriptionText, noTranslate, pinFunctionText, pinModeLabel, pinNameText, tc, tNodes, tText } from './text'
 import { fmtAddr, fmtBytes, fmtCount, fmtMHz, fmtRealtime, parseAddress, type McuStateMeta } from './format'
@@ -898,7 +899,10 @@ export function LegacySubcircuitGroup({ entry, tele }: { entry: CatalogEntry; te
         let value = '—'
         if (st) {
           if (st.ledBrightness !== undefined) {
-            value = `${Math.round(Math.max(0, Math.min(1, st.ledBrightness)) * 100)} %`
+            // the classic I ÷ 10 mA percent of the same eye-averaged current the classic
+            // inspector's LED row and 3D label show (a PWM-driven on-board LED does not flicker)
+            const lb = classicLedBrightness(st) ?? st.ledBrightness
+            value = `${Math.round(Math.max(0, Math.min(1, lb)) * 100)} %`
           } else if (st.current !== undefined) {
             value = fmtEng(st.current, 'A')
             if (st.power !== undefined) value += ` · ${fmtEng(st.power, 'W')}`

@@ -1590,32 +1590,29 @@ html:lang(zh) .lg-caption2 {
 }
 /* narrow screens (product chrome, ToastHost wide): a pill sizes to its text
    up to the toast width — not to half the viewport, which is all the
-   left: 50% host offers a shrink-to-fit child — and an action label moves
-   under the message as a full-width row */
+   left: 50% host offers a shrink-to-fit child. An action label stays a
+   compact button at the pill's end (the message wraps beside it): a
+   full-width action row would sit over the board's lower rows on a phone
+   and catch the taps a lesson asks for right after a load 〔復原〕 */
 @media (max-width: 480px) {
   .lg-toast-host.is-wide .lg-toast {
     width: max-content;
     max-width: min(86vw, 420px);
   }
   .lg-toast.has-action {
-    flex-wrap: wrap;
-    justify-content: center;
-    row-gap: 0;
-    padding-right: 16px;
     border-radius: 20px;
   }
   .lg-toast.has-action > span {
-    flex: 1 1 0;
-    min-width: 60%;
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .lg-toast.has-action > .lg-toast-action {
-    flex: 1 0 calc(100% + 32px);
+    min-width: 56px;
+    min-height: 40px;
     justify-content: center;
-    margin: 7px -16px -9px;
-    padding: 9px 12px;
-    border-left: 0;
-    border-top: 0.5px solid rgba(255, 255, 255, 0.2);
-    border-radius: 0 0 20px 20px;
+    margin: -9px 0 -9px 2px;
+    padding: 0 14px;
+    border-radius: 0 20px 20px 0;
   }
 }
 

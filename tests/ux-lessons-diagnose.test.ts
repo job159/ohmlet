@@ -81,10 +81,21 @@ describe('b1: the likely cause of each documented mistake', () => {
     expect(d.mistake?.symptom).toBe(symptom(1))
   })
 
-  it('100 Ω burns the LED; 150 Ω is above the rating; 10 kΩ is too dim', LONG, async () => {
+  // honesty F11: 100 Ω (31 mA) over-drives the LED (it no longer burns it) — the same mistake row
+  it('100 Ω over-drives the LED; 150 Ω is above the rating; 10 kΩ is too dim', LONG, async () => {
     expect((await diagnose(b1, edit(b1.solution, setParam('R1', 'resistance', 100)))).mistake?.symptom).toBe(symptom(2))
     expect((await diagnose(b1, edit(b1.solution, setParam('R1', 'resistance', 150)))).mistake?.symptom).toBe(symptom(3))
     expect((await diagnose(b1, edit(b1.solution, setParam('R1', 'resistance', 10000)))).mistake?.symptom).toBe(symptom(4))
+  })
+
+  // second pass (truth): 180 Ω (17.6 mA, brightness 88 %) used to read 「LED 幾乎不亮」 — the dim-LED row
+  // matched any failing current; it now needs the brightness check to fail too, and 180 Ω has its own row
+  it('a resistor just below 220 Ω is too bright, not too dim; 1 kΩ (the default) is too dim', LONG, async () => {
+    const r180 = await diagnose(b1, edit(b1.solution, setParam('R1', 'resistance', 180)))
+    expect(r180.results[4].pass).toBe(true) // brightness 88 %
+    expect(r180.mistake?.symptom).toBe(symptom(6))
+    expect(r180.mistake?.symptom).toContain('180 Ω 時約 17.6 mA')
+    expect((await diagnose(b1, edit(b1.solution, setParam('R1', 'resistance', 1000)))).mistake?.symptom).toBe(symptom(4))
   })
 
   it('cathode not grounded', LONG, async () => {

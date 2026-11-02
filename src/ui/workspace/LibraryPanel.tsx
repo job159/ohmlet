@@ -66,6 +66,9 @@ import {
   type LibraryExample,
 } from './examples'
 import type { WorkspacePrefs } from '../../state/lab-types'
+import type { CircuitLayout } from '../../model/types'
+import { useLegacyChrome, isLegacyChrome } from '../chrome/legacy'
+import { editCue, firmwareAtRisk, firmwareRiskDialog, undoableToast } from '../chrome/edit-feedback'
 
 type LeftTab = WorkspacePrefs['left']['tab']
 
@@ -247,7 +250,12 @@ function LibraryTab({ searchRef }: { searchRef?: React.RefObject<HTMLInputElemen
     if (supportOf(entry).level === 'dev') return
     tick()
     if (armedType === entry.type) setMode({ kind: 'select' })
-    else setMode({ kind: 'place', type: entry.type, pickedHoles: [] })
+    else {
+      // an off-board part (supply, meter…) is placed by arming it: that is its placement commit
+      const before = useStore.getState().layout.components.length
+      setMode({ kind: 'place', type: entry.type, pickedHoles: [] })
+      if (useStore.getState().layout.components.length > before) editCue('place')
+    }
   }
   const dragToPlace = useDragToPlace(suppressClick)
 
@@ -410,6 +418,7 @@ function useDragToPlace(suppressClick: React.MutableRefObject<boolean>) {
         const comps = useStore.getState().layout.components
         if (comps.length > before) {
           tick()
+          editCue('place')
           st.setMode({ kind: 'select' })
           st.select(comps[comps.length - 1].id)
         }
@@ -604,6 +613,19 @@ const DIFFICULTY_TAG: Record<ExampleDifficulty, string> = {
 }
 
 /**
+ * Does 範例 → 開啟 ask before replacing `layout`? Never for an empty board.
+ * The classic chrome asks for any other board. The product chrome (review
+ * F7 — 「刪除／載入不要 double check」, exactly like 載入完整答案) opens at
+ * once — the circuit is one undo step away and the toast carries 〔復原〕 —
+ * and asks only when the board's loaded firmware would be overwritten (an
+ * import replaces every binding; firmware is not in the undo history).
+ */
+export function exampleOpenAsks(layout: CircuitLayout, firmware: Readonly<Record<string, unknown>>, legacy: boolean): boolean {
+  if (!boardHasContent(layout)) return false
+  return legacy || firmwareAtRisk(layout, firmware, null).length > 0
+}
+
+/**
  * Examples — the curated library (src/ui/workspace/examples.ts): search,
  * category + difficulty filters, one section per category, cards that
  * expand to the description / instruments / firmware, and "Open example"
@@ -632,6 +654,12 @@ export function ExampleLibrary({
 }) {
   const importProject = useLab((s) => s.importProject)
   useLang()
+  const legacy = useLegacyChrome()
+  // the boards whose loaded firmware an example would overwrite (an import replaces every binding) —
+  // the one thing undo cannot bring back, so the only reason to ask (review F7); a string: re-renders only when it changes
+  const firmware = useLab((s) => s.firmware)
+  const riskKey = useStore((s) => firmwareAtRisk(s.layout, firmware, null).join(','))
+  const atRisk = riskKey ? riskKey.split(',') : []
   const [query, setQuery] = useState('')
   const [cat, setCat] = useState<ExampleCatFilter>('all')
   const [level, setLevel] = useState<ExampleLevelFilter>('any')
@@ -687,6 +715,8 @@ export function ExampleLibrary({
 
   const open = async (ex: LibraryExample) => {
     setBusy(ex.key)
+    // a board that held something: the toast offers 〔復原〕 (product chrome — the import is one undo step)
+    const replaced = boardHasContent(useStore.getState().layout)
     const res = await openLibraryExample(ex, importProject)
     setBusy(null)
     const title = exampleTitle(ex, t)
@@ -696,13 +726,16 @@ export function ExampleLibrary({
     }
     tick()
     const fw = firmwareWarnings(res.warnings)
-    showToast(fw.length > 0 ? t('Opened “{title}” — firmware not loaded: {error}', { title, error: tMessage(fw[0]) }) : t('Opened “{title}”', { title }))
+    const text = fw.length > 0 ? t('Opened “{title}” — firmware not loaded: {error}', { title, error: tMessage(fw[0]) }) : t('Opened “{title}”', { title })
+    if (replaced && !isLegacyChrome()) undoableToast(text, useStore.getState().layout)
+    else showToast(text)
     onOpened?.(ex)
   }
   const request = (ex: LibraryExample) => {
-    if (boardHasContent(useStore.getState().layout)) setConfirm(ex)
+    if (exampleOpenAsks(useStore.getState().layout, useLab.getState().firmware, isLegacyChrome())) setConfirm(ex)
     else void open(ex)
   }
+  const risk = confirm && !legacy && atRisk.length > 0 ? firmwareRiskDialog(exampleTitle(confirm, t), atRisk, firmware) : null
 
   return (
     <div className={sheet ? 'ws-lib psh-examples' : 'ws-lib'} ref={listRef}>
@@ -799,9 +832,18 @@ export function ExampleLibrary({
       ))}
 
       <div className="ws-note lg-caption">
-        {t(
-          'Opening an example replaces the current circuit and its firmware. Every example runs on the real simulation; the firmware examples carry the exact ELF built from their CubeIDE-style projects.',
-        )}
+        {legacy
+          ? t(
+              'Opening an example replaces the current circuit and its firmware. Every example runs on the real simulation; the firmware examples carry the exact ELF built from their CubeIDE-style projects.',
+            )
+          : // product chrome: the firmware sentence only when firmware is really on the board (F7)
+            [
+              t('Opening an example replaces the current circuit — ↶ brings it back.'),
+              atRisk.length > 0 ? t('The firmware loaded on {boards} cannot be undone — opening asks first.', { boards: atRisk.join(t(', ')) }) : '',
+              t('Every example runs on the real simulation; the firmware examples carry the exact ELF built from their CubeIDE-style projects.'),
+            ]
+              .filter(Boolean)
+              .join(lang() === 'en' ? ' ' : '')}
       </div>
 
       <ActionSheet
@@ -809,13 +851,15 @@ export function ExampleLibrary({
         onDismiss={() => setConfirm(null)}
         desktop={sheet ? desktop : true}
         anchor="left"
-        title={t('Replace the current circuit?')}
+        title={risk ? risk.title : t('Replace the current circuit?')}
         message={
-          confirm
-            ? t('“{title}” replaces the circuit on the board (undo brings it back) and the loaded firmware.', {
-                title: exampleTitle(confirm, t),
-              })
-            : undefined
+          risk
+            ? risk.message
+            : confirm
+              ? t('“{title}” replaces the circuit on the board (undo brings it back) and the loaded firmware.', {
+                  title: exampleTitle(confirm, t),
+                })
+              : undefined
         }
         actions={[
           {

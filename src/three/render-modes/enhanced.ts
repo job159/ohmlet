@@ -24,6 +24,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import { enhancedShadowMapSize } from './capability'
+import { disposeGlowBackground } from '../meshes/led-glow-render'
 import type { RenderContext } from './types'
 
 /** CC0 studio HDRI (Poly Haven `studio_small_03`, 1k) — see RENDER-MODES.md. */
@@ -342,6 +343,9 @@ export class EnhancedPipeline {
     this.bloomPass.renderTargetBright.dispose()
     for (const t of this.bloomPass.renderTargetsHorizontal) t.dispose()
     for (const t of this.bloomPass.renderTargetsVertical) t.dispose()
+    // …and the LED glow's copy of this HDR target's background (up to a
+    // full-target RGBA16F texture; the next HDR glow frame re-creates it)
+    disposeGlowBackground()
   }
 
   /**

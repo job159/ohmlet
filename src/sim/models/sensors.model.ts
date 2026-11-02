@@ -25,7 +25,7 @@
  * firmware wrote and the pin edges it made.
  */
 import { registerDigitalDevice } from '../digital/api'
-import { BaseDevice, G_OFF, G_ON, registerDevice } from '../devices'
+import { BaseDevice, bookBranch, G_OFF, G_ON, registerDevice } from '../devices'
 import type { StampContext } from '../mna'
 import type { ComponentInstance, ComponentTelemetry, ParamValue, SimIssue } from '../../model/types'
 import type { CatalogEntry } from '../../model/catalog'
@@ -81,6 +81,19 @@ class JoystickDevice extends BaseDevice {
     this.stampPot(ctx, this.nodes[2], this.x)
     this.stampPot(ctx, this.nodes[3], this.y)
     ctx.addConductance(this.nodes[4], this.nodes[0], this.pressed ? G_ON : G_OFF)
+  }
+
+  /** every track half and the SW contact on their own pins (two pins tied to one net) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    for (const [wiper, pos] of [
+      [2, this.x],
+      [3, this.y],
+    ]) {
+      const w = JoystickDevice.wiper(pos)
+      bookBranch(out, off, this.nodes, x, 1, wiper, 1 / (JOYSTICK_R * (1 - w) + POT_END_R))
+      bookBranch(out, off, this.nodes, x, wiper, 0, 1 / (JOYSTICK_R * w + POT_END_R))
+    }
+    bookBranch(out, off, this.nodes, x, 4, 0, this.pressed ? G_ON : G_OFF)
   }
 
   endStep(x: Float64Array): void {
@@ -163,6 +176,12 @@ class Acs712Device extends BaseDevice {
     ]
     let rhs = vt
     for (const [n, j] of ctrl) rhs -= j * vAt(x, n)
+    const l = this.lin
+    l[0] = jc
+    l[1] = jg
+    l[2] = jp
+    l[3] = jm
+    l[4] = rhs
     // i_out = go·(vt(x) − Vout) injected into OUT, returned through GND
     ctx.addElement(o, o, go)
     ctx.addElement(g, o, -go)
@@ -173,6 +192,27 @@ class Acs712Device extends BaseDevice {
     }
     ctx.addCurrent(o, go * rhs)
     ctx.addCurrent(g, -go * rhs)
+  }
+
+  /** last stamp's linearization of vt: ∂/∂[VCC, GND, IP+, IP−] and the constant */
+  private readonly lin = new Float64Array(5)
+
+  /**
+   * Pins [VCC, OUT, GND, IP+, IP−], each branch on its own pins (IP− and
+   * GND both on 0 V — sensing the low side): the primary conductor, the
+   * supply current and the output source of the last stamp at x.
+   */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const n = this.nodes
+    bookBranch(out, off, n, x, 3, 4, 1 / ACS712_RP)
+    bookBranch(out, off, n, x, 0, 2, ACS712_ICC / 5)
+    const l = this.lin
+    const go = 1 / ACS712_ROUT
+    // into OUT: go·(Vout − vt(x)); the same current leaves through GND
+    const vt = l[0] * vAt(x, n[0]) + l[1] * vAt(x, n[2]) + l[2] * vAt(x, n[3]) + l[3] * vAt(x, n[4]) + l[4]
+    const i = go * (vAt(x, n[1]) - vt)
+    out[off + 1] += i
+    out[off + 2] -= i
   }
 
   endStep(x: Float64Array): void {

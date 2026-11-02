@@ -25,6 +25,7 @@ import type { ErcFinding, ErcLevel } from './api'
 import type { Circuit, Edge, PartNode } from './graph'
 import { fmtA, fmtOhm, fmtV, teleOf } from './graph'
 import { fmtCurrent, fmtVoltage } from '../../instruments/format'
+import { fmtLight } from '../../instruments/led-light'
 import { e12AtLeast, listText, makeFinding } from './finding'
 import { conditionalCount, reach } from './paths'
 import type { Reach } from './paths'
@@ -32,6 +33,7 @@ import { STM32F1_GPIO } from '../../mcu/pins'
 
 /** Design current used for the series-resistor suggestion (A) — the LED model's full brightness. */
 const DESIGN_CURRENT = 0.01
+
 
 interface LedSubject {
   part: PartNode
@@ -172,12 +174,28 @@ export function checkLeds(c: Circuit, out: ErcFinding[]): void {
       }
     }
 
+    // the brightness on the app's one scale (telemetry `light` = I / the rated
+    // 20 mA, src/instruments/led-light.ts) in the inspector's own form, so the
+    // raw finding rows (ERC panel, a lesson's 最可能的原因) read the percent the
+    // inspector prints; below 10 % the inspector prints one decimal, which the
+    // sentence's zh-TW template (whole percent) cannot carry — then the
+    // current alone is quoted
+    const lightPct = tele && typeof tele.light === 'number' && !burned ? fmtLight(tele.light) : ''
+    const brightness = /^\d+ %$/.test(lightPct) ? ` (brightness ${lightPct})` : ''
     const measured =
       tele && typeof tele.current === 'number' && Number.isFinite(tele.current) && subj.part.entry.sim.kind === 'device' && subj.part.entry.sim.model === 'led'
-        ? ` The simulation measures ${fmtCurrent(Math.abs(tele.current), { plain: true })} through it right now` +
-          `${typeof tele.ledBrightness === 'number' && !burned ? ` (brightness ${Math.round(tele.ledBrightness * 100)} %)` : ''}.`
+        ? ` The simulation measures ${fmtCurrent(Math.abs(tele.current), { plain: true })} through it right now${brightness}.`
         : ''
-    const burnText = burned ? ' The simulation’s LED model has already burned it out (over 30 mA for more than 1 ms).' : ''
+    // the LED model's burn-out in the words every burn sentence uses (here,
+    // rules-live; zh-TW messages-erc.ts LED_BURN_RULE_ZH): the junction-
+    // temperature model of src/sim/devices.ts — LED_TJ_BURN_C 150 °C, reached
+    // only far above the rating for seconds (31 mA from 100 Ω on 5 V never
+    // burns it) — or the gross overload LED_PEAK_CURRENT 150 mA held for
+    // LED_PEAK_TIME 1 ms (an LED straight across a supply). Literal text, so
+    // tests/i18n/messages-static.test.ts sees the whole sentence.
+    const burnText = burned
+      ? ' The simulation’s LED model has already burned it out (its junction passed about 150 °C, far over its rating for seconds, or more than 150 mA flowed for over 1 ms).'
+      : ''
 
     if (shorted.length > 0) {
       const names = shorted.map((e) => subj.name(e))
@@ -276,7 +294,7 @@ export function checkLeds(c: Circuit, out: ErcFinding[]): void {
           rule: 'led-current',
           level: 'error',
           key: id,
-          message: `${id} burned out in the simulation (over 30 mA for more than 1 ms) — its series resistance is too small for the voltage driving it. Use a larger series resistor.${measured}`,
+          message: `${id} burned out in the simulation (its junction passed about 150 °C, far over its rating for seconds, or more than 150 mA flowed for over 1 ms) — its series resistance is too small for the voltage driving it. Use a larger series resistor.${measured}`,
           short: `${id} burned out`,
           fact: `burned:${id}`,
           componentIds: [id],

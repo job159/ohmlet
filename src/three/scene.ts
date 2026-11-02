@@ -71,7 +71,13 @@ import type {
 } from './scene-api'
 import { buildBoard, type BoardBuild } from './internal/board'
 import { SpawnFX, type PuffRect } from './internal/spawn-fx'
+// vivid: damage / heat / sound / celebration FX + per-frame part animators
+import { SceneFx, partBodyBounds } from './internal/fx/scene-fx'
+import { onSceneFx } from './internal/fx/bus'
+import { lookStructureRevision } from './internal/fx/registry'
+import { disposeGlowBackground } from './meshes/led-glow-render'
 import { HoleIndex } from './internal/hole-index'
+import { LatchGesture, makeLatchMark, sizeLatchMark, type LatchPress } from './internal/latch-mark'
 import {
   TERMINAL_TOP_Y,
   WIRE_TIP_LEN,
@@ -113,7 +119,10 @@ import {
   type ScreenChip,
 } from './internal/hole-fx'
 import { RenderModeManager, type RenderModeId } from './render-modes/manager'
+import { CurrentFlowLayer } from './internal/current-flow'
+import { useFlowView } from '../ui/fx/flow'
 import { fmtPercent } from '../instruments/format'
+import { classicLedBrightness, fmtLedLight, isAveragedLed } from '../instruments/led-light'
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -219,6 +228,31 @@ const PREVIEW_RADIUS = 0.07
 const SELECT_EMISSIVE = 0x2f6bff
 const SELECT_INTENSITY = 0.55
 const SELECT_BOX_PAD = 0.35
+/** glow2 (m2): the selection outline of a damaged part — a steady rim (view-angle width, see hologram.ts) */
+const SELECT_OUTLINE_WIDTH = 0.0042
+
+/** does a part's own model report damage (burned, vented, overheating, pin over-stress)? */
+function isDamagedTelemetry(ct: ComponentTelemetry | null | undefined): boolean {
+  return !!ct && (ct.damage !== undefined || ct.burned === true)
+}
+
+let selOutlineMat: THREE.ShaderMaterial | null = null
+/**
+ * The selection outline material (page lifetime, like hologram.ts's caches):
+ * the outline-hull program in the selection blue, steady (no pulse) — the
+ * same shader as the problem / lesson rims, so no new program.
+ */
+function selectionOutlineMaterial(): THREE.ShaderMaterial {
+  if (selOutlineMat) return selOutlineMat
+  const mat = makeOutlineMaterial('info').clone()
+  mat.uniforms.uColor.value = new THREE.Color(SELECT_EMISSIVE)
+  mat.uniforms.uWidth.value = SELECT_OUTLINE_WIDTH
+  mat.uniforms.uPulse.value = 0
+  mat.uniforms.uWindow.value = 0
+  mat.name = 'outline-selection'
+  selOutlineMat = mat
+  return mat
+}
 /** hover ring lift: floats just above the flush board face (sockets recess) */
 const HOVER_RING_LIFT = 0.05
 /** hole-coordinate chip anchor height above the board (bottom-center) */
@@ -1350,6 +1384,9 @@ export class BreadboardScene implements IBreadboardScene {
   private callbacks: Partial<SceneCallbacks> = {}
   private layout: CircuitLayout = EMPTY_LAYOUT
   private telemetry: SimTelemetry | null = null
+  /** vivid: the realism FX layer (internal/fx/scene-fx.ts) and its fx-bus subscription */
+  private sceneFx: SceneFx | null = null
+  private sceneFxOff: (() => void) | null = null
   private ghost: GhostSpec | null = null
   private selectedIds: string[] = []
   private preview: { from: HoleRef | string | null; to: HoleRef | null } = { from: null, to: null }
@@ -1378,6 +1415,9 @@ export class BreadboardScene implements IBreadboardScene {
   private readonly appliedTelemetry = new Map<string, ComponentTelemetry | null>()
   /** diagnostics probe (src/ui/perf); null = off */
   private perfProbe: ScenePerfProbe | null = null
+  /** 顯示電流 (contract C2): the current-flow particle layer (mounted only) */
+  private flow: CurrentFlowLayer | null = null
+  private flowUnsub: (() => void) | null = null
 
   // scene-graph records
   private components = new Map<string, ComponentRecord>()
@@ -1386,6 +1426,10 @@ export class BreadboardScene implements IBreadboardScene {
   private savedEmissive = new Map<THREE.MeshStandardMaterial, { color: number; intensity: number }>()
   /** translucent overlay boxes around selected components */
   private selectionBoxes: THREE.Mesh[] = []
+  /** glow2 (m2): edge outlines around selected DAMAGED components (their broken look stays visible) */
+  private selectionOutlines: THREE.Object3D[] = []
+  /** the selected parts that were damaged when the selection look was built ('' = none) */
+  private selectionDamageSig = ''
   /** holographic placement ghost (actual part mesh + pin markers) */
   private ghostFx: {
     holo: THREE.Object3D | null
@@ -1421,8 +1465,14 @@ export class BreadboardScene implements IBreadboardScene {
   } | null = null
   /** scratch camera of holePitchPx / the min-pitch fit (the live camera is never moved for a measurement) */
   private pitchCam: THREE.PerspectiveCamera | null = null
-  /** an interactive part held down in 3D (SC-6 onObjectPress) */
-  private press: { id: string; pointerId: number; t0: number | null } | null = null
+  /** an interactive part held down in 3D (SC-6 onObjectPress; `g`: its latch double-click state) */
+  private press: { id: string; pointerId: number; t0: number | null; g: LatchPress } | null = null
+  /** latch 「保持按下」: the parts the host keeps pressed (setLatchedParts) */
+  private latched = new Set<string>()
+  /** latch: the double-click rule (onObjectLatch) */
+  private latchGesture = new LatchGesture(DOUBLE_TAP_MS)
+  /** latch: the lock badges over the latched parts (null while none) */
+  private latchFx: { group: THREE.Group; sig: string } | null = null
   /** a quick click's release, held back until the simulation has seen a human-length press (SC-6) */
   private pendingRelease: { id: string; until: number; timer: ReturnType<typeof setTimeout> } | null = null
   /** docked chrome: soft glow on every hole an armed package may anchor at (SC-8) */
@@ -1791,6 +1841,27 @@ export class BreadboardScene implements IBreadboardScene {
     const spawnFx = new SpawnFX()
     scene.add(spawnFx.group)
 
+    // vivid: damage / heat / sound-ring / celebration FX (pooled particles,
+    // mounted before the warmup compile below so its programs link now)
+    {
+      const sceneFx = new SceneFx(
+        {
+          bounds: (id, out) => this.fxBoundsOf(id, out),
+          pinWorld: (id, pin) => {
+            const rec = this.components.get(id)
+            const i = rec ? rec.entry.pins.indexOf(pin) : -1
+            if (!rec || i < 0) return null
+            return (rec.attach[i] ?? rec.built.pinWorld[i] ?? null)?.clone() ?? null
+          },
+          ids: () => this.components.keys(),
+        },
+        reduced,
+      )
+      overlayGroup.add(sceneFx.group)
+      this.sceneFx = sceneFx
+      this.sceneFxOff = onSceneFx((e) => this.sceneFx?.handle(e))
+    }
+
     // fingertip ghost-cursor (DESIGN.md §4): a glowing ring + crosshair that
     // floats toward the top of the screen from the touched point so the finger
     // never hides the target hole. Always on top (depthTest off), shown only
@@ -1948,9 +2019,12 @@ export class BreadboardScene implements IBreadboardScene {
         if (id !== null && this.m && this.pressable(id)) {
           this.releasePress()
           this.flushPressRelease()
-          this.press = { id, pointerId: e.pointerId, t0: this.telemetry?.time ?? null }
+          // latch: the second click of a double-click toggles 保持按下 (onObjectLatch)
+          const g = this.latchGesture.down(id, performance.now(), this.latched.has(id))
+          this.press = { id, pointerId: e.pointerId, t0: this.telemetry?.time ?? null, g }
           this.suspendControls(this.m, e)
-          this.callbacks.onObjectPress?.(id, true)
+          // (its first click already let a latched part go: this one presses nothing)
+          if (!g.swallowed) this.callbacks.onObjectPress?.(id, true)
           return
         }
         if (id !== null) this.startLongPress(id)
@@ -1977,7 +2051,7 @@ export class BreadboardScene implements IBreadboardScene {
     const onPointerUp = (e: PointerEvent) => {
       this.cancelLongPress()
       this.endPointerInteraction()
-      if (this.press?.pointerId === e.pointerId) this.releasePress()
+      if (this.press?.pointerId === e.pointerId) this.endPress(e)
       if (this.finishEditDrags(e)) {
         // a started move/instrument/marquee drag consumed the whole gesture
         if (this.activeTouchId === e.pointerId) this.activeTouchId = null
@@ -2205,6 +2279,10 @@ export class BreadboardScene implements IBreadboardScene {
     m.controls.target.copy(m.homeTarget)
     m.controls.update()
 
+    // 顯示電流 (contract C2): the flow layer exists before the first layout
+    // sync so every wire / part registers its path
+    this.mountFlow(m)
+
     // sync any state set before mount
     this.positionPaddles(m)
     this.syncLayout()
@@ -2268,6 +2346,8 @@ export class BreadboardScene implements IBreadboardScene {
       this.updateRemovalTween(m)
       this.updateFadeTween()
       if (m.spawnFx.live) m.spawnFx.tick(performance.now())
+      this.flow?.tick(dt) // 顯示電流: early-outs while hidden
+      this.sceneFx?.tick(t, dt, m.camera, m.renderer) // vivid FX (early-out when idle)
       this.updateGhostSpin()
       if (this.labelPinnedUntil > 0 && performance.now() > this.labelPinnedUntil) {
         this.labelPinnedUntil = 0
@@ -2288,6 +2368,7 @@ export class BreadboardScene implements IBreadboardScene {
       // the docked chrome's screen chip follows its anchor (camera moves)
       if (m.screenChip.visible) this.placeChip(m)
       if (this.ledLabels.length > 0) this.sizeLedLabels(m)
+      if (this.latchFx) for (const b of this.latchFx.group.children) sizeLatchMark(b as THREE.Sprite, m.camera, this.viewH)
       // PERF (perf/hotspots.md B3): hover targeting is meaningless while an
       // orbit gesture is in flight — without the gate the brute-force
       // raycast (+ its Intersection allocations) runs on EVERY orbit frame,
@@ -2342,6 +2423,10 @@ export class BreadboardScene implements IBreadboardScene {
     const m = this.m
     if (!m) return
     this.m = null // stops the animation loop
+    this.sceneFxOff?.()
+    this.sceneFxOff = null
+    this.sceneFx?.dispose()
+    this.sceneFx = null
 
     cancelAnimationFrame(m.raf)
     m.resizeObserver.disconnect()
@@ -2371,12 +2456,14 @@ export class BreadboardScene implements IBreadboardScene {
     this.clearWireHandles(m)
     this.clearAnchorFx()
     disposeHolograms() // module-cached FX materials (recreated on demand)
+    disposeGlowBackground() // the LED glow's HDR background copy (Enhanced; recreated on demand)
     disposeWireEndMaterials() // likewise (wire end grips, the refused-route tint)
     m.hoverRing.dispose()
     m.holeLabel.dispose()
     m.screenChip.dispose()
     this.finishBoardAnims(m) // removal tween may hold the OLD board build
     m.spawnFx.dispose()
+    this.unmountFlow(m)
     for (const g of m.paddleGeos) g.dispose()
     for (const p of m.paddles) {
       p.mat.dispose()
@@ -2412,6 +2499,8 @@ export class BreadboardScene implements IBreadboardScene {
     this.cancelLongPress()
     this.releasePress() // a held part must not stay pressed in the document
     this.flushPressRelease()
+    this.latchFx = null // (the scene graph is gone; the shared badge material stays)
+    this.latchGesture.reset()
     this.rightDown = null
     this.lastTargetFrame = null
     this.camTween = null
@@ -2447,6 +2536,37 @@ export class BreadboardScene implements IBreadboardScene {
     Object.assign(this.callbacks, cb)
   }
 
+  /**
+   * 顯示電流 (contract C2): create the current-flow layer in the overlay group
+   * (never path-traced) and follow the user's preference (useFlowView —
+   * also programmatic, in any chrome). Additive: while the preference is off
+   * the layer is an invisible, empty Points object.
+   */
+  private mountFlow(m: Mounted): void {
+    const flow = new CurrentFlowLayer({ reducedMotion: m.reduced })
+    this.flow = flow
+    m.overlayGroup.add(flow.object)
+    flow.setViewScale(Math.max(1, m.container.clientHeight) * m.renderer.getPixelRatio(), m.camera.fov, m.renderer.getPixelRatio())
+    flow.setWanted(useFlowView.getState().visible)
+    flow.setTelemetry(this.telemetry)
+    this.flowUnsub = useFlowView.subscribe((s) => this.flow?.setWanted(s.visible))
+  }
+
+  private unmountFlow(m: Mounted): void {
+    this.flowUnsub?.()
+    this.flowUnsub = null
+    if (this.flow) {
+      m.overlayGroup.remove(this.flow.object)
+      this.flow.dispose()
+    }
+    this.flow = null
+  }
+
+  /** 顯示電流 diagnostics: particle counts + the last tick's CPU time (null before mount). */
+  flowStats(): ReturnType<CurrentFlowLayer['getStats']> | null {
+    return this.flow ? this.flow.getStats() : null
+  }
+
   // ------------------------------------------------------------------ state
 
   setLayout(layout: CircuitLayout): void {
@@ -2458,11 +2578,13 @@ export class BreadboardScene implements IBreadboardScene {
     const changed = t !== this.telemetry
     const sessionFlip = (t === null) !== (this.telemetry === null)
     this.telemetry = t
+    if (changed) this.flow?.setTelemetry(t) // 顯示電流 currents (O(paths), never per frame)
     // PERF: the engine emits a FRESH telemetry object per push, so an
     // identical reference carries nothing new — skip the O(components)
     // visual pass (a paused sim re-pushing the same snapshot costs zero).
     // A new snapshot refreshes only the parts whose visual inputs changed.
     if (!changed) return
+    this.sceneFx?.setTelemetry(t) // vivid: damage / heat / sound FX + pin markers
     if (!this.m) {
       this.materialsRefreshPending = true
       return
@@ -2472,6 +2594,8 @@ export class BreadboardScene implements IBreadboardScene {
     // No-op in Performance/Enhanced (they redraw every frame anyway). A
     // snapshot that changed no part's visual leaves the materials as they are.
     if (this.applyTelemetryChanged() > 0) this.materialsRefreshPending = true
+    // glow2 (m2): a selected part broke (or a reset healed it) — outline ↔ box
+    if (this.selectedIds.length > 0 && this.selectionDamage() !== this.selectionDamageSig) this.applySelection()
     this.refreshHoleChip(t === null)
     // SC-10: a session starting / ending swaps the lesson shells for rings +
     // rims and back; the LED labels follow the telemetry at ≤ 4 Hz
@@ -2913,6 +3037,40 @@ export class BreadboardScene implements IBreadboardScene {
 
   // ----------------------------------------------------------- layout diff
 
+  /** Contract C1: display colours by wire id (null = the stored Wire.color). */
+  private wireColorOverride: Map<string, string> | null = null
+
+  /**
+   * Contract C1 (src/ui/wire-roles.ts): wire colours by role. Only wires
+   * whose displayed colour changes rebuild (their signature folds the
+   * colour in), through the ordinary wire sync. Event-driven.
+   */
+  setWireColorOverride(colors: Map<string, string> | null): void {
+    const prev = this.wireColorOverride
+    if (prev === colors) return
+    if (prev && colors && prev.size === colors.size) {
+      let same = true
+      for (const [id, c] of colors) {
+        if (prev.get(id) !== c) {
+          same = false
+          break
+        }
+      }
+      if (same) {
+        this.wireColorOverride = colors
+        return
+      }
+    }
+    this.wireColorOverride = colors
+    if (this.m) this.syncLayout()
+  }
+
+  /** The wire as the scene draws it: the C1 override's colour, else the stored one. */
+  private displayWire(wire: Wire): Wire {
+    const c = this.wireColorOverride?.get(wire.id)
+    return c && c !== wire.color ? { ...wire, color: c } : wire
+  }
+
   private syncLayout(): void {
     const m = this.m
     if (!m) return
@@ -2992,7 +3150,9 @@ export class BreadboardScene implements IBreadboardScene {
 
     // --- wires (after components, so terminal attach points are current) ---
     const seenWires = new Set<string>()
-    for (const wire of this.layout.wires) {
+    for (const stored of this.layout.wires) {
+      // C1: the product chrome's role colour replaces the stored colour
+      const wire = this.displayWire(stored)
       const a = this.resolveEndpoint(wire.from)
       const b = this.resolveEndpoint(wire.to)
       if (!a || !b) continue // unresolvable endpoint → no visual
@@ -3021,6 +3181,8 @@ export class BreadboardScene implements IBreadboardScene {
     if (this.problemSpec || this.problemFx) this.syncProblemHighlights()
     // …and the hover-only source marker
     if (this.sourceSpec || this.sourceFx) this.syncSourceHighlights()
+    // …and the keep-pressed lock badges (latch: a moved / rebuilt / deleted part)
+    if (this.latched.size > 0 || this.latchFx) this.syncLatchMarks()
 
     // casters changed → re-render the on-demand shadow map once next frame
     m.renderer.shadowMap.needsUpdate = true
@@ -3306,6 +3468,11 @@ export class BreadboardScene implements IBreadboardScene {
     // instrument drags updateMatrix the slid root explicitly
     freezeTransforms(built.object)
     m.componentsGroup.add(built.object)
+    // 顯示電流: a 2-terminal board part shows its current along its own legs
+    // and over its body — the same routed pose the mesh was built with (F10)
+    if (this.flow && entry.placement !== 'offboard' && entry.pins.length === 2 && attach.length === 2) {
+      this.flow.setPartPath(comp.id, [entry.pins[0], entry.pins[1]], attach[0], attach[1], built.object, routedComponentPose(comp.id))
+    }
     return { comp, entry, built, signature, attach, posts, slot }
   }
 
@@ -3317,6 +3484,7 @@ export class BreadboardScene implements IBreadboardScene {
     disposeComponentObject(rec.built.object)
     for (const post of rec.posts) m.terminalsGroup.remove(post) // shared geo/mat — no dispose
     this.components.delete(id)
+    this.flow?.removePart(id)
   }
 
   private buildWireRecord(
@@ -3344,6 +3512,8 @@ export class BreadboardScene implements IBreadboardScene {
     // one more mesh. 5 draws/objects per wire → 2; merging runs only on
     // layout edits, never per frame.
     const tubeGeo = wireGeometry(a, b, WIRE_RADIUS, wire.id)
+    // 顯示電流: the particles follow this tube's curve (from → to)
+    this.flow?.setWirePath(wire.id, a, b, (tubeGeo as THREE.TubeGeometry).parameters?.path ?? null)
     const insulationParts: THREE.BufferGeometry[] = [tubeGeo]
     const tipParts: THREE.BufferGeometry[] = []
     for (const p of [a, b]) {
@@ -3422,6 +3592,7 @@ export class BreadboardScene implements IBreadboardScene {
     rec.tipsGeo?.dispose()
     rec.material.dispose()
     this.wires.delete(id)
+    this.flow?.removeWire(id)
   }
 
   /** World position of a wire endpoint: hole top (y=0) or terminal post top. */
@@ -3497,6 +3668,7 @@ export class BreadboardScene implements IBreadboardScene {
   }
 
   private applyPartTelemetry(rec: ComponentRecord, ct: ComponentTelemetry | null): void {
+    const lookRev = lookStructureRevision()
     updateComponentVisual(rec.built, rec.comp, rec.entry, ct)
     // transforms are frozen (B2) and updaters may pose children (button
     // caps, switch levers, pot knobs) — recompose the subtree after each
@@ -3504,7 +3676,30 @@ export class BreadboardScene implements IBreadboardScene {
     // where auto-update used to pay every frame), never during pure
     // camera motion.
     rec.built.object.traverse(refreshMatrixOf)
+    // a damage look appeared or went (a resistor's char shell / gap, a
+    // vented can's petals, a burned LED's cracks): the meshes that exist or
+    // show changed, not just a material — Studio rebuilds its BVH (lazily,
+    // on an idle frame) and Enhanced re-collects its pre-pass skip list.
+    // Only when the part's look key changed, never per telemetry frame.
+    if (lookStructureRevision() !== lookRev) this.modes.invalidate()
   }
+
+  /**
+   * vivid: the world box SceneFx places a part's burn / vent / heat smoke
+   * and celebration on — its visible solid body (partBodyBounds), never an
+   * LED's invisible pick-proxy sprite or a resistor's haze, which put the
+   * flash and smoke well above the part.
+   */
+  private fxBoundsOf(id: string, out: THREE.Box3): boolean {
+    const rec = this.components.get(id)
+    if (!rec) return false
+    rec.built.object.updateWorldMatrix(true, true)
+    // computed into a scene-owned box, then copied: the e2e hooks pass a plain { copy } target
+    partBodyBounds(rec.built.object, this.fxBox)
+    out.copy(this.fxBox)
+    return !this.fxBox.isEmpty()
+  }
+  private readonly fxBox = new THREE.Box3()
 
   // ------------------------------------------------------------------ ghost
 
@@ -3761,8 +3956,9 @@ export class BreadboardScene implements IBreadboardScene {
   }
 
   /**
-   * Live LED labels (SC-10): 「LED1 97 %」 over every highlighted LED from
-   * its telemetry ledBrightness — redrawn at most every LED_LABEL_REFRESH_MS
+   * Live LED labels (SC-10): 「LED1 49 %（9.70 mA）」 over every highlighted
+   * LED from its telemetry light and current (classic: 「LED1 97 %」 from
+   * ledBrightness) — redrawn at most every LED_LABEL_REFRESH_MS
    * (setTelemetry), sized to stay readable on screen (per frame while they
    * exist: one distance per label). Hidden without a simulation session.
    */
@@ -3772,12 +3968,19 @@ export class BreadboardScene implements IBreadboardScene {
     if (!force && now - this.ledLabelsAt < LED_LABEL_REFRESH_MS) return
     this.ledLabelsAt = now
     for (const l of this.ledLabels) {
-      const b = this.telemetry?.components[l.id]?.ledBrightness
+      const ct = this.telemetry?.components[l.id]
+      const b = ct?.ledBrightness
       if (typeof b !== 'number' || !Number.isFinite(b)) {
         l.label.hide()
         continue
       }
-      const text = `${l.id} ${fmtPercent(Math.max(0, Math.min(1, b)), { digits: 0 })}`
+      // the app's one brightness scale (F4): I / rated 20 mA with the current — 「LED1 49 %（9.70 mA）」,
+      // a PWM LED's eye mean 「LED1 15 %（平均 2.98 mA）」; the classic chrome keeps its original
+      // I / 10 mA 「LED1 97 %」, of the same eye-averaged current (classicLedBrightness: no strobing)
+      const text =
+        this.isDocked() && typeof ct?.light === 'number'
+          ? `${l.id} ${fmtLedLight(ct.light, ct.current, { burned: ct.burned === true, average: isAveragedLed(ct) })}`
+          : `${l.id} ${fmtPercent(Math.max(0, Math.min(1, classicLedBrightness(ct) ?? b)), { digits: 0 })}`
       if (text !== l.text) {
         l.text = text
         l.label.setText(text)
@@ -4015,6 +4218,8 @@ export class BreadboardScene implements IBreadboardScene {
     this.savedEmissive.clear()
     for (const box of this.selectionBoxes) box.removeFromParent()
     this.selectionBoxes.length = 0
+    for (const hull of this.selectionOutlines) hull.removeFromParent()
+    this.selectionOutlines.length = 0
   }
 
   /**
@@ -4028,11 +4233,14 @@ export class BreadboardScene implements IBreadboardScene {
     this.clearSelectionHighlights()
     this.syncWireHandles()
     const m = this.m
+    this.selectionDamageSig = this.selectionDamage()
     if (!m) return
     for (const id of this.selectedIds) {
       const compRec = this.components.get(id)
       if (compRec) {
-        this.addSelectionBox(m, compRec.built.object)
+        // a damaged part keeps its broken look: an edge outline, not the filled box
+        if (isDamagedTelemetry(this.telemetry?.components[id])) this.addSelectionOutline(m, compRec.built.object)
+        else this.addSelectionBox(m, compRec.built.object)
         continue
       }
       const wireRec = this.wires.get(id)
@@ -4066,6 +4274,32 @@ export class BreadboardScene implements IBreadboardScene {
     mesh.matrixAutoUpdate = false
     m.overlayGroup.add(mesh)
     this.selectionBoxes.push(mesh)
+  }
+
+  /**
+   * glow2 (m2): a selected DAMAGED part (a burned LED / resistor, a vented
+   * can, an overheating part) is selected with an edge outline in the
+   * selection blue — the translucent filled box tinted its charred black
+   * body blue exactly when the user opens the inspector to read why it broke.
+   */
+  private addSelectionOutline(m: Mounted, obj: THREE.Object3D): void {
+    const hull = applyOutline(obj, 'info')
+    const mat = selectionOutlineMaterial()
+    hull.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = mat
+    })
+    hull.name = 'selection-outline'
+    m.overlayGroup.add(hull)
+    this.selectionOutlines.push(hull)
+  }
+
+  /** the selected parts that are damaged now (a signature: the look switches when it changes) */
+  private selectionDamage(): string {
+    let sig = ''
+    const comps = this.telemetry?.components
+    if (!comps) return sig
+    for (const id of this.selectedIds) if (isDamagedTelemetry(comps[id])) sig += `${id},`
+    return sig
   }
 
   // ----------------------------------------------------------- wire preview
@@ -4125,6 +4359,7 @@ export class BreadboardScene implements IBreadboardScene {
     const p = this.press
     if (!p) return
     this.press = null
+    if (p.g.swallowed) return // latch: this press reported nothing, so nothing lets go
     // a quick click on a loaded machine can be shorter in SIMULATED time
     // than the firmware's debounce window (120 ms of wall clock at 0.25×
     // is 30 ms on the MCU) — hold the release back until the simulation
@@ -4149,6 +4384,77 @@ export class BreadboardScene implements IBreadboardScene {
     this.pendingRelease = null
     clearTimeout(pr.timer)
     this.callbacks.onObjectPress?.(pr.id, false)
+  }
+
+  // ------------------------------------------- keep-pressed latch (保持按下)
+
+  /**
+   * The pointer holding a pressable part went up (SC-6 + latch). The second
+   * quick click of a double-click on a part that is not latched asks the
+   * host to keep it pressed (onObjectLatch) instead of letting go; anything
+   * else lets go as before (a latched part pressed and let go is released by
+   * the host).
+   */
+  private endPress(e: PointerEvent): void {
+    const p = this.press
+    if (!p) return
+    const down = this.downInfo
+    let click = false
+    if (down && down.id === e.pointerId) {
+      const touchLike = down.type !== 'mouse'
+      const drift = Math.max(down.maxDrift, Math.hypot(e.clientX - down.x, e.clientY - down.y))
+      click = drift < (touchLike ? TAP_MAX_PX : CLICK_MAX_PX) && performance.now() - down.t < (touchLike ? TAP_MAX_MS : CLICK_MAX_MS)
+    }
+    const end = this.latchGesture.up(p.g, click, performance.now(), !!this.callbacks.onObjectLatch)
+    if (end === 'latch') {
+      this.press = null
+      if (this.callbacks.onObjectLatch?.(p.id) === true) return
+      this.press = p // the host declined: an ordinary release
+    }
+    this.releasePress()
+  }
+
+  /** IBreadboardScene.setLatchedParts: the parts the host keeps pressed (lock badges + the double-click rule). */
+  setLatchedParts(ids: readonly string[]): void {
+    if (ids.length === this.latched.size && ids.every((id) => this.latched.has(id))) return
+    this.latched = new Set(ids)
+    const m = this.m
+    if (!m) return
+    this.syncLatchMarks()
+    // the chip over the part says 已保持按下 / 雙擊保持按下 at once
+    this.refreshChipAfterLayout(m)
+  }
+
+  /** Drop the lock badges (the sprite material is shared — nothing to free). */
+  private clearLatchMarks(m: Mounted): void {
+    const fx = this.latchFx
+    if (!fx) return
+    this.latchFx = null
+    m.overlayGroup.remove(fx.group)
+  }
+
+  /** A lock badge over every latched part, re-placed when the set or a latched part's build changes. */
+  private syncLatchMarks(): void {
+    const m = this.m
+    if (!m) return
+    const recs: ComponentRecord[] = []
+    for (const id of this.latched) {
+      const rec = this.components.get(id)
+      if (rec) recs.push(rec)
+    }
+    const sig = recs.map((r) => `${r.comp.id}@${r.signature}`).join(',')
+    if ((this.latchFx?.sig ?? '') === sig) return
+    this.clearLatchMarks(m)
+    if (recs.length === 0) return
+    const group = new THREE.Group()
+    group.name = 'latch-marks'
+    const box = new THREE.Box3()
+    for (const rec of recs) {
+      box.setFromObject(rec.built.object)
+      if (!box.isEmpty()) group.add(makeLatchMark(box))
+    }
+    m.overlayGroup.add(group)
+    this.latchFx = { group, sig }
   }
 
   // ------------------------------------------------- probe target (SC-5)
@@ -6819,6 +7125,7 @@ export class BreadboardScene implements IBreadboardScene {
     this.applyViewOffset(m) // the offset window tracks the canvas size
     m.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)) // keep the ≤2 cap
     m.renderer.setSize(w, h)
+    this.flow?.setViewScale(h * m.renderer.getPixelRatio(), m.camera.fov, m.renderer.getPixelRatio())
     this.modes.setSize(w, h) // composer targets track the canvas (after setSize)
     // the wire end grips keep their on-screen size (their scale follows the canvas height)
     if (this.wireHandles) {

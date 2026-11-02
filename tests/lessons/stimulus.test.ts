@@ -115,7 +115,7 @@ describe('runtime stimulus: when and how it is applied', () => {
     expect(measured(late)).toBeGreaterThan(3.55)
     expect(measured(late)).toBeLessThan(3.75)
     expect(never.stimulus).toBeUndefined()
-    expect(early.stimulus).toBe('檢查時會自動操作：0.1 秒時勾選 SW2 的「按下」')
+    expect(early.stimulus).toBe('檢查時會自動操作：0.1 秒時按住 SW2')
   })
 
   it('uart-contains counts only what the firmware sends after the action', LONG, async () => {
@@ -176,7 +176,7 @@ describe('runtime stimulus: when and how it is applied', () => {
     const idle: LessonCheck = { kind: 'measure', at: { component: 'U1', pin: 'PB12' }, quantity: 'voltage', min: 3, max: 3.4, seconds: 0.1 }
     const res = await run(i2.solution, [press('press 1', 0.3, 0.4), idle, press('press 2', 0.1, 0.3)])
     expect(res.every((r) => r.pass), explain(res)).toBe(true)
-    expect(res[2].stimulus).toBe('檢查時會自動操作：0.5 秒時勾選 SW1 的「按下」，0.6 秒時取消勾選 SW1 的「按下」')
+    expect(res[2].stimulus).toBe('檢查時會自動操作：0.5 秒時按住 SW1，0.6 秒時放開 SW1')
     expect(res[2].detail).toMatch(/上電後 0\.52\d* 秒收到「press 2」/)
   })
 
@@ -231,7 +231,7 @@ describe('runtime stimulus: when and how it is applied', () => {
         ],
         parts,
       ),
-    ).toBe('檢查時會自動操作：一上電就勾選 SW1 的「按下」，0.1 秒時把 ENC1 的「位置」設為 5，0.25 秒時取消勾選 SW1 的「按下」')
+    ).toBe('檢查時會自動操作：一上電就按住 SW1，0.1 秒時把 ENC1 的「位置」設為 5，0.25 秒時放開 SW1')
     __setLangForTests('en')
     expect(stimulusText([{ at: 0.1, component: 'ENC1', param: 'position', value: 5 }], parts)).toBe(
       'The check does this itself: 0.1 s: set ENC1 “Position” to 5',
@@ -260,7 +260,7 @@ describe('a6: the acceptance turns the knob and presses it', () => {
     expect(down.detail).toMatch(/上電後 0\.6[34]\d* 秒收到「pos=2」/)
     const [pressed, released] = res[1].children!
     expect(pressed.detail).toMatch(/上電後 0\.92\d* 秒收到「SW pressed」/)
-    expect(pressed.stimulus).toBe('檢查時會自動操作：0.9 秒時勾選 ENC1 的「按下」')
+    expect(pressed.stimulus).toBe('檢查時會自動操作：0.9 秒時按住 ENC1')
     expect(released.detail).toMatch(/上電後 1\.02\d* 秒收到「SW released」/)
   })
 
@@ -299,7 +299,7 @@ describe('b3 / b4 / i2: pressed-button checks press the button themselves', () =
       ...(await run(released, [b3.acceptance[b3.acceptance.length - 1]])),
     ]
     expect(res.every((r) => r.pass), explain(res)).toBe(true)
-    expect(res[0].stimulus).toBe('檢查時會自動操作：一上電就勾選 SW1 的「按下」')
+    expect(res[0].stimulus).toBe('檢查時會自動操作：一上電就按住 SW1')
     // SW2's other side not on 3.3 V: pressing it cannot raise PA1
     const open = await run(
       variant(b3, (x) => dropWire(x, 'a50')),

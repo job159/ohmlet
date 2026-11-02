@@ -40,6 +40,9 @@ import {
   shortLabel,
   yawOf,
 } from './shared'
+import { ledEmission, ledLook, ledPerceived, lightOf, makeLedGlow } from './led-look'
+import { asFxSprite } from './led-glow-render'
+import { fxReducedMotion, noteLookStructureChange, setFrameAnimator } from '../internal/fx/registry'
 
 // ---------------------------------------------------------------------------
 // LED
@@ -72,8 +75,8 @@ const LED_WATER_CLEAR = new Set(['blue', 'white'])
 const LED_GLASS_DIFFUSED = { roughness: 0.32, transmission: 0.55 }
 /** Water-clear epoxy: colorless, crisp refraction via real transmission. */
 const LED_GLASS_CLEAR = { color: 0xf2f5f8, roughness: 0.03, transmission: 1.0 }
-/** Smoked epoxy after burnout. */
-const LED_GLASS_BURNED = { color: 0x33322e, roughness: 0.45 }
+/** Charred, smoke-stained epoxy after burnout (dark brown-black, matte). */
+const LED_GLASS_BURNED = { color: 0x241c15, roughness: 0.68 }
 
 /**
  * T-1 package proportions from ref-led.jpg: body height ≈ 1.7 × diameter
@@ -132,6 +135,67 @@ export function ledGlowTexture(): THREE.Texture | null {
   markShared(tex)
   glowTex = tex
   return tex
+}
+
+/**
+ * Hairline cracks over a burned LED's dome (local to the dome centre): three
+ * thin dark polylines on the sphere, a little proud of it. Shown only after
+ * burnout (vivid damage look). They stay below the dome's apex (polar angle
+ * ≥ 0.3 rad): the package top is the router's declared LED obstacle height.
+ */
+function ledCrackGeometry(): THREE.BufferGeometry {
+  return cachedGeometry('led-cracks', () => {
+    const r = LED_DOME_R * 1.006
+    const onSphere = (theta: number, phi: number) =>
+      new THREE.Vector3(r * Math.sin(theta) * Math.cos(phi), r * Math.cos(theta), r * Math.sin(theta) * Math.sin(phi))
+    const paths: [number, number][][] = [
+      [[0.32, 0.2], [0.42, 0.5], [0.62, 0.35], [0.95, 0.6], [1.3, 0.5]],
+      [[0.42, 0.5], [0.58, 1.5], [0.8, 1.9], [1.2, 2.2]],
+      [[0.34, 3.4], [0.45, 3.9], [0.75, 3.6], [1.1, 4.1], [1.35, 3.9]],
+    ]
+    const parts: THREE.BufferGeometry[] = []
+    for (const p of paths) {
+      const curve = new THREE.CatmullRomCurve3(p.map(([t, f]) => onSphere(t, f)))
+      parts.push(new THREE.TubeGeometry(curve, 16, 0.011, 4, false))
+    }
+    const merged = mergeGeometriesSafe(parts)
+    for (const g of parts) g.dispose()
+    return merged
+  })
+}
+
+function ledCrackMaterial(): THREE.Material {
+  return cachedMaterial('led-crack-mat', () => new THREE.MeshBasicMaterial({ color: 0x0a0806 }))
+}
+
+/** Merge tube geometries (same attribute layout) into one. */
+function mergeGeometriesSafe(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  let vCount = 0
+  let iCount = 0
+  for (const g of parts) {
+    vCount += g.getAttribute('position').count
+    iCount += g.getIndex()?.count ?? 0
+  }
+  const pos = new Float32Array(vCount * 3)
+  const nor = new Float32Array(vCount * 3)
+  const idx = new Uint32Array(iCount)
+  let vo = 0
+  let io = 0
+  for (const g of parts) {
+    const p = g.getAttribute('position') as THREE.BufferAttribute
+    const n = g.getAttribute('normal') as THREE.BufferAttribute
+    pos.set(p.array as Float32Array, vo * 3)
+    nor.set(n.array as Float32Array, vo * 3)
+    const ix = g.getIndex()
+    if (ix) for (let i = 0; i < ix.count; i++) idx[io + i] = ix.getX(i) + vo
+    io += ix?.count ?? 0
+    vo += p.count
+  }
+  const out = new THREE.BufferGeometry()
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3))
+  out.setIndex(new THREE.BufferAttribute(idx, 1))
+  return out
 }
 
 /** Flange disc with the real molded flat spot on the cathode (+X) side. */
@@ -383,7 +447,47 @@ export function buildLed(
   glow.visible = false
   group.add(glow)
 
+  // vivid / glow: the light — a coloured glare halo (+ the star flare from
+  // ≈ 6 mA) at the dome, a pool of light on the board (led-look.ts: one
+  // brightness language for every LED; never picked). The legacy sprite
+  // above stays as the (invisible) pick proxy it always was.
+  const dieWorld = new THREE.Vector3(0.13, baseY + 0.58, 0)
+  bodyGroup.updateMatrix()
+  dieWorld.applyMatrix4(bodyGroup.matrix)
+  const lightRig = makeLedGlow({
+    color,
+    at: new THREE.Vector3(dieWorld.x, bodyGroup.position.y + domeY + 0.1, dieWorld.z),
+    poolAt: new THREE.Vector3(bodyGroup.position.x, 0, bodyGroup.position.z),
+  })
+  group.add(lightRig.halo, lightRig.flare, lightRig.pool)
+
+  // burned: soot on the dome and hairline cracks (shown only when burned);
+  // the soot is point-bounded (the part's box stays the LED's) and never in
+  // the SAO normal/depth pre-pass (asFxSprite)
+  const sootMat = new THREE.SpriteMaterial({
+    map: ledGlowTexture(),
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+  })
+  const soot = asFxSprite(new THREE.Sprite(sootMat))
+  soot.position.set(bodyGroup.position.x, bodyGroup.position.y + domeY + domeR * 0.75, bodyGroup.position.z)
+  soot.scale.setScalar(domeR * 2.6)
+  soot.visible = false
+  soot.raycast = () => {}
+  soot.userData.bbNoStudio = true
+  group.add(soot)
+  const cracks = new THREE.Mesh(ledCrackGeometry(), ledCrackMaterial())
+  cracks.position.y = domeY
+  cracks.visible = false
+  bodyGroup.add(cracks)
+
   const state = { burned: false }
+  // the light's colour (a white LED's is cool blue-white, led-look.ts)
+  const dieColor = new THREE.Color(ledEmission(color))
+  const dieHot = dieColor.clone().lerp(new THREE.Color(0xffffff), 0.85)
+  glass.emissive.copy(dieColor)
 
   const restoreLive = () => {
     if (waterClear) {
@@ -397,20 +501,43 @@ export function buildLed(
     }
   }
 
+  /** the steady look at perceived brightness p, times `gain` (the flicker) */
+  const show = (p: number, gain: number) => {
+    // glow: one brightness language (led-look.ts ledLook) — the lens keeps
+    // its saturated hue and only gets brighter (≤ 1.1 at the rating: past
+    // that ACES bleaches a red lens to salmon); only the die core goes
+    // white-hot near full drive; the glow outside the dome is the halo
+    const look = ledLook(p)
+    if (!(look.drive > 0)) {
+      dieMat.emissiveIntensity = 0
+      glass.emissiveIntensity = 0
+    } else {
+      dieMat.emissive.copy(dieColor).lerp(dieHot, look.dieWhite)
+      dieMat.emissiveIntensity = look.die * gain
+      glass.emissiveIntensity = look.lens * (0.6 + 0.4 * gain)
+    }
+    lightRig.apply(p, gain)
+  }
+
   const update: BuildResult['update'] = (_c2, _e2, telemetry) => {
     if (telemetry?.burned) {
       if (!state.burned) {
         state.burned = true
-        // smoked epoxy: dark tint; both variants keep a sliver of transmission
+        // charred epoxy: dark tint; both variants keep a sliver of transmission
         // (numeric-only change — no shader recompile from program flag flips)
         glass.color.setHex(LED_GLASS_BURNED.color)
         glass.roughness = LED_GLASS_BURNED.roughness
-        glass.transmission = waterClear ? 0.12 : 0.05
+        glass.transmission = waterClear ? 0.1 : 0.04
         glass.emissiveIntensity = 0
         dieMat.emissiveIntensity = 0
-        dieMat.color.setHex(0x191813)
+        dieMat.color.setHex(0x0c0b09)
         glow.visible = false
         glowMat.opacity = 0
+        show(0, 1)
+        soot.visible = true
+        cracks.visible = true
+        setFrameAnimator(group, null)
+        noteLookStructureChange() // the cracks appeared (Studio BVH)
       }
       return
     }
@@ -419,19 +546,28 @@ export function buildLed(
       state.burned = false
       restoreLive()
       dieMat.color.setHex(0x6a665a)
+      soot.visible = false
+      cracks.visible = false
+      noteLookStructureChange()
     }
+    // legacy pick proxy: same size rule as before (never drawn any more)
     const b = THREE.MathUtils.clamp(telemetry?.ledBrightness ?? 0, 0, 1)
-    dieMat.emissiveIntensity = b <= 0.001 ? 0 : 0.4 + 5.5 * b
-    // the body lights up — softer on water-clear (the die does the work there)
-    glass.emissiveIntensity = b <= 0.001 ? 0 : waterClear ? 0.12 + 0.5 * b : 0.25 + 0.9 * b
-    if (b > 0.05) {
-      glow.visible = true
-      glowMat.opacity = Math.min(1, 0.3 + 0.7 * b)
-      glow.scale.setScalar(2.0 + 1.4 * b)
-    } else {
-      glow.visible = false
-      glowMat.opacity = 0
-    }
+    if (b > 0.05) glow.scale.setScalar(2.0 + 1.4 * b)
+    glow.visible = false
+    glowMat.opacity = 0
+    // light from the REAL current: I / 20 mA, shown perceptually (led-look.ts)
+    const light = lightOf(telemetry)
+    const p = ledPerceived(light)
+    show(p, 1)
+    // over-driven (> rated current): a harsh warning flicker until it is
+    // fixed or burns (reduced motion: the static harsh look only)
+    if (light > 1.02 && !fxReducedMotion()) {
+      const sev = Math.min(1, (light - 1) / 0.4)
+      setFrameAnimator(group, (t) => {
+        const n = Math.sin(t * 43) * Math.sin(t * 17.3 + 1.1) * Math.sin(t * 5.1 + 2.3)
+        show(p, 1 - sev * 0.45 * Math.max(0, n) - 0.08 * sev * Math.random())
+      })
+    } else setFrameAnimator(group, null)
   }
 
   return { object: group, pinWorld: pins.map((p) => p.clone()), update }

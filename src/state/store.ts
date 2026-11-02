@@ -115,6 +115,22 @@ const REACT_PUSH_MS = 100 // ~10 Hz React state updates
 
 const EMPTY_LAYOUT: CircuitLayout = { version: 1, components: [], wires: [] }
 
+/**
+ * clearBoard records an undo step for `layout` (and visibly changes it): the
+ * board holds parts or wires, or its rig is not the default one (a board
+ * size, several boards, extra rows) — the 更多 sheet's 「已清空麵包板」 +
+ * 〔復原〕 says so exactly then.
+ */
+export function clearBoardRecordsUndo(layout: CircuitLayout): boolean {
+  return (
+    layout.components.length > 0 ||
+    layout.wires.length > 0 ||
+    layout.board !== undefined ||
+    layout.boardCount !== undefined ||
+    layout.boardRows !== undefined
+  )
+}
+
 /** Sensible id prefixes per catalog type (fallback: 'U' for ICs, 'X' else). Exported for tests. */
 export const ID_PREFIX: Readonly<Record<string, string>> = {
   resistor: 'R',
@@ -830,6 +846,17 @@ function normalizedOnLoad(layout: CircuitLayout): CircuitLayout {
 /** Old id → new id applied by the last loadLayout / boot restore ({} = none). */
 export function lastLoadRenames(): IdRenames {
   return lastRenames
+}
+
+/**
+ * How many documents loadLayout has loaded (an example, a lesson circuit, a
+ * JSON / project import, an AI circuit). Bumped right before the loaded
+ * layout commits, so a layout subscriber can tell a wholesale load from an
+ * edit or an undo / redo (state/lab.ts: firmware bindings across 〔復原〕).
+ */
+let layoutLoads = 0
+export function layoutLoadCount(): number {
+  return layoutLoads
 }
 
 /**
@@ -1631,17 +1658,8 @@ export const useStore = create<AppState>()((set, get) => {
 
     clearBoard() {
       get().resetSim()
-      const cur = get().layout
       // one undo step restores the whole board (skip when already empty)
-      if (
-        cur.components.length > 0 ||
-        cur.wires.length > 0 ||
-        cur.board !== undefined ||
-        cur.boardCount !== undefined ||
-        cur.boardRows !== undefined
-      ) {
-        pushHistory('clear')
-      }
+      if (clearBoardRecordsUndo(get().layout)) pushHistory('clear')
       set({ layout: EMPTY_LAYOUT, selection: [], mode: { kind: 'select' } })
       scheduleAutosave(EMPTY_LAYOUT)
     },
@@ -1652,6 +1670,7 @@ export const useStore = create<AppState>()((set, get) => {
       get().resetSim()
       pushHistory('load') // import / example / AI apply = one undo step
       const loaded = normalizedOnLoad(res.layout) // pushbutton 'PB<n>' → 'SW<n>' (UX H8)
+      layoutLoads++ // read by layout subscribers during the set() below
       set({
         layout: loaded,
         selection: [],

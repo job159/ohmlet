@@ -187,6 +187,20 @@ export interface SceneCallbacks {
    */
   onObjectPress?(id: string, down: boolean): void
   /**
+   * OPTIONAL (additive, keep-pressed latch 「保持按下」 — src/ui/embedded/latch.ts):
+   * a DOUBLE-CLICK on a pressable part (see onObjectPress) that is not
+   * latched — two quick clicks, the second pressed within 450 ms of the
+   * first's release — asks the host to KEEP it pressed. The second click's
+   * pointerdown already fired onObjectPress(id, true); when this returns
+   * true its release is NOT reported (the part stays pressed: the host's
+   * latch owns it now). False (or no callback) reports the release as
+   * usual. On a part the host lists as latched (setLatchedParts) the first
+   * click is an ordinary momentary press (its release lets the part go)
+   * and the second click of that double-click presses nothing — a
+   * double-click toggles.
+   */
+  onObjectLatch?(id: string): boolean
+  /**
    * OPTIONAL (additive, UX wave SC-5): desktop 'contextmenu' over a board
    * hole (including a hole under a part pin) or an off-board terminal post.
    * `screen` is the event's client position (CSS px). The scene calls
@@ -352,6 +366,15 @@ export interface IBreadboardScene {
    */
   setSourceHighlight?(spec: HighlightSpec | null): void
   /**
+   * OPTIONAL (additive, keep-pressed latch 「保持按下」 — src/ui/embedded/latch.ts):
+   * the parts the host keeps pressed. Each gets a small lock badge over its
+   * top (it follows a moved / rebuilt part; static, never picked), and the
+   * double-click rule of SceneCallbacks.onObjectLatch reads the list. The
+   * host pushes it on change (bindLatchScene) — never per frame. Safe to
+   * never call.
+   */
+  setLatchedParts?(ids: readonly string[]): void
+  /**
    * OPTIONAL (additive, UX fix wave SC-16): the new (docked) chrome is
    * showing — App passes !isLegacyChrome() (the desktop workspace, and the
    * zh-TW phone with its coach and sheets). Picks the screen-space hover chip
@@ -378,6 +401,41 @@ export interface IBreadboardScene {
    * Safe to never call.
    */
   holePitchPx?(at?: { x: number; z: number }): number | null
+  /**
+   * OPTIONAL (additive, contract C1 — src/ui/wire-roles.ts): the display
+   * colour of wires by id (colour names / css hex, as Wire.color takes),
+   * overriding the stored Wire.color in the wire sync. The product chrome
+   * passes wireRoleColors(layout) on every layout change (supply red, ground
+   * black, signals by function); null = the stored colours (the classic
+   * chrome's behaviour). A wire missing from the map keeps its stored
+   * colour. Event-driven, never per frame. Safe to never call.
+   */
+  setWireColorOverride?(colors: Map<string, string> | null): void
+  /**
+   * OPTIONAL (additive, contract C2 — 顯示電流): diagnostics of the scene's
+   * current-flow layer (one pooled THREE.Points in the overlay group). The
+   * layer follows the user's preference itself (src/ui/fx/flow.ts
+   * useFlowView — the product chip, the 更多 row, the C key, or a
+   * programmatic setVisible in any chrome) and draws only what setTelemetry
+   * carries: SimTelemetry.wireCurrents / stripCurrents and
+   * ComponentTelemetry.pinCurrents of 2-terminal parts. Null before mount.
+   * Event-driven reads only (the perf overlay, e2e). Safe to never call.
+   */
+  flowStats?(): CurrentFlowStats | null
+}
+
+/** IBreadboardScene.flowStats: what the current-flow layer drew last frame. */
+export interface CurrentFlowStats {
+  visible: boolean
+  /** known conductor paths (wires, 2-terminal parts, strip segments in use) */
+  paths: number
+  /** paths carrying a current above the display threshold */
+  activePaths: number
+  heads: number
+  /** heads + their trail points (one draw call) */
+  points: number
+  /** CPU time of the layer's last per-frame update (ms) */
+  tickMs: number
 }
 
 /** Options of IBreadboardScene.frameTargets. */

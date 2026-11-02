@@ -39,7 +39,8 @@ import type { BuildResult } from '../shared'
 import { HOLE_DEPTH, cachedGeometry, cachedMaterial, metal, plastic } from '../shared'
 import { flatQuadGeometry, slabGeometry, solderMaterial, headerPlasticMaterial } from '../pcb'
 import type { PcbArtStyle } from '../pcb'
-import { ledGlowTexture } from '../semis'
+import { ledLook, ledPerceived, lightOf, makeLedHalo, setHaloColor, type LedHaloRig } from '../led-look'
+import { DISPLAY_FULL_LIGHT, displayLensIntensity, makeDisplayGlow, type GlowShape } from '../display-glow'
 import {
   LIFT,
   MM,
@@ -473,7 +474,7 @@ function lcdPanel(group: THREE.Group, comp: ComponentInstance, d: LcdDesign, pl:
   return { tex, material: s.material, geom: t.geom }
 }
 
-/** repaint + backlight: `bl` 0..1 (null = keep the panel unlit) */
+/** repaint + backlight: `bl` = the backlight LED's perceived brightness 0..1 (led-look.ts; a 0/1 bit = off / full) */
 function lcdUpdater(rig: LcdRig) {
   let lastVersion = -2
   let lastPanel = ''
@@ -493,7 +494,7 @@ function lcdUpdater(rig: LcdRig) {
       rig.material.color.setScalar(panelName === 'yellow-green' ? 0.55 : 0.16)
     }
     const b = Math.min(1, Math.max(0, bl))
-    rig.material.emissiveIntensity = b <= 0.005 ? 0 : 0.12 + 0.9 * Math.sqrt(b)
+    rig.material.emissiveIntensity = b <= 0.005 ? 0 : 0.12 + 0.9 * b
   }
 }
 
@@ -512,8 +513,9 @@ function buildLcdParallel(d: LcdDesign) {
     const paint = lcdUpdater(rig)
     const apply = (c: ComponentInstance, e: CatalogEntry, t: ComponentTelemetry | null) => {
       // the backlight is the module LED (A → 100 Ω → LED → K): its sub-circuit current
+      // its REAL current / 20 mA, perceived (led-look.ts: one brightness language)
       const led = t?.sub?.LED_BL
-      const bl = led && !led.burned ? Math.min(1, led.ledBrightness ?? 0) : 0
+      const bl = led && !led.burned ? Math.min(1, ledPerceived(lightOf(led))) : 0
       paint(String(paramOf(c.params, e, 'panel') ?? 'blue'), t?.display, t?.values, bl)
     }
     apply(comp, entry, null)
@@ -649,7 +651,8 @@ function buildLcd1602I2c(comp: ComponentInstance, entry: CatalogEntry, pins: V3[
     const pos = Number(paramOf(c.params, e, 'contrast') ?? 0.85)
     screw.rotation.y = (Number.isFinite(pos) ? pos : 0.85) * Math.PI * 1.5 - Math.PI * 0.75
     const disp = t?.display
-    paint(String(paramOf(c.params, e, 'panel') ?? 'blue'), disp, t?.values, disp?.backlight ?? 0)
+    // the P3 bit's level (a PWM'd backlight averages): its light, perceived (led-look.ts)
+    paint(String(paramOf(c.params, e, 'panel') ?? 'blue'), disp, t?.values, ledPerceived(Math.min(1, disp?.backlight ?? 0)))
   }
   apply(comp, entry, null)
   return { object: group, pinWorld: pins.map((p) => p.clone()), update: apply }
@@ -1082,6 +1085,8 @@ function ledFaceMaterial(
     emissive: opts.emissive,
     emissiveIntensity: opts.intensity,
     emissiveMap: emis,
+    // a lit lens shows its own light, not a mirror of the room (the albedo map's alpha, ledAlbedo)
+    specularIntensityMap: albedo,
   })
 }
 
@@ -1101,10 +1106,26 @@ function buildMax7219(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]):
   const material =
     ghost || !tex || !alb
       ? cachedMaterial('displays-matrix-dot-ghost', () => new THREE.MeshPhysicalMaterial({ color: 0xcdc2bd, roughness: 0.55, metalness: 0 }))
-      : ledFaceMaterial(tex, alb, { color: 0xcdc2bd, emissive: 0xff1608, intensity: 2.2, roughness: 0.55 })
+      : ledFaceMaterial(tex, alb, { color: 0xcdc2bd, emissive: 0xff1608, intensity: 0, roughness: 0.55 })
   const dots = new THREE.Mesh(matrixDotsGeometry(), material)
   dots.position.y = yu(MX_BLOCK_Y + MX.blockT) + 0.002
   group.add(dots)
+  // glow (one LED language, display-glow.ts): the lit dots' light on the black block face
+  const half = (MX.block / 2) * MM
+  const glow = ghost
+    ? null
+    : makeDisplayGlow({
+        x0: MX_CX * MM - half,
+        x1: MX_CX * MM + half,
+        z0: MX.bz * MM - half,
+        z1: MX.bz * MM + half,
+        y: yu(MX_BLOCK_Y + MX.blockT) + 0.004,
+        shapes: matrixDotShapes(),
+        color: 0xff2010,
+        pxPerUnit: 18,
+      })
+  if (glow?.mesh) group.add(glow.mesh)
+  const levels = new Float32Array(64)
   let lastVersion = -2
   const apply = (_c: ComponentInstance, _e: CatalogEntry, t: ComponentTelemetry | null) => {
     if (!tex) return
@@ -1112,15 +1133,34 @@ function buildMax7219(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]):
     const ver = disp ? disp.version : -1
     if (ver === lastVersion) return
     lastVersion = ver
-    paintMatrix(tex.image.data as Uint8Array, disp)
+    const lit = paintMatrix(tex.image.data as Uint8Array, disp)
     tex.needsUpdate = true
     if (alb) refreshAlbedo(alb, tex)
+    // the programmed brightness (PWM × multiplex duty, the model's) through the LEDs' curve
+    const p = lit > 0 && disp ? ledPerceived(Math.max(0, disp.contrast ?? 1) * DISPLAY_FULL_LIGHT) : 0
+    ;(material as THREE.MeshPhysicalMaterial).emissiveIntensity = displayLensIntensity(ledLook(p))
+    const d = tex.image.data as Uint8Array
+    for (let i = 0; i < 64; i++) levels[i] = d[i * 4] > 0 ? 1 : 0
+    glow?.apply(levels, p)
   }
   apply(comp, entry, null)
   return { object: group, pinWorld: pins.map((p) => p.clone()), update: apply }
 }
 
 export const MAX7219_TOP = yu(MX_BLOCK_Y + MX.blockT) + 0.002
+
+/** the 64 dots as glow shapes, in texel order (row r, column c → index 8r + c) */
+function matrixDotShapes(): GlowShape[] {
+  const out: GlowShape[] = []
+  for (let row = 0; row < 8; row++)
+    for (let col = 0; col < 8; col++)
+      out.push({
+        cx: MX_CX * MM + (col - 3.5) * MX.dotPitch * MM,
+        cz: MX.bz * MM + (row - 3.5) * MX.dotPitch * MM,
+        r: (MX.dotD / 2) * MM,
+      })
+  return out
+}
 
 // ======================================================================
 // WS2812B 8-LED strip (input pads 5V GND DIN at the left end, DOUT right)
@@ -1140,6 +1180,8 @@ const WS = {
   proud: 1.0,
 }
 const WS_XS = [0, PITCH, 2 * PITCH, 23 * PITCH]
+/** a WS2812B pixel's glow size (× the 5 mm LED's): its 3.7 mm lens, a little under a T-1¾ dome */
+const WS_GLOW_SIZE = 0.75
 const WS_TOP_Y = PCB_BOT + WS.t
 
 function ws2812Statics() {
@@ -1257,18 +1299,16 @@ function buildWs2812(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]): 
   )
   dies.position.y = lens.position.y + 0.002
   group.add(dies)
-  const glows: THREE.Sprite[] = []
-  // halo sprites (the texture is null in node; the sprites still carry the state)
-  const glowTex = ghost ? null : ledGlowTexture()
+  // the shared LED glow halo per pixel (led-look.ts: one brightness language
+  // with every LED; the texture is null in node, the sprites still carry the state)
+  const glows: LedHaloRig[] = []
+  const hue = new THREE.Color()
   if (!ghost) {
     for (let i = 0; i < 8; i++) {
-      const s = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
-      )
-      s.position.set((WS.ledX0 + i * WS.ledPitch) * MM, yu(WS_TOP_Y + WS.ledT) + 0.25, 0)
-      s.visible = false
-      group.add(s)
-      glows.push(s)
+      // (the hue is the pixel's, set per update; a saturated placeholder keeps the white-LED boost off)
+      const rig = makeLedHalo({ color: 0xff0000, at: new THREE.Vector3((WS.ledX0 + i * WS.ledPitch) * MM, yu(WS_TOP_Y + WS.ledT) + 0.25, 0), size: WS_GLOW_SIZE })
+      group.add(rig.halo)
+      glows.push(rig)
     }
   }
   let lastSig = '#init' // never a real signature: the first apply paints (albedo included)
@@ -1282,18 +1322,17 @@ function buildWs2812(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]): 
     paintPixels(data, rgb, 8)
     tex.needsUpdate = true
     if (alb) refreshAlbedo(alb, tex)
-    glows.forEach((s, i) => {
+    glows.forEach((rig, i) => {
+      // the latched PWM level of the brightest channel is the pixel's light
+      // (0..1 of full); its hue, normalised, is the glow's colour
       const v = rgb?.[i] ?? 0
       const m = Math.max((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff) / 255
-      if (m > 0.01) {
-        s.visible = true
-        s.material.color.setRGB(data[i * 4] / 255, data[i * 4 + 1] / 255, data[i * 4 + 2] / 255, THREE.SRGBColorSpace)
-        s.material.opacity = Math.min(1, 0.3 + 0.7 * Math.sqrt(m))
-        s.scale.setScalar(1.0 + 1.4 * Math.sqrt(m))
-      } else {
-        s.visible = false
-        s.material.opacity = 0
+      const mx = Math.max(data[i * 4], data[i * 4 + 1], data[i * 4 + 2])
+      if (m > 0 && mx > 0) {
+        hue.setRGB(data[i * 4] / mx, data[i * 4 + 1] / mx, data[i * 4 + 2] / mx, THREE.SRGBColorSpace)
+        setHaloColor(rig, hue)
       }
+      rig.apply(ledPerceived(m))
     })
   }
   apply(comp, entry, null)
@@ -1401,11 +1440,10 @@ function pushFan(pos: number[], uv: number[], pts: [number, number][], u: number
   }
 }
 
-/** 4 × 7 segments + the colon, texel 8·digit + segment (a = 0 … g = 6), colon = texel 15 */
-function segmentsGeometry(): THREE.BufferGeometry {
-  return cachedGeometry('displays-tm1637-segments', () => {
-    const pos: number[] = []
-    const uv: number[] = []
+/** the TM1637's lit shapes: picture (x, y-up) mm polygons and their level texel (8·digit + segment, colon = 15) */
+function tmSegmentPolys(): { pts: [number, number][]; texel: number }[] {
+  const out: { pts: [number, number][]; texel: number }[] = []
+  {
     const t = TM.seg / 2
     const w2 = TM.digitW / 2 - t
     const h2 = TM.digitH / 2 - t
@@ -1442,7 +1480,7 @@ function segmentsGeometry(): THREE.BufferGeometry {
     for (let dgt = 0; dgt < 4; dgt++) {
       segs.forEach(([sx, sy, half, horiz], k) => {
         const pts = bar(sx, sy, half, horiz).map(([x, y]): [number, number] => [TM_CX + TM.digitX[dgt] + x + y * TM.slant, dcz + y])
-        pushFan(pos, uv, pts, (dgt * 8 + k + 0.5) / 32)
+        out.push({ pts, texel: dgt * 8 + k })
       })
     }
     // colon: two square dots between digits 2 and 3
@@ -1454,8 +1492,18 @@ function segmentsGeometry(): THREE.BufferGeometry {
         [s, s],
         [-s, s],
       ].map(([x, y]) => [TM_CX + x + (cy + y) * TM.slant, dcz + cy + y])
-      pushFan(pos, uv, pts, (8 + 7 + 0.5) / 32)
+      out.push({ pts, texel: 8 + 7 })
     }
+  }
+  return out
+}
+
+/** 4 × 7 segments + the colon, texel 8·digit + segment (a = 0 … g = 6), colon = texel 15 */
+function segmentsGeometry(): THREE.BufferGeometry {
+  return cachedGeometry('displays-tm1637-segments', () => {
+    const pos: number[] = []
+    const uv: number[] = []
+    for (const s of tmSegmentPolys()) pushFan(pos, uv, s.pts, (s.texel + 0.5) / 32)
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
@@ -1474,10 +1522,27 @@ function buildTm1637(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]): 
   const material =
     ghost || !tex || !alb
       ? cachedMaterial('displays-seg-ghost', () => new THREE.MeshPhysicalMaterial({ color: 0xaaa49f, roughness: 0.5, metalness: 0 }))
-      : ledFaceMaterial(tex, alb, { color: 0xaaa49f, emissive: 0xff1808, intensity: 2.2, roughness: 0.5 })
+      : ledFaceMaterial(tex, alb, { color: 0xaaa49f, emissive: 0xff1808, intensity: 0, roughness: 0.5 })
   const segs = new THREE.Mesh(segmentsGeometry(), material)
   segs.position.y = yu(TM_FACE_Y) + LIFT + 0.002
   group.add(segs)
+  // glow (one LED language, display-glow.ts): the lit segments' light on the black face
+  const polys = tmSegmentPolys()
+  const glow = ghost
+    ? null
+    : makeDisplayGlow({
+        x0: (TM_CX - TM.dispW / 2) * MM,
+        x1: (TM_CX + TM.dispW / 2) * MM,
+        z0: (TM.dz - TM.dispD / 2) * MM,
+        z1: (TM.dz + TM.dispD / 2) * MM,
+        y: yu(TM_FACE_Y) + LIFT + 0.004,
+        // picture (x, y-up) → module (x, z = −y)
+        shapes: polys.map((s) => ({ pts: s.pts.map(([x, y]): [number, number] => [x * MM, -y * MM]) })),
+        color: 0xff2010,
+        pxPerUnit: 18,
+      })
+  if (glow?.mesh) group.add(glow.mesh)
+  const levels = new Float32Array(polys.length)
   let lastSig = '#init' // never a real signature: the first apply paints (albedo included)
   const apply = (_c: ComponentInstance, _e: CatalogEntry, t: ComponentTelemetry | null) => {
     if (!tex) return
@@ -1485,9 +1550,15 @@ function buildTm1637(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]): 
     const sig = v ? `${v.seg0},${v.seg1},${v.seg2},${v.seg3},${v.brightness},${v.on}` : ''
     if (sig === lastSig) return
     lastSig = sig
-    paintSegments(tex.image.data as Uint8Array, v)
+    const lit = paintSegments(tex.image.data as Uint8Array, v)
     tex.needsUpdate = true
     if (alb) refreshAlbedo(alb, tex)
+    // the programmed pulse width (the model's) through the LEDs' curve
+    const p = lit > 0 && v ? ledPerceived(Math.min(1, Math.max(0, v.brightness ?? 0)) * DISPLAY_FULL_LIGHT) : 0
+    ;(material as THREE.MeshPhysicalMaterial).emissiveIntensity = displayLensIntensity(ledLook(p))
+    const d = tex.image.data as Uint8Array
+    for (let i = 0; i < polys.length; i++) levels[i] = d[polys[i].texel * 4] > 0 ? 1 : 0
+    glow?.apply(levels, p)
   }
   apply(comp, entry, null)
   return { object: group, pinWorld: pins.map((p) => p.clone()), update: apply }

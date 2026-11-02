@@ -47,6 +47,7 @@ import {
 } from '../../model/catalog'
 import { SupportBadge } from '../embedded/PartInfo'
 import { useLegacyChrome } from '../chrome/legacy'
+import { editCue } from '../chrome/edit-feedback'
 import { t, useLang } from '../../i18n'
 import { partLabel } from '../../i18n/parts'
 import { ProbeMenuHost } from '../workspace/ProbeMenu'
@@ -555,7 +556,10 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
       setMode({ kind: 'select' })
       return
     }
+    // an off-board part (supply, meter…) is placed by arming it: that is its placement commit
+    const before = useStore.getState().layout.components.length
     setMode({ kind: 'place', type: entry.type, pickedHoles: [] })
+    if (useStore.getState().layout.components.length > before) editCue('place')
     // drop to peek so the canvas is free to place on — NOT a full dismiss
     if (!desktop) setSnap(PEEK)
   }

@@ -22,7 +22,7 @@
  */
 
 import * as THREE from 'three'
-import type { ComponentInstance } from '../../model/types'
+import type { ComponentInstance, ComponentTelemetry } from '../../model/types'
 import type { CatalogEntry } from '../../model/catalog'
 import {
   BuildResult,
@@ -37,6 +37,8 @@ import {
   pinLeg,
   shortLabel,
 } from './shared'
+import { INDICATOR_ON_LIGHT, ledLook, ledPerceived } from './led-look'
+import { displayLensIntensity, makeDisplayGlow, type GlowShape } from './display-glow'
 
 interface DipExtents {
   minX: number
@@ -237,8 +239,23 @@ export function buildDip(
 // Seven-segment display (DIP-10, emissive segments driven by telemetry)
 // ---------------------------------------------------------------------------
 
-const SEG_UNLIT = { color: 0x240808, emissive: 0x550000, intensity: 0.25 }
-const SEG_LIT = { color: 0x7a1410, emissive: 0xff3020, intensity: 1.4 }
+const SEG_UNLIT = { color: 0x240808, emissive: 0x550000, intensity: 0.25, roughness: 0.32 }
+/**
+ * a lit segment: the LED lens language (display-glow.ts) — its saturated
+ * hue, brighter with the drive; its own light dominates its reflection
+ */
+const SEG_LIT = { color: 0x5a0e0a, emissive: 0xff3020, roughness: 0.75, envMapIntensity: 0.15 }
+
+/**
+ * A segment's perceived brightness from the model: its real light (I / 20 mA)
+ * where telemetry publishes one per segment (`segmentLight`), else the
+ * honest typical-indicator ON for a segment the model reports lit (> 1 mA).
+ */
+export function segmentP(t: ComponentTelemetry | null | undefined, name: string): number {
+  const light = (t?.segmentLight as Record<string, number> | undefined)?.[name]
+  if (typeof light === 'number' && Number.isFinite(light)) return ledPerceived(Math.max(0, light))
+  return t?.segments?.[name] === true ? ledPerceived(INDICATOR_ON_LIGHT) : 0
+}
 
 interface SegSpec {
   name: string
@@ -335,7 +352,7 @@ export function buildSevenSeg(
       color: SEG_UNLIT.color,
       emissive: SEG_UNLIT.emissive,
       emissiveIntensity: SEG_UNLIT.intensity,
-      roughness: 0.32,
+      roughness: SEG_UNLIT.roughness,
     })
     segMats[spec.name] = mat
     const geo = spec.kind === 'h' ? hGeo : spec.kind === 'v' ? vGeo : dotGeo
@@ -364,19 +381,57 @@ export function buildSevenSeg(
   glass.position.set(cx, topY + 0.1, zc)
   group.add(glass)
 
+  // the lit segments' glow over the window (display-glow.ts), in the digit
+  // group so a flipped display turns it too; just above the smoked glass
+  const segShapes: GlowShape[] = SEG_LAYOUT.map((spec) => {
+    const x = -0.15 + spec.x
+    if (spec.kind === 'dot') return { cx: x, cz: spec.z, r: 0.13 }
+    const [hw, hd] = spec.kind === 'h' ? [0.5, 0.11] : [0.11, 0.475]
+    return { pts: [[x - hw, spec.z - hd], [x + hw, spec.z - hd], [x + hw, spec.z + hd], [x - hw, spec.z + hd]] as [number, number][] }
+  })
+  const glow = makeDisplayGlow({
+    x0: -(W - 0.5) / 2,
+    x1: (W - 0.5) / 2,
+    z0: -(D - 0.5) / 2,
+    z1: (D - 0.5) / 2,
+    y: topY + 0.125,
+    shapes: segShapes,
+    color: 0xff2010,
+    pxPerUnit: 40,
+  })
+  if (glow.mesh) digit.add(glow.mesh)
+  const levels = new Float32Array(SEG_LAYOUT.length)
+
   // pins sit under the package (body overhangs the holes) — straight pins
   for (const p of pins) statics.push(pinLeg(p, baseY + 0.1, 0.07))
   for (const m of mergeStatic(statics)) group.add(m)
 
-  const apply = (segments: Record<string, boolean> | undefined) => {
-    for (const spec of SEG_LAYOUT) {
+  const apply = (t: ComponentTelemetry | null | undefined) => {
+    let pMax = 0
+    SEG_LAYOUT.forEach((spec, i) => {
       const mat = segMats[spec.name]
-      const lit = segments?.[spec.name] === true
-      const s = lit ? SEG_LIT : SEG_UNLIT
-      mat.color.setHex(s.color)
-      mat.emissive.setHex(s.emissive)
-      mat.emissiveIntensity = s.intensity
-    }
+      const p = segmentP(t, spec.name)
+      const look = ledLook(p)
+      if (look.drive > 0) {
+        mat.color.setHex(SEG_LIT.color)
+        mat.emissive.setHex(SEG_LIT.emissive)
+        mat.emissiveIntensity = displayLensIntensity(look)
+        // a lit segment shows its own light, not a mirror of the studio (pink under the HDRI)
+        mat.roughness = SEG_LIT.roughness
+        mat.envMapIntensity = SEG_LIT.envMapIntensity
+      } else {
+        mat.color.setHex(SEG_UNLIT.color)
+        mat.emissive.setHex(SEG_UNLIT.emissive)
+        mat.emissiveIntensity = SEG_UNLIT.intensity
+        mat.roughness = SEG_UNLIT.roughness
+        mat.envMapIntensity = 1
+      }
+      levels[i] = p
+      pMax = Math.max(pMax, p)
+    })
+    // each lit segment's glow relative to the brightest one
+    for (let i = 0; i < levels.length; i++) levels[i] = pMax > 0 ? levels[i] / pMax : 0
+    glow.apply(levels, pMax)
   }
   apply(undefined)
 
@@ -384,7 +439,7 @@ export function buildSevenSeg(
     object: group,
     pinWorld: pins.map((p) => p.clone()),
     update: (_c2, _e2, telemetry) => {
-      apply(telemetry?.segments)
+      apply(telemetry)
     },
   }
 }

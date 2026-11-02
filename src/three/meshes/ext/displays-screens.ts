@@ -259,18 +259,17 @@ export function tftIntensity(d: DisplayTelemetry | undefined): number {
 
 /**
  * MAX7219 matrix ('mono-pages' 8 × 8: byte per column, bit r = row r) →
- * an 8 × 8 RGBA level map sampled by the 64 dot lenses (texel (c, r) of
- * byte row r): R = G = B = lit level 0..255. The brightness the model
- * reports (PWM duty × multiplex duty, 1 = full scan at 31/32) scales the
- * level; the material colour carries the red.
+ * an 8 × 8 RGBA lit mask sampled by the 64 dot lenses (texel (c, r) of
+ * byte row r): R = G = B = 255 where lit. The brightness the model reports
+ * (PWM duty × multiplex duty) drives the material's emission through the
+ * LEDs' perceptual curve (displays.mesh.ts / display-glow.ts); the material
+ * colour carries the red.
  */
 export function paintMatrix(out: Uint8Array, d: DisplayTelemetry | undefined): number {
   out.fill(0)
   for (let i = 3; i < out.length; i += 4) out[i] = 255
   if (!d || !d.on || !d.data || d.format !== 'mono-pages') return 0
-  const b = Math.min(1, Math.max(0, (d.contrast ?? 1) / 2))
-  // even intensity 0 (1/32 PWM) is plainly visible on a real matrix
-  const lvl = srgbByte(0.3 + 0.7 * b)
+  const lvl = 255
   let lit = 0
   for (let c = 0; c < 8; c++) {
     const col = d.data[c] ?? 0
@@ -308,15 +307,16 @@ export function paintPixels(out: Uint8Array, rgb: readonly number[] | undefined,
 
 /**
  * TM1637 module (values seg0–seg3: segment bits a…g = bit 0…6, bit 7 of
- * digit 2 (seg1) = colon; brightness 0..1; on) → a 32-texel level row:
+ * digit 2 (seg1) = colon; brightness 0..1; on) → a 32-texel lit mask:
  * texel 8·digit + segment (0 a … 6 g), texel 7 of digit 1 = the colon.
+ * The programmed pulse width (brightness) drives the material's emission
+ * through the LEDs' perceptual curve (displays.mesh.ts).
  */
 export function paintSegments(out: Uint8Array, values: Record<string, number> | undefined): number {
   out.fill(0)
   for (let i = 3; i < out.length; i += 4) out[i] = 255
   if (!values || !values.on) return 0
-  const b = Math.min(1, Math.max(0, values.brightness ?? 0))
-  const lvl = srgbByte(0.3 + 0.7 * b)
+  const lvl = 255
   let lit = 0
   for (let dgt = 0; dgt < 4; dgt++) {
     const s = values[`seg${dgt}`] ?? 0
@@ -342,12 +342,15 @@ export function srgbByte(linear: number): number {
  * Albedo of LED faces from their emission texture: a lit lens is dominated
  * by its own light, so its diffuse reflection of the room is pulled down
  * (`out` = 255 − k·max(R, G, B)); unlit lenses keep the diffuser colour.
+ * The alpha channel carries the same factor for the face's specular
+ * (specularIntensityMap): a lit lens does not mirror the studio softboxes
+ * into a pale pink either.
  */
 export function ledAlbedo(out: Uint8Array, emission: Uint8Array, k = 0.95): void {
   for (let i = 0; i < emission.length; i += 4) {
     const m = Math.max(emission[i], emission[i + 1], emission[i + 2])
     const a = Math.round(255 - k * m)
     out[i] = out[i + 1] = out[i + 2] = a
-    out[i + 3] = 255
+    out[i + 3] = a
   }
 }

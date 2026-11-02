@@ -63,6 +63,9 @@ const zh: Record<string, string> = {
   'This lesson cannot run in the simulator yet, so it cannot be checked automatically. The conditions are listed for reference.':
     '本課目前還無法在模擬器中執行，因此無法自動驗收。以下條件僅供參考。',
   'All {n} conditions pass — lesson complete!': '全部 {n} 項條件都通過——課程完成！',
+  // a pass with the loaded answer (product chrome): the 驗收 headline and the coach line, never 「課程完成」
+  'All {n} conditions pass (with the loaded solution)': '全部 {n} 項條件都通過（用的是載入的解答）',
+  'Load the starting circuit and build it yourself': '載入起始電路，自己接一次',
   '{passed} of {n} conditions pass. Fix the failed ones and check again.': '{passed} / {n} 項條件通過。請修正未通過的項目後再檢查一次。',
   'You completed this lesson on {date}.': '你已於 {date} 完成本課。',
 

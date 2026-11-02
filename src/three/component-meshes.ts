@@ -104,10 +104,14 @@ export function hasComponentUpdater(built: BuiltComponent): boolean {
 //
 // VISUALLY_INERT_TELEMETRY_KEYS are fields NO mesh updater reads (they feed
 // the inspector / status UI only): per-pin voltages, branch current and
-// power, chip logic outputs and the MCU execution state (pc / cycles change
-// every frame). tests/perf-telemetry-diff.test.ts scans src/three/meshes for
-// reads of these names and fails if an updater starts using one — add it
-// back to the comparison (remove it here) when that happens.
+// power, chip logic outputs, the MCU execution state (pc / cycles change
+// every frame) and the 顯示電流 pin currents (window means — they change
+// every frame while tracking; the flow layer reads them from the whole
+// snapshot, never through a part's updater — tests/flow-inert.test.ts holds
+// that). tests/perf-telemetry-diff.test.ts
+// scans src/three/meshes for reads of these names and fails if an updater
+// starts using one — add it back to the comparison (remove it here) when
+// that happens.
 //
 // A part whose updater animates against WALL time while a flag is set
 // (the buzzer body vibrates while `sounding`) is never skipped while set.
@@ -119,6 +123,7 @@ export const VISUALLY_INERT_TELEMETRY_KEYS: ReadonlySet<string> = new Set([
   'power',
   'outputs',
   'mcu',
+  'pinCurrents',
 ])
 
 /** Telemetry that must reach its updater every frame (wall-time animation). */

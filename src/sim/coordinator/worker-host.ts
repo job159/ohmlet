@@ -24,6 +24,7 @@ import type { CircuitLayout, ParamValue } from '../../model/types'
 import type { FirmwareImage } from '../../mcu/firmware'
 import { SimulationCoordinator } from './coordinator'
 import type { CoordinatorOptions } from './coordinator'
+import { registerTrackingTarget } from './tracking'
 import type {
   HostQuery,
   HostQueryResult,
@@ -48,6 +49,7 @@ export type MainToWorker =
   | { type: 'uart'; componentId: string; port: string; bytes: Uint8Array }
   | { type: 'logic-channels'; channels: LogicChannelConfig[] }
   | { type: 'query'; id: number; query: HostQuery }
+  | { type: 'currents'; on: boolean }
   | { type: 'dispose' }
 
 export type WorkerToMain =
@@ -80,6 +82,8 @@ export class WorkerSimHost implements SimHost {
   >()
   private nextQuery = 1
   private dead = false
+  /** leave the 顯示電流 tracking registry (./tracking.ts) */
+  private readonly untrack: () => void
 
   /** Throws when the worker cannot be constructed (createSimHost then falls back to inline). */
   constructor(private readonly callbacks: SimHostCallbacks) {
@@ -90,6 +94,7 @@ export class WorkerSimHost implements SimHost {
       this.fail(e.message ? `simulation worker crashed: ${e.message}` : 'simulation worker crashed')
     }
     this.worker.onmessageerror = () => this.fail('simulation worker sent an unreadable message')
+    this.untrack = registerTrackingTarget(this)
   }
 
   private onMessage(m: WorkerToMain): void {
@@ -164,6 +169,9 @@ export class WorkerSimHost implements SimHost {
   setLogicChannels(channels: LogicChannelConfig[]): void {
     this.post({ type: 'logic-channels', channels })
   }
+  setCurrentTracking(on: boolean): void {
+    this.post({ type: 'currents', on })
+  }
   query(q: HostQuery): Promise<HostQueryResult> {
     if (this.dead) return Promise.reject(new Error('simulation host disposed'))
     const id = this.nextQuery++
@@ -174,6 +182,7 @@ export class WorkerSimHost implements SimHost {
   }
   dispose(): void {
     if (this.dead) return
+    this.untrack()
     this.post({ type: 'dispose' })
     this.dead = true
     this.worker.terminate()
@@ -315,6 +324,9 @@ export class SimWorkerRuntime {
           break
         case 'logic-channels':
           co.setLogicChannels(m.channels)
+          break
+        case 'currents':
+          co.setCurrentTracking(m.on === true)
           break
         case 'query': {
           let result: HostQueryResult

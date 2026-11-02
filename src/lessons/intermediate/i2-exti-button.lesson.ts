@@ -221,7 +221,7 @@ export const LESSON: Lesson = {
       id: 'press',
       title: '按下按鈕，看中斷計數',
       body:
-        '打開儀器的「UART 終端機」，選 U1 的 **USART1**（115200 8N1），然後按幾下按鈕（在麵包板上按，或在屬性面板勾選 SW1 的「按下」）：每按一次 LED1 反轉，終端機印出 `press 1`、`press 2`…。\n\n' +
+        '打開儀器的「UART 終端機」，選 U1 的 **USART1**（115200 8N1），然後按幾下按鈕（{滑鼠：在麵包板上點 SW1｜觸控：點一下麵包板上的 SW1}，或在屬性面板按 SW1 的「按住」）：每按一次 LED1 反轉，終端機印出 `press 1`、`press 2`…。\n\n' +
         '按住不放也只算一次，因為只有下降緣會觸發。把邏輯分析儀接到 PB12 與 PA5：PA5 的邊緣出現在 PB12 下降緣之後約 19～20 ms，這就是去彈跳的觀察期。',
       highlight: { components: ['SW1', 'LED1'] },
       check: PRESS_ONCE,

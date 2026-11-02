@@ -72,7 +72,8 @@ import {
   plastic,
   roundedPath,
 } from '../shared'
-import { LED_COLORS, ledGlowTexture } from '../semis'
+import { LED_COLORS } from '../semis'
+import { SMD_GLOW_SIZE, applyIndicator, ledPerceived, lightOf, makeLedHalo, type LedHaloRig } from '../led-look'
 import {
   MM,
   boardEdgeGeometries,
@@ -325,11 +326,13 @@ function terminalTops(pins: V3[]): V3[] {
 
 interface LedRig {
   lens: THREE.MeshPhysicalMaterial | null
-  glow: THREE.Sprite | null
+  /** the shared LED glow halo (led-look.ts), null on a ghost */
+  halo: LedHaloRig | null
+  /** the unlit lens tint */
+  tint: number
 }
 
 const LED_LENS_TINT = 0xf4d2cc
-const LED_LENS_LIT = 0xff3a28
 
 function ledRig(parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: V3, ghost: boolean, glowScale: number): LedRig {
   if (ghost) {
@@ -342,7 +345,7 @@ function ledRig(parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: V3, ghos
         pos.z,
       ),
     )
-    return { lens: null, glow: null }
+    return { lens: null, halo: null, tint: LED_LENS_TINT }
   }
   const lens = new THREE.MeshPhysicalMaterial({
     color: LED_LENS_TINT,
@@ -354,46 +357,29 @@ function ledRig(parent: THREE.Object3D, geo: THREE.BufferGeometry, pos: V3, ghos
     emissiveIntensity: 0,
   })
   parent.add(mesh(geo, lens, pos.x, pos.y, pos.z))
-  const glow = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: ledGlowTexture(),
-      color: LED_COLORS.red,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  )
-  // above the lens like the Blue Pill halo (a billboard at the lens centre sinks half into the PCB)
-  glow.position.set(pos.x, pos.y + mm(1.2), pos.z)
-  glow.scale.setScalar(glowScale)
-  glow.visible = false
-  glow.userData.baseScale = glowScale
-  parent.add(glow)
-  return { lens, glow }
+  // the shared glow halo (led-look.ts), above the lens like the Blue Pill's
+  // (sized to the bench module's scale)
+  const halo = makeLedHalo({ color: LED_COLORS.red, at: new THREE.Vector3(pos.x, pos.y + mm(1.2), pos.z), size: (SMD_GLOW_SIZE * glowScale) / 1.1, onBoard: true })
+  parent.add(halo.halo)
+  return { lens, halo, tint: LED_LENS_TINT }
 }
 
-/** brightness = engine I / 10 mA; perceptual √ curve like the Blue Pill LEDs */
-function applyLed(rig: LedRig, brightness: number | undefined): void {
+/**
+ * The indicator's REAL current / 20 mA (its sub-circuit LED; a snapshot
+ * with only the engine's 0..1 ledBrightness = I / 10 mA falls back to
+ * half of it) in the one brightness language of every LED (led-look.ts).
+ */
+function applyLed(rig: LedRig, light: number | undefined): void {
   if (!rig.lens) return
-  const br = THREE.MathUtils.clamp(brightness ?? 0, 0, 1)
-  const perceived = Math.sqrt(br)
-  const lit = br > 0.001
-  // a lit 0805 die colours the whole little lens red; kept below the white
-  // clip of the tone mapper so it still reads red at 2–3 mA
-  rig.lens.color.setHex(lit ? LED_LENS_LIT : LED_LENS_TINT)
-  rig.lens.emissiveIntensity = lit ? 1.1 + 1.6 * perceived : 0
-  if (rig.glow) {
-    const base = (rig.glow.userData.baseScale as number) ?? 1
-    if (br > 0.002) {
-      rig.glow.visible = true
-      rig.glow.material.opacity = Math.min(1, 0.25 + 0.5 * perceived)
-      rig.glow.scale.setScalar(base * (0.7 + 0.9 * perceived))
-    } else {
-      rig.glow.visible = false
-      rig.glow.material.opacity = 0
-    }
-  }
+  applyIndicator(rig as LedRig & { lens: THREE.MeshPhysicalMaterial }, ledPerceived(Math.min(1.6, Math.max(0, light ?? 0))))
+}
+
+/** relative intensity of a module's indicator LED `LED_<n>` (I / 20 mA) */
+function moduleLedLight(t: ComponentTelemetry | null, n: string): number {
+  const sub = t?.sub?.[`LED_${n}`]
+  if (sub) return lightOf(sub)
+  const b = t?.leds?.[n]
+  return typeof b === 'number' ? Math.max(0, b) * 0.5 : 0
 }
 
 const num = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback)
@@ -1716,8 +1702,7 @@ function buildUln2003(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]):
   for (const m of mergeStatic(leads)) group.add(m)
 
   const pose = (t: ComponentTelemetry | null) => {
-    const l = t?.leds
-    ;['A', 'B', 'C', 'D'].forEach((n, i) => applyLed(leds[i], l?.[n]))
+    ;['A', 'B', 'C', 'D'].forEach((n, i) => applyLed(leds[i], moduleLedLight(t, n)))
   }
   pose(null)
   return { object: group, pinWorld: terminalTops(pins), update: (_c, _e, t) => pose(t) }
@@ -2027,7 +2012,7 @@ function buildL298n(comp: ComponentInstance, entry: CatalogEntry, pins: V3[]): B
     jEnA.visible = paramOf(c.params, entry, 'jumperEnA') !== false
     jEnB.visible = paramOf(c.params, entry, 'jumperEnB') !== false
     j5v.visible = paramOf(c.params, entry, 'jumper5v') !== false
-    applyLed(led, t?.leds?.PWR)
+    applyLed(led, moduleLedLight(t, 'PWR'))
   }
   pose(comp, null)
   return { object: group, pinWorld: terminalTops(pins), update: (c, _e, t) => pose(c, t) }

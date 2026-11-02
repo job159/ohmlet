@@ -19,12 +19,13 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { pressProps, releaseAfterPointerClick, tick } from '../kit'
-import { useLang } from '../../i18n'
+import { t, useLang } from '../../i18n'
 import type { HighlightSpec } from '../../three/scene-api'
 import { highlightSource } from '../workspace/scene-bridge'
 import { glossaryText, type GlossaryId } from './glossary'
 import './embedded.css'
 import './inspector.css'
+import './latch.css'
 
 export function ToggleChip({
   pressed,
@@ -53,6 +54,49 @@ export function ToggleChip({
       }}
     >
       {children}
+    </button>
+  )
+}
+
+/** The latch's padlock: closed while kept pressed, open otherwise (the 3D badge's glyph). */
+function LatchLockIcon({ closed }: { closed: boolean }) {
+  return (
+    <svg className="latch-toggle-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d={closed ? 'M5 7V5.2a3 3 0 0 1 6 0V7' : 'M5 7V5.2a3 3 0 0 1 5.8-1.1'}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <rect x="3.2" y="7" width="9.6" height="7" rx="1.8" fill="currentColor" />
+    </svg>
+  )
+}
+
+/**
+ * 「保持按下」 — the keep-pressed latch toggle beside the inspector's 按住
+ * puck (src/ui/embedded/latch.ts): a capsule switch. On = filled blue with a
+ * closed padlock (the part stays pressed until it is turned off — the 3D
+ * lock badge's colour and glyph); off = glass with an open padlock.
+ */
+export function LatchToggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+  useLang()
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      className={`latch-toggle lg-gel${on ? ' is-on' : ''}`}
+      title={on ? t('Kept pressed — turn off to release|latch') : t('Keep it pressed until you turn this off|latch')}
+      {...pressProps}
+      onClick={(e) => {
+        tick(on ? 8 : 16)
+        onChange(!on)
+        releaseAfterPointerClick(e)
+      }}
+    >
+      <LatchLockIcon closed={on} />
+      <span className="latch-toggle-text">{t('Keep pressed|latch')}</span>
     </button>
   )
 }

@@ -41,13 +41,18 @@ import type { StampContext } from '../mna'
 import { pnLimit } from '../mna'
 import {
   BaseDevice,
+  bookBranch,
+  bookNorton,
   G_OFF,
   G_ON,
   LED_BURN_CURRENT,
   LED_BURN_TIME,
   LED_FULL_CURRENT,
+  LED_RATED_CURRENT,
   LedDevice,
+  LedWindow,
   PowerSupplyDevice,
+  roundLight,
   VT,
   registerDevice,
 } from '../devices'
@@ -197,9 +202,20 @@ const RGB_CHANNELS = ['R', 'G', 'B'] as const
 /**
  * 5 mm RGB LED, pins [R, COM, G, B]: three LED junctions to the common lead
  * — common cathode (dies' cathodes on COM) or common anode (anodes on COM).
- * Each die is the catalog LED model (Shockley, n = 2, Is fitted to its Vf
- * at 10 mA; brightness = I / 10 mA; burns out above 30 mA for 1 ms, keeps
- * conducting, stops emitting).
+ * Each die is the catalog LED junction (Shockley, n = 2, Is fitted to its Vf
+ * at 10 mA). A die burns out when its current stays above LED_BURN_CURRENT
+ * (150 mA, the peak rating) for more than LED_BURN_TIME (1 ms) — it keeps
+ * conducting but stops emitting; no junction-temperature model yet.
+ *
+ * Telemetry, eye-averaged per die over the last LED_EYE_S of simulated time
+ * (LedWindow, like the single LED — a PWM-driven die fades instead of
+ * strobing): values iR / iG / iB = each die's mean current (A); `light` =
+ * the brightest INTACT die's mean / 20 mA; `leds` R / G / B = mean / 10 mA,
+ * clamped (0 for a burned die); `rgb` packs those; `current` / `power` =
+ * the common lead's means (the sums); values burnedR / burnedG / burnedB =
+ * 1 for each burned die (the inspector names it even when it carries no
+ * current); values.iPeak while the brightest die's current switches (see
+ * LedWindow). ledBrightness stays the instant brightest die (I / 10 mA).
  *
  * Extends LedDevice so the engine's existing LED burn-out issue applies
  * (`burned` = any die burned, `burnCurrentMa` = the current that killed it);
@@ -208,16 +224,26 @@ const RGB_CHANNELS = ['R', 'G', 'B'] as const
 class RgbLedDevice extends LedDevice {
   private readonly anodes = new Int32Array(3)
   private readonly cathodes = new Int32Array(3)
+  /** device pin index of each die's anode / cathode (terminalCurrents) */
+  private readonly anodePins = new Int32Array(3)
+  private readonly cathodePins = new Int32Array(3)
   private readonly isatC = new Float64Array(3)
   private readonly vcritC = new Float64Array(3)
   private readonly nVtC = 2 * VT
   private readonly vLastC = new Float64Array(3)
+  /** each die's last stamped junction current / conductance (the KCL current, LedWindow) */
+  private readonly idC = new Float64Array(3)
+  private readonly gdC = new Float64Array(3)
+  private readonly winC = [new LedWindow(), new LedWindow(), new LedWindow()]
+  /** each die's last Newton iteration was step-limited (its window skips that step) */
+  private readonly limC = new Uint8Array(3)
   private readonly vC = new Float64Array(3)
   private readonly iC = new Float64Array(3)
   private readonly overC = new Float64Array(3)
   private readonly burnedC = [false, false, false]
   private readonly brightC = new Float64Array(3)
   private dtStep = 0
+  private tStepC = 0
   readonly commonAnode: boolean
 
   constructor(comp: ComponentInstance, entry: CatalogEntry, nodes: number[]) {
@@ -225,7 +251,15 @@ class RgbLedDevice extends LedDevice {
     this.commonAnode = this.str('common', 'cathode') === 'anode'
     const com = nodeOf(entry, nodes, 1, 'COM')
     const pinNodes = [nodeOf(entry, nodes, 0, 'R'), nodeOf(entry, nodes, 2, 'G'), nodeOf(entry, nodes, 3, 'B')]
+    const at = (fallback: number, name: string): number => {
+      const i = pinIndex(entry, name)
+      return i >= 0 ? i : fallback
+    }
+    const comPin = at(1, 'COM')
+    const chPins = [at(0, 'R'), at(2, 'G'), at(3, 'B')]
     for (let ch = 0; ch < 3; ch++) {
+      this.anodePins[ch] = this.commonAnode ? comPin : chPins[ch]
+      this.cathodePins[ch] = this.commonAnode ? chPins[ch] : comPin
       this.anodes[ch] = this.commonAnode ? com : pinNodes[ch]
       this.cathodes[ch] = this.commonAnode ? pinNodes[ch] : com
       this.isatC[ch] = LED_FULL_CURRENT / (expSafe(RGB_VF[ch] / this.nVtC) - 1)
@@ -233,8 +267,9 @@ class RgbLedDevice extends LedDevice {
     }
   }
 
-  beginStep(_time: number, dt: number): void {
+  beginStep(time: number, dt: number): void {
     this.dtStep = dt
+    this.tStepC = time
   }
 
   stamp(ctx: StampContext, x: Float64Array): void {
@@ -245,10 +280,21 @@ class RgbLedDevice extends LedDevice {
       const vRaw = vAt(x, a) - vAt(x, c)
       const vd = pnjlim(vRaw, this.vLastC[ch], this.nVtC, this.vcritC[ch])
       if (vd !== vRaw) limited = true
+      this.limC[ch] = vd !== vRaw ? 1 : 0
       this.vLastC[ch] = vd
-      stampJunction(ctx, a, c, vd, this.isatC[ch], this.nVtC)
+      const j = stampJunction(ctx, a, c, vd, this.isatC[ch], this.nVtC)
+      this.idC[ch] = j.id
+      this.gdC[ch] = j.gd
     }
     this.limited = limited
+  }
+
+  /** each die's last linearization (R, G and B tied to one net: each die keeps its own current) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    for (let ch = 0; ch < 3; ch++) {
+      const gd = this.gdC[ch]
+      bookBranch(out, off, this.nodes, x, this.anodePins[ch], this.cathodePins[ch], gd, this.idC[ch] - gd * this.vLastC[ch])
+    }
   }
 
   endStep(x: Float64Array): void {
@@ -259,12 +305,17 @@ class RgbLedDevice extends LedDevice {
       const i = this.isatC[ch] * (expSafe(v / this.nVtC) - 1)
       this.vC[ch] = v
       this.iC[ch] = i
+      // the eye window: the current the solver's KCL used this step (LedWindow)
+      this.winC[ch].add(this.idC[ch] + this.gdC[ch] * (v - this.vLastC[ch]), v, this.dtStep, this.tStepC + this.dtStep, this.limC[ch] === 1)
       if (!this.burnedC[ch]) {
         if (i > LED_BURN_CURRENT) {
           this.overC[ch] += this.dtStep
           if (this.overC[ch] > LED_BURN_TIME) {
             this.burnedC[ch] = true
-            if (!this.burned) this.burnCurrentMa = i * 1000
+            if (!this.burned) {
+              this.burnCurrentMa = i * 1000
+              this.burnedAt = this.tStepC + this.dtStep
+            }
           }
         } else {
           this.overC[ch] = 0
@@ -281,20 +332,39 @@ class RgbLedDevice extends LedDevice {
   }
 
   fillTelemetry(t: ComponentTelemetry): void {
+    // eye-averaged per die over the last LED_EYE_S of simulated time (LedWindow)
+    const w = [this.winC[0].read(), this.winC[1].read(), this.winC[2].read()]
     // the common lead carries the sum of the three die currents
-    t.current = this.iC[0] + this.iC[1] + this.iC[2]
-    t.power = this.iC[0] * this.vC[0] + this.iC[1] * this.vC[1] + this.iC[2] * this.vC[2]
+    t.current = w[0].i + w[1].i + w[2].i
+    t.power = w[0].p + w[1].p + w[2].p
+    // the classic I / 10 mA scale: the instant brightest die, as it always was
     t.ledBrightness = this.brightness
     t.burned = this.burned
+    // relative intensity of the brightest intact die (I / 20 mA), for the 3D glow
+    let light = 0
+    let brightest = -1
+    for (let ch = 0; ch < 3; ch++) {
+      if (this.burnedC[ch] || !(w[ch].i / LED_RATED_CURRENT > light)) continue
+      light = w[ch].i / LED_RATED_CURRENT
+      brightest = ch
+    }
+    t.light = roundLight(light)
+    if (this.burned) t.damage = { kind: 'burned', since: this.burnedAt }
     const leds: Record<string, number> = {}
     let packed = 0
     for (let ch = 0; ch < 3; ch++) {
-      leds[RGB_CHANNELS[ch]] = this.brightC[ch]
-      packed |= Math.round(this.brightC[ch] * 255) << (8 * (2 - ch))
+      // a burned die keeps conducting but stops emitting
+      const b = this.burnedC[ch] ? 0 : Math.min(Math.max(w[ch].i / LED_FULL_CURRENT, 0), 1)
+      leds[RGB_CHANNELS[ch]] = b
+      packed |= Math.round(b * 255) << (8 * (2 - ch))
     }
     t.leds = leds
     t.rgb = [packed]
-    t.values = { iR: this.iC[0], iG: this.iC[1], iB: this.iC[2] }
+    const values: Record<string, number> = { iR: w[0].i, iG: w[1].i, iB: w[2].i }
+    for (let ch = 0; ch < 3; ch++) if (this.burnedC[ch]) values[`burned${RGB_CHANNELS[ch]}`] = 1
+    // the brightness shown (the brightest die's) averages a switching current: say so (平均)
+    if (brightest >= 0 && w[brightest].switching) values.iPeak = w[brightest].peak
+    t.values = values
   }
 }
 
@@ -369,6 +439,16 @@ class ZenerDevice extends BaseDevice {
     ctx.addConductance(a, c, g)
     ctx.addCurrent(a, -k)
     ctx.addCurrent(c, k)
+    this.linG = g
+    this.linK = k
+  }
+
+  /** last stamp's linearization I(a→c) ≈ linG·v + linK */
+  private linG = 0
+  private linK = 0
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.linG, this.linK)
   }
 
   endStep(x: Float64Array): void {
@@ -449,7 +529,15 @@ class MosfetDevice extends BaseDevice {
     this.nS = nodeOf(entry, nodes, 0, 'source', 'S')
     this.nG = nodeOf(entry, nodes, 1, 'gate', 'G')
     this.nD = nodeOf(entry, nodes, 2, 'drain', 'D')
+    const s = pinIndex(entry, 'source', 'S')
+    const d = pinIndex(entry, 'drain', 'D')
+    this.pinS = s >= 0 ? s : 0
+    this.pinD = d >= 0 ? d : 2
   }
+
+  /** device pin index of the source / drain (terminalCurrents) */
+  private readonly pinS: number
+  private readonly pinD: number
 
   /** N-frame square law: [id, gm, gds] at (vgs, vds) with vds ≥ 0. */
   private forward(vgs: number, vds: number): [number, number, number] {
@@ -516,6 +604,9 @@ class MosfetDevice extends BaseDevice {
     ctx.addElement(nS, nD, -dIdU2)
     ctx.addElement(nS, nS, dIdU1 + dIdU2)
     ctx.addCurrent(nS, c)
+    this.lin[0] = dIdU1
+    this.lin[1] = dIdU2
+    this.lin[2] = c
 
     if (this.bodyDiode) {
       const a = s > 0 ? nS : nD
@@ -524,9 +615,29 @@ class MosfetDevice extends BaseDevice {
       const vb = pnjlim(vbRaw, this.vbLast, BODY_NVT, BODY_VCRIT)
       if (vb !== vbRaw) limited = true
       this.vbLast = vb
-      stampJunction(ctx, a, k, vb, BODY_IS, BODY_NVT)
+      const j = stampJunction(ctx, a, k, vb, BODY_IS, BODY_NVT)
+      this.lin[3] = j.gd
+      this.lin[4] = j.id - j.gd * vb
     }
     this.limited = limited
+  }
+
+  /** last stamp's linearization: ∂iD/∂vG, ∂iD/∂vD, constant, body diode gd, ieq */
+  private readonly lin = new Float64Array(5)
+
+  /** the drain row of the last stamp at x (returning through the source) plus the body diode; the gate takes none */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const pS = this.pinS
+    const pD = this.pinD
+    const l = this.lin
+    const iD = l[0] * vAt(x, this.nG) + l[1] * vAt(x, this.nD) - (l[0] + l[1]) * vAt(x, this.nS) + l[2]
+    out[off + pD] += iD
+    out[off + pS] -= iD
+    if (this.bodyDiode) {
+      // anode = source (N) / drain (P)
+      if (this.sgn > 0) bookBranch(out, off, this.nodes, x, pS, pD, l[3], l[4])
+      else bookBranch(out, off, this.nodes, x, pD, pS, l[3], l[4])
+    }
   }
 
   endStep(x: Float64Array): void {
@@ -592,6 +703,16 @@ class QuiescentDevice extends BaseDevice {
     const ieq = i - g * u
     ctx.addCurrent(a, -ieq)
     ctx.addCurrent(b, ieq)
+    this.linG = g
+    this.linI = ieq
+  }
+
+  /** last stamp's linearization: I(in → gnd) ≈ linG·u + linI */
+  private linG = 0
+  private linI = 0
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.linG, this.linI)
   }
 
   endStep(x: Float64Array): void {
@@ -625,6 +746,10 @@ class BatteryDevice extends PowerSupplyDevice {
 
   stamp(ctx: StampContext): void {
     ctx.addNorton(this.nodes[0], this.nodes[1], this.voc, this.rint)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookNorton(out, off, this.nodes, x, 0, 1, this.voc, this.rint)
   }
 
   endStep(x: Float64Array): void {
@@ -707,6 +832,16 @@ class CurrentSourceDevice extends BaseDevice {
     const j = i - g * w
     ctx.addCurrent(p, j)
     ctx.addCurrent(m, -j)
+    this.linG = g
+    this.linJ = j
+  }
+
+  /** last stamp's linearization: output ≈ linJ + linG·v out of '+' */
+  private linG = 0
+  private linJ = 0
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, -this.linG, -this.linJ)
   }
 
   endStep(x: Float64Array): void {
@@ -769,6 +904,10 @@ class NtcDevice extends BaseDevice {
     ctx.addConductance(this.nodes[0], this.nodes[1], this.g)
   }
 
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.g)
+  }
+
   endStep(x: Float64Array): void {
     this.v = vAt(x, this.nodes[0]) - vAt(x, this.nodes[1])
     this.i = this.v * this.g
@@ -806,6 +945,22 @@ const OPTO_A = 1 + 1 / OPTO_BR
 const OPTO_B = OPTO_BF / OPTO_BR
 /** collector-emitter leakage (S) — within the ≤ 100 nA dark current at 20 V */
 const OPTO_G_LEAK = 1e-9
+/** a point on the saturation knee: h(VCE) climbs from 0 to ≈ 0.9 between ≈ 0.03 V and ≈ 0.22 V */
+const OPTO_VCE_KNEE = 0.1
+
+/**
+ * Newton step limit for VCE. Off the knee h(VCE) is flat (dh ≈ 0), so a step
+ * from the active region overshoots far below it and the one back overshoots
+ * above it — a limit cycle (≈ −0.3 V ↔ ≈ 0.7 V with a 10 kΩ pull-up) that
+ * never lands in the ≈ 0.2 V wide knee. A step that would cross the knee
+ * stops on it first; any other step is limited to 1 V.
+ */
+export function optoVceLimit(vNew: number, vOld: number): number {
+  if ((vOld > OPTO_VCE_KNEE && vNew < OPTO_VCE_KNEE) || (vOld < OPTO_VCE_KNEE && vNew > OPTO_VCE_KNEE)) {
+    return OPTO_VCE_KNEE
+  }
+  return pnLimit(vNew, vOld, 1.0)
+}
 
 /**
  * Normalized output h(VCE) = IC / (CTR·IF) of an Ebers-Moll transistor whose
@@ -852,6 +1007,29 @@ class OptocouplerDevice extends BaseDevice {
     this.nK = nodeOf(entry, nodes, 1, 'cathode')
     this.nE = nodeOf(entry, nodes, 2, 'emitter')
     this.nC = nodeOf(entry, nodes, 3, 'collector')
+    const at = (fallback: number, name: string): number => {
+      const i = pinIndex(entry, name)
+      return i >= 0 ? i : fallback
+    }
+    this.pins = Int32Array.of(at(0, 'anode'), at(1, 'cathode'), at(2, 'emitter'), at(3, 'collector'))
+  }
+
+  /** device pin index of anode, cathode, emitter, collector (terminalCurrents) */
+  private readonly pins: Int32Array
+  /** last stamp's linearization: LED gd, ieq; output gA, gC, c0 */
+  private readonly lin = new Float64Array(5)
+
+  /**
+   * The LED junction and the output row of the last stamp at x, each on its
+   * own pins (cathode and emitter both on 0 V — the usual low-side wiring).
+   */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const p = this.pins
+    const l = this.lin
+    bookBranch(out, off, this.nodes, x, p[0], p[1], l[0], l[1])
+    const iC = l[2] * (vAt(x, this.nA) - vAt(x, this.nK)) + l[3] * (vAt(x, this.nC) - vAt(x, this.nE)) + l[4]
+    out[off + p[3]] += iC
+    out[off + p[2]] -= iC
   }
 
   stamp(ctx: StampContext, x: Float64Array): void {
@@ -859,12 +1037,14 @@ class OptocouplerDevice extends BaseDevice {
     const vdRaw = vAt(x, nA) - vAt(x, nK)
     const vd = pnjlim(vdRaw, this.vdLast, OPTO_NVT, OPTO_VCRIT)
     const vceRaw = vAt(x, nC) - vAt(x, nE)
-    const vce = pnLimit(vceRaw, this.vceLast, 1.0)
+    const vce = optoVceLimit(vceRaw, this.vceLast)
     this.limited = vd !== vdRaw || vce !== vceRaw
     this.vdLast = vd
     this.vceLast = vce
 
     const { id, gd } = stampJunction(ctx, nA, nK, vd, OPTO_IS, OPTO_NVT)
+    this.lin[0] = gd
+    this.lin[1] = id - gd * vd
     const ifPos = id > 0 ? id : 0
     const dIf = id > 0 ? gd : 0
     const [h, dh] = optoOutput(vce)
@@ -877,6 +1057,9 @@ class OptocouplerDevice extends BaseDevice {
     ctx.addElement(nC, nC, gC)
     ctx.addElement(nC, nE, -gC)
     const c0 = ic - gA * vd - (gC - OPTO_G_LEAK) * vce
+    this.lin[2] = gA
+    this.lin[3] = gC
+    this.lin[4] = c0
     ctx.addCurrent(nC, -c0)
     ctx.addElement(nE, nA, -gA)
     ctx.addElement(nE, nK, gA)
@@ -971,6 +1154,13 @@ class RelayDevice extends BaseDevice {
     ctx.addCurrent(this.nC2, this.ieq)
     ctx.addConductance(this.nCom, this.nNo, this.noClosed ? G_ON : G_OFF)
     ctx.addConductance(this.nCom, this.nNc, this.ncClosed ? G_ON : G_OFF)
+  }
+
+  /** the coil and each contact on their own pins (COM tied to a coil pin — one supply for both) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.geq, this.ieq)
+    bookBranch(out, off, this.nodes, x, 2, 3, this.noClosed ? G_ON : G_OFF)
+    bookBranch(out, off, this.nodes, x, 2, 4, this.ncClosed ? G_ON : G_OFF)
   }
 
   endStep(x: Float64Array): void {

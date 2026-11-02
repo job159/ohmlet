@@ -10,8 +10,8 @@
  * Honesty: the pushbutton model has NO contact bounce (catalog support
  * text), so the scope shows the RC edges but never the bounce itself —
  * runnable 'partial'. The pressed-button checks press the button themselves
- * (final round: a runtime stimulus on 「按下」, the inspector's runtime-param
- * path) — LED1 lights while SW1 is held, Y discharges through R3 while SW2 is.
+ * (final round: a runtime stimulus on 'pressed', the runtime-param path the
+ * 3D press and the inspector's 按住 / 保持按下 use) — LED1 lights while SW1 is held, Y discharges through R3 while SW2 is.
  */
 import type { Lesson } from '../types'
 import { anchored, bench, bullets, doc, part, supply, supplyWires, wire } from './bench'
@@ -113,8 +113,8 @@ export const LESSON: Lesson = {
       fix: '+5 V 接 A 側（第 10 欄）、R1 接 B 側（第 12 欄），讓電流必須經過按鈕',
     },
     {
-      symptom: '按下時 LED 很暗（亮度約 3 %）',
-      cause: 'R1 用了 10 kΩ 而不是 330 Ω：(5 − 1.8) ÷ 10 kΩ ≈ 0.32 mA',
+      symptom: '按下時 LED 很暗（亮度約 1.7 %，電流約 0.34 mA）',
+      cause: 'R1 用了 10 kΩ 而不是 330 Ω：(5 − 1.62) ÷ 10 kΩ ≈ 0.34 mA（電流這麼小時，LED 的順向電壓只有約 1.62 V）',
       fix: '把 R1 改成 330 Ω',
     },
     {
@@ -148,8 +148,9 @@ export const LESSON: Lesson = {
       at: { component: 'LED1', pin: 'anode' },
       quantity: 'led-brightness',
       component: 'LED1',
+      // brightness = I / rated 20 mA (F4: the app's one scale) — the same 0.1 mA as the old 1 % of 10 mA
       min: 0,
-      max: 0.01,
+      max: 0.005,
       seconds: 0.05,
       fresh: true,
       label: 'SW1 放開時 LED1 不亮（按鈕確實串在迴路中）',
@@ -192,7 +193,7 @@ export const LESSON: Lesson = {
       at: { component: 'LED1', pin: 'anode' },
       quantity: 'current',
       component: 'LED1',
-      // 220 Ω – 1 kΩ (the series-resistor check's range) gives 14.5 mA – 3.2 mA
+      // 220 Ω – 1 kΩ (the series-resistor check's range) gives 14.5 mA – 3.3 mA
       min: 0.002,
       max: 0.015,
       seconds: 0.05,
@@ -250,8 +251,8 @@ export const LESSON: Lesson = {
       id: 'b4-s3',
       title: '按下按鈕點亮 LED',
       body: doc(
-        '按上方的「▶ 執行模擬」（或空白鍵），然後在屬性面板勾選 SW1 的「按下」（或在麵包板上按住它）：LED1 亮起，電流約 9.7 mA。',
-        '放開後 LED 熄滅：按鈕斷開時迴路中沒有電流。「檢查此步驟」會自己按住 SW1 再量 LED1 的電流。',
+        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，然後在麵包板上按住 SW1（想讓它一直按著：{滑鼠：雙擊｜觸控：點兩下} SW1，或在屬性面板打開「保持按下」）：LED1 亮起，電流約 9.7 mA。',
+        '放開後 LED 熄滅：按鈕斷開時迴路中沒有電流（保持按下的話，關掉「保持按下」或在麵包板上點一下 SW1 就會放開）。「檢查此步驟」會自己按住 SW1 再量 LED1 的電流。',
       ),
       highlight: { components: ['SW1', 'LED1'] },
       check: {

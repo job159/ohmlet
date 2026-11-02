@@ -80,7 +80,8 @@ export function checkLive(c: Circuit, out: ErcFinding[], ledsReported: ReadonlyS
               level: 'error',
               key: id,
               message: isLed
-                ? `${id} burned out in the simulation (the LED model latches it after more than 30 mA for over 1 ms). Add or enlarge its series resistor, then reset the simulation.`
+                ? // the LED model's burn rule (src/sim/devices.ts LED_TJ_BURN_C / LED_PEAK_CURRENT), as rules-led.ts words it
+                  `${id} burned out in the simulation (the LED model latches it as burned when its junction passes about 150 °C, far over its rating for seconds, or more than 150 mA flows for over 1 ms). Add or enlarge its series resistor, then reset the simulation.`
                 : `${id} (${label}) burned out in the simulation (its model latched an over-current). Limit the current through it, then reset the simulation.`,
               short: `${id} burned out`,
               fact: `burned:${id}`,
@@ -154,7 +155,7 @@ export function checkLive(c: Circuit, out: ErcFinding[], ledsReported: ReadonlyS
                 rule: 'over-rating',
                 level: 'error',
                 key: `${id}:${el.id}`,
-                message: `${id}’s on-board LED ${el.id} burned out in the simulation (over 30 mA for more than 1 ms): something drives its pin with too much current. Check what is wired to ${el.pins.filter((p) => !p.startsWith('@')).join(' / ')}.`,
+                message: `${id}’s on-board LED ${el.id} burned out in the simulation (its junction passed about 150 °C, far over its rating for seconds, or more than 150 mA flowed for over 1 ms): something drives its pin with too much current. Check what is wired to ${el.pins.filter((p) => !p.startsWith('@')).join(' / ')}.`,
                 short: `${id} on-board LED burned out`,
                 pins: el.pins.filter((p) => !p.startsWith('@')).map((pin) => ({ id, pin })),
                 componentIds: [id],

@@ -40,10 +40,84 @@ export const LED_VF: Record<string, number> = {
 }
 /** LED current that gives full brightness (A). */
 export const LED_FULL_CURRENT = 0.01
-/** Sustained LED current above this burns it out (A). */
-export const LED_BURN_CURRENT = 0.03
-/** How long the over-current must be sustained to burn the LED (s). */
-export const LED_BURN_TIME = 1e-3
+/**
+ * Rated continuous forward current of a 5 mm indicator LED (A) — the
+ * catalog's ratings.ifMax (Kingbright WP7113: IF 20 mA). Telemetry `light`
+ * = I / this rating (luminous intensity is close to linear in IF).
+ */
+export const LED_RATED_CURRENT = 0.02
+
+/**
+ * LED junction temperature and burn-out (honesty fix F11 — replaces the old
+ * "above 30 mA for 1 ms burns it" rule, which blew up a 5 mm LED on the most
+ * common beginner choice, 100 Ω on 5 V = 31 mA, that a real LED survives for
+ * a very long time).
+ *
+ * First-order thermal model of a 5 mm epoxy LED with its leads in a
+ * breadboard, driven by the power the solver itself computes (P = Vf · I,
+ * the junction's own voltage and current every step):
+ *
+ *   Tj → LED_AMBIENT_C + LED_RTH_JA · P   with time constant LED_THERMAL_TAU
+ *   (exact exponential step, so any analog step length gives the same curve)
+ *
+ *  - LED_RTH_JA 350 K/W: junction-to-ambient thermal resistance of a 5 mm
+ *    through-hole LED — the datasheets of the common 5 mm parts list
+ *    RthJA ≈ 300–400 K/W (heat leaves through the lead frame; the epoxy
+ *    lens is a poor conductor).
+ *  - LED_THERMAL_TAU 5 s: the junction heats with the die, reflector cup and
+ *    lead frame — a few seconds, not milliseconds (the light of an
+ *    over-driven LED droops over seconds) and not minutes (the leads, not
+ *    the whole lens, set it).
+ *  - LED_AMBIENT_C 25 °C: room temperature, the datasheets' reference.
+ *  - LED_TJ_MAX_C 100 °C: the datasheets' maximum junction temperature.
+ *    Above it the LED is overheating (telemetry damage 'overheating', heat
+ *    ≥ 1 — it smokes) but not yet dead; it clears below LED_TJ_COOL_C.
+ *  - LED_TJ_BURN_C 150 °C: far beyond the epoxy's glass transition
+ *    (≈ 120–130 °C): the lens expands and lifts the bond wire — the LED
+ *    burns OPEN (latched until the simulation is reset or rebuilt).
+ *  - LED_PEAK_CURRENT 150 mA held for LED_PEAK_TIME 1 ms: a gross overload.
+ *    5 mm LEDs are rated for 100–160 mA only as 0.1 ms pulses at 1/10 duty;
+ *    held ten times longer the die or the 25 µm bond wire fails at once —
+ *    an LED straight across a supply (hundreds of amperes in the solver,
+ *    which has only the supply's 10 mΩ to limit it) or 5 V through 10 Ω
+ *    (300 mA) burns within a millisecond or two.
+ *
+ * What this gives (steady state, red / blue): 20 mA → 38 / 46 °C; 31 mA
+ * (100 Ω on 5 V) → 45 / 58 °C — over its 20 mA rating (the 3D flicker and
+ * the Problems warning say so) but it never burns; 66 mA (47 Ω) → 69 / 97 °C;
+ * the junction passes 100 °C at ≈ 111 / 69 mA (overheating, smoking) and
+ * would reach 150 °C at ≈ 183 / 114 mA (a blue LED at 120 mA burns after
+ * ≈ 15 s; anything above 150 mA burns at once). Light output is not
+ * derated with temperature (the catalog says so).
+ */
+export const LED_RTH_JA = 350
+export const LED_THERMAL_TAU = 5
+export const LED_AMBIENT_C = 25
+export const LED_TJ_MAX_C = 100
+/** an overheating LED is "cool" again below this (hysteresis, °C) */
+export const LED_TJ_COOL_C = 95
+export const LED_TJ_BURN_C = 150
+export const LED_PEAK_CURRENT = 0.15
+export const LED_PEAK_TIME = 1e-3
+/**
+ * The junction model heats with at most this power (W). One step of the
+ * solver may report an absurd power (the first, not yet converged step of a
+ * power-on: at least tens of kilowatts in a 330 Ω LED circuit), which would "cook"
+ * the junction in one 50 µs step.
+ * Physically it only matters below the instant-burn current (150 mA ≈ 0.3–0.5
+ * W); above that LED_PEAK_CURRENT decides within a millisecond — at 5 W one
+ * 50 µs step adds ≈ 0.02 K.
+ */
+export const LED_HEAT_P_CAP = 5
+/**
+ * Instant burn-out rule of the per-die RGB LED model (src/sim/models/basic.model.ts):
+ * the same gross-overload limit as LED_PEAK_CURRENT / LED_PEAK_TIME (it used
+ * to be 30 mA for 1 ms — see above). The RGB dies do not run the junction
+ * temperature model yet.
+ */
+export const LED_BURN_CURRENT = LED_PEAK_CURRENT
+/** How long the RGB die current must stay above LED_BURN_CURRENT to burn it (s). */
+export const LED_BURN_TIME = LED_PEAK_TIME
 
 const EXP_CAP = 80
 const EXP_CAP_E = Math.exp(EXP_CAP)
@@ -118,6 +192,63 @@ export interface AnalogDevice {
    * models are unaffected.
    */
   issues?(): readonly SimIssue[]
+  /**
+   * Optional (顯示電流, src/sim/coordinator/current-tracker.ts): ADD the
+   * current flowing INTO each pin — out[off + k] for nodes[k], A — under the
+   * LAST stamp() evaluated at the solution `x`: the very currents the stamps
+   * put into the solver's KCL, but per pin (`out` arrives zeroed). The
+   * tracker calls it after the solve and before endStep, and only while two
+   * pins of the device that are not one internal conductor sit on the same
+   * node — there the stamps, which name nodes, not pins, give only the
+   * node's total (a DIP switch's commons on one rail, a pot wired as a
+   * rheostat, a diode-connected transistor). Its values split that total.
+   * NaN = a pin the model does not book (a complex branch): when it is the
+   * only such terminal on the shared node it takes the rest of the node's
+   * total (KCL), otherwise the node's pins publish unknown. Without the hook
+   * they publish unknown whenever the device puts a current there.
+   * Pure: never changes the device's state.
+   */
+  terminalCurrents?(x: Float64Array, out: Float64Array, off: number): void
+}
+
+/**
+ * terminalCurrents helper: a branch from pin `a` to pin `b` (device pin
+ * indices) with conductance `g` and a constant part `i0` flowing a → b
+ * inside the device — what ctx.addConductance(nodes[a], nodes[b], g) plus
+ * ctx.addCurrent(nodes[a], −i0) / ctx.addCurrent(nodes[b], i0) stamp.
+ */
+export function bookBranch(
+  out: Float64Array,
+  off: number,
+  nodes: ArrayLike<number>,
+  x: Float64Array,
+  a: number,
+  b: number,
+  g: number,
+  i0 = 0,
+): void {
+  if (a < 0 || b < 0 || a >= nodes.length || b >= nodes.length) return
+  const na = nodes[a]
+  const nb = nodes[b]
+  const i = g * ((na >= 0 ? x[na] : 0) - (nb >= 0 ? x[nb] : 0)) + i0
+  out[off + a] += i
+  out[off + b] -= i
+}
+
+/** terminalCurrents helper: a Norton source from pin `plus` to pin `minus` (ctx.addNorton(nodes[plus], nodes[minus], v, rout)). */
+export function bookNorton(
+  out: Float64Array,
+  off: number,
+  nodes: ArrayLike<number>,
+  x: Float64Array,
+  plus: number,
+  minus: number,
+  v: number,
+  rout: number,
+): void {
+  // exactly MnaSystem.addNorton's decomposition: g between the pins, v·g pushed out of '+'
+  const g = 1 / (rout > 1e-6 ? rout : 1e-6)
+  bookBranch(out, off, nodes, x, plus, minus, g, -v * g)
 }
 
 /**
@@ -154,34 +285,143 @@ export abstract class BaseDevice implements AnalogDevice {
 
 // -------------------------------------------------------------- passives
 
+/**
+ * Resistor self-heating (only for a part with a stated power rating —
+ * catalog ratings.pMax, ¼ W for the film resistor): `heat` is the dissipated
+ * power / pMax through a first-order thermal filter with time constant
+ * RES_THERMAL_TAU — the body's temperature rise relative to the rise at
+ * rated power (a ¼ W film resistor reaches ≈ 155 °C at its rating; a small
+ * leaded resistor's thermal time constant is on the order of ten seconds).
+ * Above RES_HOT_ON it is overheating (hot, smoking — telemetry damage
+ * 'overheating', clears below RES_HOT_OFF). At RES_BURN_HEAT — ten times
+ * the rated temperature rise, the film is destroyed — it burns open: the
+ * resistor latches open (G_OFF, the current stops) until the simulation is
+ * reset or the circuit is edited (a fresh engine). Only a sustained gross overload gets there: IEC 60115-1's
+ * short-time overload (6.25× rated power for 5 s) never does; 58× (10 Ω
+ * across 12 V = 14.4 W in a ¼ W part) burns it in ≈ 1.9 s.
+ */
+export const RES_THERMAL_TAU = 10
+export const RES_HOT_ON = 1.0
+export const RES_HOT_OFF = 0.9
+export const RES_BURN_HEAT = 10
+
 class ResistorDevice extends BaseDevice {
   private g: number
   private i = 0
   private v = 0
+  /** rated power (W), NaN = no rating → no thermal model */
+  private readonly pMax: number
+  private heat = 0
+  private hot = false
+  private hotSince = 0
+  private open = false
+  private burnedAt = NaN
+  private burnPowerW = 0
+  private reportPending = false
+  private dtLast = 0
+  private tStep = 0
 
   constructor(comp: ComponentInstance, entry: CatalogEntry, nodes: number[]) {
     super(comp, entry, nodes)
     this.g = 1 / clampResistance(this.num('resistance', 1000))
+    const p = entry.ratings?.pMax
+    this.pMax = typeof p === 'number' && p > 0 ? p : NaN
+  }
+
+  beginStep(time: number, dt: number): void {
+    this.dtLast = dt
+    this.tStep = time
   }
 
   stamp(ctx: StampContext): void {
-    ctx.addConductance(this.nodes[0], this.nodes[1], this.g)
+    ctx.addConductance(this.nodes[0], this.nodes[1], this.open ? G_OFF : this.g)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.open ? G_OFF : this.g)
   }
 
   endStep(x: Float64Array): void {
     this.v = vAt(x, this.nodes[0]) - vAt(x, this.nodes[1])
-    this.i = this.v * this.g
+    this.i = this.v * (this.open ? G_OFF : this.g)
+    if (!(this.pMax > 0) || this.open) {
+      if (this.open && this.heat > 0) this.heat *= Math.exp(-this.dtLast / RES_THERMAL_TAU)
+      return
+    }
+    const dt = this.dtLast
+    if (dt > 0) {
+      const ratio = Math.abs(this.v * this.i) / this.pMax
+      this.heat += (ratio - this.heat) * (1 - Math.exp(-dt / RES_THERMAL_TAU))
+    }
+    const tEnd = this.tStep + dt
+    if (!this.hot && this.heat > RES_HOT_ON) {
+      this.hot = true
+      this.hotSince = tEnd
+    } else if (this.hot && this.heat < RES_HOT_OFF) {
+      this.hot = false
+    }
+    if (this.heat >= RES_BURN_HEAT) {
+      // the film burned open: latched until a fresh model (reset / rebuild)
+      this.burnPowerW = Math.abs(this.v * this.i)
+      this.open = true
+      this.burnedAt = tEnd
+      this.hot = false
+      this.reportPending = true
+    }
   }
 
   setRuntimeParam(key: string, value: ParamValue): void {
     if (key === 'resistance') this.g = 1 / clampResistance(asNumber(value, 1 / this.g))
   }
 
+  /** the film burned open (latched) */
+  get burnedOpen(): boolean {
+    return this.open
+  }
+
+  issues(): readonly SimIssue[] {
+    if (!this.reportPending) return NO_ISSUES
+    this.reportPending = false
+    const id = this.comp.id
+    return [
+      {
+        level: 'error',
+        message: `${id} burned open (${fmtWatts(this.burnPowerW)} in a ${fmtWatts(this.pMax)} resistor) — use a larger resistance or a higher-wattage resistor`,
+        componentId: id,
+      },
+    ]
+  }
+
   fillTelemetry(t: ComponentTelemetry): void {
     t.current = this.i
     t.power = this.i * this.v
+    if (this.heat >= 0.5) t.heat = Math.round(this.heat * 100) / 100
+    if (this.open) t.damage = { kind: 'burned', since: this.burnedAt }
+    else if (this.hot) t.damage = { kind: 'overheating', since: this.hotSince }
   }
 }
+
+const NO_ISSUES: readonly SimIssue[] = []
+
+/** "2.5 W" / "250 mW" for the damage messages (3 significant digits). */
+export function fmtWatts(w: number): string {
+  const x = Math.abs(w)
+  return x >= 1 ? `${+x.toPrecision(3)} W` : `${+(x * 1000).toPrecision(3)} mW`
+}
+
+/**
+ * Electrolytic (polarized) capacitor reversed: an aluminium electrolytic
+ * tolerates about 1 V of reverse voltage; beyond that the oxide is
+ * stripped, it heats and its pressure vent opens. Modelled as accumulated
+ * stress = ∫ (Vrev − CAP_REVERSE_OK) / CAP_VENT_VS dt — 5 V reverse vents it
+ * in about one second, 2 V in four, ≤ 1 V never. Venting is latched
+ * (telemetry damage 'vented') until the simulation is reset or the circuit
+ * is edited (a fresh engine); the electrical
+ * model itself is unchanged (a real vented part has lost capacitance and
+ * may short — the problem text says so).
+ */
+export const CAP_REVERSE_OK = 1.0
+export const CAP_VENT_VS = 4
 
 class CapacitorDevice extends BaseDevice {
   private c: number
@@ -189,16 +429,45 @@ class CapacitorDevice extends BaseDevice {
   private geq = 0
   private ieq = 0
   private i = 0
+  private readonly polarized: boolean
+  private ventStress = 0
+  private vented = false
+  private ventedAt = NaN
+  private ventReverseV = 0
+  private reportPending = false
+  private dtLast = 0
+  private tStep = 0
 
   constructor(comp: ComponentInstance, entry: CatalogEntry, nodes: number[]) {
     super(comp, entry, nodes)
     this.c = Math.max(this.num('capacitance', 1e-5), 1e-15)
+    this.polarized = this.bool('polarized', false)
   }
 
-  beginStep(_time: number, dt: number): void {
+  beginStep(time: number, dt: number): void {
     // backward Euler companion: i = C/dt·v − C/dt·vPrev
     this.geq = this.c / dt
     this.ieq = this.geq * this.vPrev
+    this.dtLast = dt
+    this.tStep = time
+  }
+
+  /** the vent opened (reverse voltage, latched) */
+  get isVented(): boolean {
+    return this.vented
+  }
+
+  issues(): readonly SimIssue[] {
+    if (!this.reportPending) return NO_ISSUES
+    this.reportPending = false
+    const id = this.comp.id
+    return [
+      {
+        level: 'error',
+        message: `${id} vented: ${this.ventReverseV.toFixed(2)} V reverse voltage on a polarized capacitor — turn it around (+ lead toward the higher voltage)`,
+        componentId: id,
+      },
+    ]
   }
 
   stamp(ctx: StampContext): void {
@@ -209,10 +478,23 @@ class CapacitorDevice extends BaseDevice {
     ctx.addCurrent(b, -this.ieq)
   }
 
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.geq, -this.ieq)
+  }
+
   endStep(x: Float64Array): void {
     const v = vAt(x, this.nodes[0]) - vAt(x, this.nodes[1])
     this.i = this.geq * (v - this.vPrev)
     this.vPrev = v
+    if (this.polarized && !this.vented && -v > CAP_REVERSE_OK && this.dtLast > 0) {
+      this.ventStress += ((-v - CAP_REVERSE_OK) / CAP_VENT_VS) * this.dtLast
+      if (this.ventStress >= 1) {
+        this.vented = true
+        this.ventedAt = this.tStep + this.dtLast
+        this.ventReverseV = -v
+        this.reportPending = true
+      }
+    }
   }
 
   setRuntimeParam(key: string, value: ParamValue): void {
@@ -221,6 +503,7 @@ class CapacitorDevice extends BaseDevice {
 
   fillTelemetry(t: ComponentTelemetry): void {
     t.current = this.i
+    if (this.vented) t.damage = { kind: 'vented', since: this.ventedAt }
   }
 }
 
@@ -246,6 +529,10 @@ class InductorDevice extends BaseDevice {
     // constant part of the branch current flows a→b
     ctx.addCurrent(a, -this.iPrev)
     ctx.addCurrent(b, this.iPrev)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.geq, this.iPrev)
   }
 
   endStep(x: Float64Array): void {
@@ -280,6 +567,14 @@ class PotentiometerDevice extends BaseDevice {
     ctx.addConductance(this.nodes[1], this.nodes[2], 1 / r2)
   }
 
+  /** each track half's own current (a rheostat: wiper tied to an end) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const r1 = Math.max(this.rTotal * this.pos, 0.5)
+    const r2 = Math.max(this.rTotal * (1 - this.pos), 0.5)
+    bookBranch(out, off, this.nodes, x, 0, 1, 1 / r1)
+    bookBranch(out, off, this.nodes, x, 1, 2, 1 / r2)
+  }
+
   setRuntimeParam(key: string, value: ParamValue): void {
     if (key === 'position') this.pos = Math.min(Math.max(asNumber(value, this.pos), 0), 1)
     else if (key === 'resistance') this.rTotal = clampResistance(asNumber(value, this.rTotal))
@@ -304,6 +599,10 @@ class PhotoresistorDevice extends BaseDevice {
 
   stamp(ctx: StampContext): void {
     ctx.addConductance(this.nodes[0], this.nodes[1], this.g)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, this.g)
   }
 
   endStep(x: Float64Array): void {
@@ -355,19 +654,284 @@ class DiodeDevice extends BaseDevice {
     this.i = this.isat * (expSafe(this.v / this.nVt) - 1)
   }
 
+  /** the junction's last linearization (both leads on one node: its stamp's own current) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const vd = this.vLast
+    const u = vd / this.nVt
+    const id = this.isat * (expSafe(u) - 1)
+    const gd = (this.isat * expSafeDeriv(u)) / this.nVt + 1e-12
+    bookBranch(out, off, this.nodes, x, 0, 1, gd, id - gd * vd)
+  }
+
   fillTelemetry(t: ComponentTelemetry): void {
     t.current = this.i
     t.power = this.i * this.v
   }
 }
 
+/** Round to 0.001 (telemetry `light`): stable values keep the 3D diff quiet. */
+export function roundLight(x: number): number {
+  return x > 0 && Number.isFinite(x) ? Math.round(x * 1000) / 1000 : 0
+}
+
+/**
+ * The eye's averaging time for LED telemetry (s of SIMULATED time): `light`,
+ * `current` and `power` of an LED are the mean over the last LED_EYE_S —
+ * about how long the eye integrates light (flicker fusion near 50 Hz), so a
+ * PWM-driven LED (hundreds of hertz and up) shows its average and a slow
+ * blinker shows on and off.
+ */
+export const LED_EYE_S = 0.02
+/** the eye window is kept in this many equal buckets (1 ms each) */
+const LED_EYE_BUCKETS = 20
+const LED_EYE_B = LED_EYE_S / LED_EYE_BUCKETS
+/** switching detector: on above this fraction of the window's peak current … */
+export const LED_SWITCH_ON = 0.5
+/** … off again below this fraction (Schmitt hysteresis: ripple is no switching) */
+export const LED_SWITCH_OFF = 0.25
+/** … of at least this peak (A): a dark LED's nanoampere wiggles never count */
+export const LED_SWITCH_FLOOR_A = 50e-6
+/** on / off crossings inside the eye window that make its mean an average of a switching current */
+export const LED_SWITCH_EDGES = 2
+/**
+ * … and the switching must REPEAT: a whole on/off cycle (the last
+ * LED_SWITCH_EDGES + 1 crossings) inside LED_SWITCH_HOLD_WINDOWS eye windows,
+ * i.e. a blink of 25 Hz or faster. Once switching, the verdict holds while
+ * every cycle still fits those windows (+ LED_SWITCH_SLACK buckets: a
+ * crossing is known only to its bucket and its step, so one steady cycle can
+ * measure up to two buckets more than the one that latched the verdict).
+ * That makes the verdict a property of the blink, not of its phase: a steady
+ * 25–50 Hz blink puts one or two crossings in a window depending on its phase,
+ * and an isolated short pulse (a 10 ms flash every 60 ms, a sine that lights
+ * the LED only near its peaks) puts two in a window once per period — neither
+ * may flip the 平均 label frame after frame. The first is always an average,
+ * the second never (the eye sees it blink).
+ */
+export const LED_SWITCH_HOLD_WINDOWS = 2
+/** one cycle may measure this many buckets more while the verdict holds (see LED_SWITCH_HOLD_WINDOWS) */
+const LED_SWITCH_SLACK = 2
+/** a cycle that latches the verdict spans at most this many buckets … */
+const LED_SWITCH_CYCLE_B = LED_SWITCH_HOLD_WINDOWS * LED_EYE_BUCKETS
+/** … and one that keeps it at most this many */
+const LED_SWITCH_HOLD_B = LED_SWITCH_CYCLE_B + LED_SWITCH_SLACK
+/** crossings remembered: one whole cycle */
+const LED_SWITCH_RING = LED_SWITCH_EDGES + 1
+
+/**
+ * Eye-averaged LED telemetry (pwm-fade, glow NP3): one junction's window.
+ *
+ * What an LED shows is the MEAN of the current its junction carried over
+ * the last LED_EYE_S of simulated time (∫ i dt / ∫ dt — the way
+ * CurrentTracker.drain() averages pinCurrents over a frame), not one
+ * instant: a 1 kHz PWM LED fades smoothly in 3D instead of strobing between
+ * on and off samples, at any frame rate and any simulation speed, and a
+ * reader that looks only now and then (a check after a button press) still
+ * sees what the LED does NOW, not a blend of the last second. A steady LED
+ * reads exactly what an instant sample reads.
+ *
+ * The current is the one the solver's own KCL used — the junction's Newton
+ * linearization evaluated at the solution, what the rest of the circuit and
+ * pinCurrents see — and only from steps whose last Newton iteration was not
+ * step-limited (`limited`: x is then no solution of the junction equation;
+ * the first step of a power-on can read 10¹⁸ A as a raw Shockley value).
+ * Before any such step the mean is 0; a window holding none keeps the last
+ * mean. Reading is pure: telemetry() twice gives the same values.
+ *
+ * Kept in LED_EYE_BUCKETS buckets of LED_EYE_S / LED_EYE_BUCKETS (by
+ * absolute simulated time) plus the one leaving the window, weighted by the
+ * part of it still inside: the mean glides, no jump when a bucket retires.
+ *
+ * Switching: on / off crossings of the current (Schmitt levels LED_SWITCH_ON
+ * / LED_SWITCH_OFF of the window's peak, at least LED_SWITCH_FLOOR_A); with
+ * LED_SWITCH_EDGES of them inside the window (a whole on or off phase) and a
+ * whole on/off cycle inside LED_SWITCH_HOLD_WINDOWS windows (it repeats) the
+ * mean averages a switching current (PWM, a blink of 25 Hz or faster: never
+ * a 1 Hz blinker, never an isolated short flash) — telemetry values.iPeak
+ * then lets a reader say 平均 / average. The verdict holds while every cycle
+ * still fits those windows, so a steady blink keeps one label frame after
+ * frame instead of flipping with its phase.
+ */
+export class LedWindow {
+  private readonly n = LED_EYE_BUCKETS + 1
+  private readonly q = new Float64Array(LED_EYE_BUCKETS + 1)
+  private readonly e = new Float64Array(LED_EYE_BUCKETS + 1)
+  private readonly t = new Float64Array(LED_EYE_BUCKETS + 1)
+  private readonly pk = new Float64Array(LED_EYE_BUCKETS + 1)
+  /** absolute index of the newest bucket (floor(t / bucket)); −1 = none yet */
+  private cur = -1
+  /** end time of the last step (s) */
+  private tNow = 0
+  /** Schmitt state and its reference (the window's peak when the newest bucket opened) */
+  private on = false
+  private refPeak = 0
+  /** the last mean read (kept while the window holds no usable step) */
+  private lastI = 0
+  private lastP = 0
+  /**
+   * Switching verdict (hysteresis, LED_SWITCH_HOLD_WINDOWS): latched when a
+   * crossing leaves LED_SWITCH_EDGES of them inside the eye window and closes
+   * a cycle of at most LED_SWITCH_CYCLE_B buckets; cleared once the cycle in
+   * progress has outgrown LED_SWITCH_HOLD_B. edgeAt = absolute bucket of each
+   * of the last LED_SWITCH_RING crossings (ring, newest at edgeHead).
+   */
+  private switching = false
+  private readonly edgeAt = new Float64Array(LED_SWITCH_RING).fill(-Infinity)
+  private edgeHead = 0
+
+  /**
+   * One solved step ending at `tEnd`: junction current `i` (A) at junction
+   * voltage `v` (V) over `dt` s; `limited` = the last Newton iteration was
+   * step-limited (not used, see the class doc).
+   */
+  add(i: number, v: number, dt: number, tEnd: number, limited = false): void {
+    if (!(dt > 0) || !Number.isFinite(tEnd)) return
+    this.tNow = tEnd
+    const k = Math.max(0, Math.floor(tEnd / LED_EYE_B - 1e-9))
+    if (k !== this.cur) this.rotate(k)
+    if (limited || !Number.isFinite(i)) return
+    const s = k % this.n
+    this.q[s] += i * dt
+    if (Number.isFinite(v)) this.e[s] += v * i * dt
+    this.t[s] += dt
+    if (i > this.pk[s]) this.pk[s] = i
+    const ref = Math.max(this.refPeak, LED_SWITCH_FLOOR_A)
+    if (this.on ? i < ref * LED_SWITCH_OFF : i > ref * LED_SWITCH_ON) {
+      this.on = !this.on
+      this.edgeHead = (this.edgeHead + 1) % LED_SWITCH_RING
+      this.edgeAt[this.edgeHead] = k
+      // the eye window now holds LED_SWITCH_EDGES crossings (a whole on or off phase) and the
+      // last cycle fits the hold windows (the switching repeats): the mean averages a switching current
+      if (this.edgeBack(LED_SWITCH_EDGES - 1) > k - LED_EYE_BUCKETS && this.edgeBack(LED_SWITCH_EDGES) >= k - LED_SWITCH_CYCLE_B) {
+        this.switching = true
+      }
+    }
+  }
+
+  /** bucket of the crossing `back` crossings before the newest (0: the newest; −Infinity: none so far) */
+  private edgeBack(back: number): number {
+    return this.edgeAt[(this.edgeHead - back + LED_SWITCH_RING) % LED_SWITCH_RING]
+  }
+
+  /** Forget everything (the LED burned: what it shows starts afresh). */
+  clear(): void {
+    this.q.fill(0)
+    this.e.fill(0)
+    this.t.fill(0)
+    this.pk.fill(0)
+    this.on = false
+    this.refPeak = 0
+    this.lastI = 0
+    this.lastP = 0
+    this.switching = false
+    this.edgeAt.fill(-Infinity)
+    this.edgeHead = 0
+  }
+
+  private rotate(k: number): void {
+    if (k < this.cur) {
+      this.clear() // time went back (never in one engine): start over
+    } else {
+      const from = Math.max(this.cur + 1, k - this.n + 1)
+      for (let j = from; j <= k; j++) {
+        const s = j % this.n
+        this.q[s] = 0
+        this.e[s] = 0
+        this.t[s] = 0
+        this.pk[s] = 0
+      }
+    }
+    this.cur = k
+    this.refPeak = this.peak()
+    // the cycle in progress (from the oldest of the last LED_SWITCH_EDGES crossings) has outgrown
+    // the hold: no longer switching. Runs before a crossing in bucket k is counted, so a crossing
+    // that closes a too-long cycle finds the verdict cleared and cannot latch it (span > CYCLE_B).
+    if (this.switching && this.edgeBack(LED_SWITCH_EDGES - 1) < k - LED_SWITCH_HOLD_B) this.switching = false
+  }
+
+  /** the highest current inside the window (A) */
+  peak(): number {
+    let p = 0
+    for (let s = 0; s < this.n; s++) if (this.pk[s] > p) p = this.pk[s]
+    return p
+  }
+
+  /** mean current (A) and power (W) over the eye window; whether it averages a switching current */
+  read(): { i: number; p: number; peak: number; switching: boolean } {
+    if (this.cur < 0) return { i: this.lastI, p: this.lastP, peak: 0, switching: false }
+    // the bucket leaving the window counts with the part of it still inside
+    const oldest = this.cur - LED_EYE_BUCKETS
+    const f = oldest >= 0 ? Math.min(1, Math.max(0, this.cur + 1 - this.tNow / LED_EYE_B)) : 0
+    let q = 0
+    let e = 0
+    let t = 0
+    for (let j = this.cur - LED_EYE_BUCKETS + 1; j <= this.cur; j++) {
+      if (j < 0) continue
+      const s = j % this.n
+      q += this.q[s]
+      e += this.e[s]
+      t += this.t[s]
+    }
+    if (oldest >= 0 && f > 0) {
+      const s = oldest % this.n
+      q += f * this.q[s]
+      e += f * this.e[s]
+      t += f * this.t[s]
+    }
+    if (t > 0) {
+      this.lastI = q / t
+      this.lastP = e / t
+    }
+    return { i: this.lastI, p: this.lastP, peak: this.peak(), switching: this.switching }
+  }
+}
+
+/**
+ * The current a Shockley junction stamped at the (limited) voltage `vd`
+ * carries at junction voltage `v` — its Newton linearization, i.e. what the
+ * solver's KCL used (DiodeDevice.stamp: id + gd·(v − vd)).
+ */
+export function junctionKclCurrent(isat: number, nVt: number, vd: number, v: number): number {
+  const u = vd / nVt
+  const id = isat * (expSafe(u) - 1)
+  const gd = (isat * expSafeDeriv(u)) / nVt + 1e-12
+  return id + gd * (v - vd)
+}
+
+/**
+ * A single LED junction (catalog `led`, every board's on-board LED): the
+ * Shockley diode above plus the junction-temperature burn model (see
+ * LED_RTH_JA … LED_PEAK_TIME). Once burned it is OPEN — a real LED killed by
+ * over-current almost always fails open (the bond wire breaks) — and dark,
+ * latched until a fresh model (reset / rebuild). Its telemetry current,
+ * power and light are eye-averaged over the last LED_EYE_S of simulated
+ * time (LedWindow); ledBrightness (the I / 10 mA scale) stays the instant
+ * value it always was — the classic chrome shows that scale of the eye mean
+ * (src/instruments/led-light.ts classicLedBrightness), so its Current and
+ * Brightness rows agree; the burn and thermal models use every step's own
+ * current.
+ */
 export class LedDevice extends DiodeDevice {
   burned = false
   /** current (mA) captured at the moment of burnout, for the issue message */
   burnCurrentMa = 0
+  /** simulation time (s) of the burnout (NaN while intact) */
+  burnedAt = NaN
   brightness = 0
+  /** the eye window of the telemetry (see LedWindow) */
+  private readonly win = new LedWindow()
   private overTime = 0
   private dtLast = 0
+  private tStep = 0
+  /** rated continuous forward current (A): the catalog's ifMax, else 20 mA */
+  private readonly rated: number
+  /** modelled junction temperature (°C) */
+  private tj = LED_AMBIENT_C
+  /** above LED_TJ_MAX_C (cleared below LED_TJ_COOL_C) */
+  private hot = false
+  private hotSince = 0
+  /** cached 1 − exp(−dt/τ) for the last step length */
+  private alphaDt = -1
+  private alpha = 0
 
   constructor(comp: ComponentInstance, entry: CatalogEntry, nodes: number[]) {
     super(comp, entry, nodes)
@@ -376,33 +940,100 @@ export class LedDevice extends DiodeDevice {
     this.nVt = 2 * VT // n = 2
     // choose Is so that V(10mA) = the color's forward voltage
     this.isat = LED_FULL_CURRENT / (expSafe(vf / this.nVt) - 1)
+    const ifMax = entry.ratings?.ifMax
+    this.rated = typeof ifMax === 'number' && ifMax > 0 ? ifMax : LED_RATED_CURRENT
   }
 
-  beginStep(_time: number, dt: number): void {
+  beginStep(time: number, dt: number): void {
     this.dtLast = dt
+    this.tStep = time
+  }
+
+  stamp(ctx: StampContext, x: Float64Array): void {
+    if (!this.burned) {
+      super.stamp(ctx, x)
+      return
+    }
+    // burned open: only the open-circuit leakage of G_OFF remains
+    this.limited = false
+    ctx.addConductance(this.nodes[0], this.nodes[1], G_OFF)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    if (this.burned) bookBranch(out, off, this.nodes, x, 0, 1, G_OFF)
+    else super.terminalCurrents(x, out, off)
   }
 
   endStep(x: Float64Array): void {
-    super.endStep(x)
-    if (!this.burned) {
-      if (this.i > LED_BURN_CURRENT) {
-        this.overTime += this.dtLast
-        if (this.overTime > LED_BURN_TIME) {
-          this.burned = true
-          this.burnCurrentMa = this.i * 1000
-        }
-      } else {
-        this.overTime = 0
-      }
+    const dt = this.dtLast
+    if (dt > 0 && dt !== this.alphaDt) {
+      this.alphaDt = dt
+      this.alpha = 1 - Math.exp(-dt / LED_THERMAL_TAU)
     }
-    // burned LEDs keep conducting but stop emitting light
-    this.brightness = this.burned ? 0 : Math.min(Math.max(this.i / LED_FULL_CURRENT, 0), 1)
+    if (this.burned) {
+      this.v = vAt(x, this.nodes[0]) - vAt(x, this.nodes[1])
+      this.i = this.v * G_OFF
+      if (dt > 0) this.tj += (LED_AMBIENT_C - this.tj) * this.alpha // an open junction cools down
+      this.brightness = 0
+      this.win.add(this.i, this.v, dt, this.tStep + dt) // (linear: exactly the stamped leakage)
+      return
+    }
+    super.endStep(x)
+    // the eye window: the current the solver's KCL used this step (see LedWindow)
+    this.win.add(junctionKclCurrent(this.isat, this.nVt, this.vLast, this.v), this.v, dt, this.tStep + dt, this.limited === true)
+    if (dt > 0) {
+      // the junction's own dissipation (a reverse-biased LED leaks pA: ~0)
+      const p = Math.min(Math.max(0, this.v * this.i), LED_HEAT_P_CAP)
+      this.tj += (LED_AMBIENT_C + LED_RTH_JA * p - this.tj) * this.alpha
+      // a gross overload: above the peak pulse rating for longer than a pulse may last
+      this.overTime = this.i > LED_PEAK_CURRENT ? this.overTime + dt : 0
+    }
+    const tEnd = this.tStep + dt
+    if (this.overTime > LED_PEAK_TIME || this.tj >= LED_TJ_BURN_C) {
+      this.burned = true
+      this.burnCurrentMa = this.i * 1000
+      this.burnedAt = tEnd
+      this.hot = false
+      this.brightness = 0
+      this.win.clear() // from now on it shows what a burned-open LED does: nothing
+      return
+    }
+    if (!this.hot && this.tj > LED_TJ_MAX_C) {
+      this.hot = true
+      this.hotSince = tEnd
+    } else if (this.hot && this.tj < LED_TJ_COOL_C) {
+      this.hot = false
+    }
+    this.brightness = Math.min(Math.max(this.i / LED_FULL_CURRENT, 0), 1)
+  }
+
+  /** modelled junction temperature (°C) */
+  get junctionC(): number {
+    return this.tj
+  }
+
+  /** relative luminous intensity: I / rated (0 when burned or reverse-biased) */
+  get light(): number {
+    return this.burned ? 0 : roundLight(this.i / this.rated)
   }
 
   fillTelemetry(t: ComponentTelemetry): void {
-    super.fillTelemetry(t)
+    // eye-averaged over the last LED_EYE_S of simulated time (LedWindow)
+    const w = this.win.read()
+    t.current = w.i
+    t.power = w.p
+    // the classic chrome's I / 10 mA scale: the instant value, as it always was
     t.ledBrightness = this.brightness
     t.burned = this.burned
+    t.light = this.burned ? 0 : roundLight(w.i / this.rated)
+    // the current shown averages a switching (PWM) current: say so (平均)
+    if (w.switching && !this.burned) t.values = { iPeak: w.peak }
+    // thermal stress: junction temperature rise / the rise at its maximum junction
+    // temperature (1 = LED_TJ_MAX_C), published like the resistor's from 0.5 on
+    const heat = (this.tj - LED_AMBIENT_C) / (LED_TJ_MAX_C - LED_AMBIENT_C)
+    if (heat >= 0.5) t.heat = Math.round(heat * 100) / 100
+    if (this.burned) t.damage = { kind: 'burned', since: this.burnedAt }
+    else if (this.hot) t.damage = { kind: 'overheating', since: this.hotSince }
   }
 }
 
@@ -479,6 +1110,30 @@ class BjtDevice extends BaseDevice {
     ctx.addElement(nE, nE, dIC1 + dIB1)
     ctx.addElement(nE, nC, dIC2 + dIB2)
     ctx.addCurrent(nE, cC + cB)
+    // the linearization, for terminalCurrents
+    const k = this.lin
+    k[0] = dIC1
+    k[1] = dIC2
+    k[2] = cC
+    k[3] = dIB1
+    k[4] = dIB2
+    k[5] = cB
+  }
+
+  /** last stamp's linearization: dIC1, dIC2, cC, dIB1, dIB2, cB */
+  private readonly lin = new Float64Array(6)
+
+  /** collector and base rows of the last stamp at x; the emitter returns their sum (a diode-connected transistor: B = C) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const vE = vAt(x, this.nodes[0])
+    const vB = vAt(x, this.nodes[1])
+    const vC = vAt(x, this.nodes[2])
+    const k = this.lin
+    const iC = (k[0] + k[1]) * vB - k[0] * vE - k[1] * vC + k[2]
+    const iB = (k[3] + k[4]) * vB - k[3] * vE - k[4] * vC + k[5]
+    out[off] += -(iC + iB)
+    out[off + 1] += iB
+    out[off + 2] += iC
   }
 
   endStep(x: Float64Array): void {
@@ -596,6 +1251,23 @@ class NmosDevice extends BaseDevice {
     ctx.addElement(nS, nD, -dIdVds)
     ctx.addElement(nS, nS, dIdVgs + dIdVds)
     ctx.addCurrent(nS, c)
+    this.lin[0] = dIdVgs
+    this.lin[1] = dIdVds
+    this.lin[2] = c
+  }
+
+  /** last stamp's linearization: ∂iD/∂vgs, ∂iD/∂vds, constant */
+  private readonly lin = new Float64Array(3)
+
+  /** the drain row of the last stamp at x; it returns through the source, the gate takes none */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const vS = vAt(x, this.nodes[0])
+    const vG = vAt(x, this.nodes[1])
+    const vD = vAt(x, this.nodes[2])
+    const k = this.lin
+    const iD = k[0] * vG + k[1] * vD - (k[0] + k[1]) * vS + k[2]
+    out[off] -= iD
+    out[off + 2] += iD
   }
 
   endStep(x: Float64Array): void {
@@ -626,6 +1298,11 @@ class PushbuttonDevice extends BaseDevice {
     ctx.addConductance(this.nodes[0], this.nodes[2], this.pressed ? G_ON : G_OFF)
   }
 
+  /** the contact, A1 → B1 (the tracker shares each side over its bridged legs) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 2, this.pressed ? G_ON : G_OFF)
+  }
+
   setRuntimeParam(key: string, value: ParamValue): void {
     if (key === 'pressed') this.pressed = asBool(value, this.pressed)
   }
@@ -649,6 +1326,12 @@ class SlideSwitchDevice extends BaseDevice {
     ctx.addConductance(this.nodes[1], this.nodes[2], this.state === 'b' ? G_ON : G_OFF)
   }
 
+  /** each contact's own current (a and b tied to one net) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 1, 0, this.state === 'a' ? G_ON : G_OFF)
+    bookBranch(out, off, this.nodes, x, 1, 2, this.state === 'b' ? G_ON : G_OFF)
+  }
+
   setRuntimeParam(key: string, value: ParamValue): void {
     if (key === 'state') this.state = asString(value, this.state)
   }
@@ -670,6 +1353,14 @@ class DipSwitch8Device extends BaseDevice {
     }
   }
 
+  /** each switch's own current, nA → nB (the commons tied to one rail) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    for (let i = 0; i < 8; i++) {
+      const closed = this.on.charAt(i) === '1'
+      bookBranch(out, off, this.nodes, x, i, 15 - i, closed ? G_ON : G_OFF)
+    }
+  }
+
   setRuntimeParam(key: string, value: ParamValue): void {
     if (key === 'on') this.on = asString(value, this.on)
   }
@@ -687,6 +1378,9 @@ class SevenSegmentDevice extends BaseDevice {
   private readonly nVt = 2 * VT
   private readonly segNodes: Int32Array
   private readonly comNode: number
+  /** device pin index of each segment's anode and of COM1 (−1 = missing) */
+  private readonly segPins: Int32Array
+  private readonly comPin: number
   private readonly vLast = new Float64Array(8)
   private readonly segI = new Float64Array(8)
 
@@ -695,14 +1389,34 @@ class SevenSegmentDevice extends BaseDevice {
     // ~2.0V forward at 10mA per segment junction
     this.isat = LED_FULL_CURRENT / (expSafe(2.0 / this.nVt) - 1)
     this.segNodes = new Int32Array(8)
+    this.segPins = new Int32Array(8)
     for (let i = 0; i < SEGMENT_NAMES.length; i++) {
       const seg = SEGMENT_NAMES[i]
       const pinName = seg === 'dp' ? 'DP' : seg.toUpperCase()
       const pinIdx = entry.pins.indexOf(pinName)
       this.segNodes[i] = pinIdx >= 0 && pinIdx < nodes.length ? nodes[pinIdx] : -1
+      this.segPins[i] = pinIdx >= 0 && pinIdx < nodes.length ? pinIdx : -1
     }
     const comIdx = entry.pins.indexOf('COM1')
     this.comNode = comIdx >= 0 && comIdx < nodes.length ? nodes[comIdx] : -1
+    this.comPin = comIdx >= 0 && comIdx < nodes.length ? comIdx : -1
+  }
+
+  /** each segment junction's last linearization (segments tied together); COM1/COM2 are one conductor */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    for (let i = 0; i < 8; i++) {
+      const vd = this.vLast[i]
+      const u = vd / this.nVt
+      const id = this.isat * (expSafe(u) - 1)
+      const gd = (this.isat * expSafeDeriv(u)) / this.nVt + 1e-12
+      if (this.segPins[i] >= 0 && this.comPin >= 0) {
+        bookBranch(out, off, this.nodes, x, this.segPins[i], this.comPin, gd, id - gd * vd)
+      } else {
+        // a missing pin stamped against the 0 V reference: nothing to book it on honestly
+        if (this.segPins[i] >= 0) out[off + this.segPins[i]] = NaN
+        if (this.comPin >= 0) out[off + this.comPin] = NaN
+      }
+    }
   }
 
   stamp(ctx: StampContext, x: Float64Array): void {
@@ -736,10 +1450,15 @@ class SevenSegmentDevice extends BaseDevice {
 
   fillTelemetry(t: ComponentTelemetry): void {
     const segments: Record<string, boolean> = {}
+    // glow2: each segment's real light, like an LED's `light` — its junction
+    // current / the rated 20 mA, rounded to 0.001, not clamped (> 1 = over-driven)
+    const segmentLight = {} as NonNullable<ComponentTelemetry['segmentLight']>
     for (let i = 0; i < SEGMENT_NAMES.length; i++) {
       segments[SEGMENT_NAMES[i]] = this.segI[i] > SEGMENT_LIT_CURRENT
+      segmentLight[SEGMENT_NAMES[i]] = roundLight(this.segI[i] / LED_RATED_CURRENT)
     }
     t.segments = segments
+    t.segmentLight = segmentLight
   }
 }
 
@@ -750,6 +1469,10 @@ class BuzzerDevice extends BaseDevice {
 
   stamp(ctx: StampContext): void {
     ctx.addConductance(this.nodes[0], this.nodes[1], 1 / BuzzerDevice.R)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookBranch(out, off, this.nodes, x, 0, 1, 1 / BuzzerDevice.R)
   }
 
   endStep(x: Float64Array): void {
@@ -779,6 +1502,11 @@ export class PowerSupplyDevice extends BaseDevice {
 
   stamp(ctx: StampContext): void {
     ctx.addNorton(this.nodes[0], this.nodes[1], this.voltage, PowerSupplyDevice.ROUT)
+  }
+
+  /** + and − on one net (shorted by a wire): the current its stamp drives round the short (a subclass with its own stamp overrides it) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookNorton(out, off, this.nodes, x, 0, 1, this.voltage, PowerSupplyDevice.ROUT)
   }
 
   endStep(x: Float64Array): void {
@@ -838,6 +1566,10 @@ class FunctionGeneratorDevice extends BaseDevice {
 
   stamp(ctx: StampContext): void {
     ctx.addNorton(this.nodes[0], this.nodes[1], this.vNow, FunctionGeneratorDevice.ROUT)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    bookNorton(out, off, this.nodes, x, 0, 1, this.vNow, FunctionGeneratorDevice.ROUT)
   }
 
   endStep(x: Float64Array): void {
@@ -984,6 +1716,21 @@ export class LdoDevice extends BaseDevice {
     ctx.addElement(nIn, nOut, gw)
     ctx.addElement(nIn, nG, -(gu + gw))
     ctx.addCurrent(nIn, -k)
+    this.lin[0] = gu
+    this.lin[1] = gw
+    this.lin[2] = k
+  }
+
+  /** last stamp's linearization: gu, gw, k */
+  private readonly lin = new Float64Array(3)
+
+  /** the pass current of the last stamp at x: into `in`, out of `out`; the ground pin takes none */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const vg = vAt(x, this.nodes[2])
+    const l = this.lin
+    const i = l[0] * (vAt(x, this.nodes[0]) - vg) + l[1] * (vAt(x, this.nodes[1]) - vg) + l[2]
+    out[off] += i
+    out[off + 1] -= i
   }
 
   endStep(x: Float64Array): void {
@@ -1151,6 +1898,13 @@ export class MultimeterDevice extends BaseDevice {
     if (this.mode === 'V') ctx.addConductance(inp, com, 1 / DMM_R_VOLT)
     else if (this.mode === 'A') ctx.addConductance(inp, com, 1 / DMM_R_SHUNT)
     else ctx.addNorton(inp, com, DMM_OHM_V, DMM_OHM_R)
+  }
+
+  /** pins [COM, IN]: the input impedance, the shunt or the ohmmeter's test source */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    if (this.mode === 'V') bookBranch(out, off, this.nodes, x, 1, 0, 1 / DMM_R_VOLT)
+    else if (this.mode === 'A') bookBranch(out, off, this.nodes, x, 1, 0, 1 / DMM_R_SHUNT)
+    else bookNorton(out, off, this.nodes, x, 1, 0, DMM_OHM_V, DMM_OHM_R)
   }
 
   endStep(x: Float64Array): void {

@@ -322,7 +322,8 @@ describe('SC-F2 the part-body chip and the strip name', () => {
     expect(objectChipText('U1')).toBe('U1 · STM32F103C8T6 Blue Pill 開發板 · 點一下選取')
     useStore.setState({ selection: ['U1', 'W1'] })
     expect(objectChipText('U1')).toBe('U1 · STM32F103C8T6 Blue Pill 開發板 · 已選取')
-    expect(objectChipText('W1')).toBe('導線 W1 · 已選取')
+    // a wire names its automatic colour and role (F16, purple-first signal palette) before 已選取
+    expect(objectChipText('W1')).toBe('導線 W1 · 紫色：訊號（U1 PA5）· 已選取')
     expect(objectChipText('R1')).toBe('R1 · 電阻 · 點一下選取')
     __setLangForTests('en')
     expect(objectChipText('W1')).toBe('Wire W1 · Selected')

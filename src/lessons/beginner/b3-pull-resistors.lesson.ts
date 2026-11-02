@@ -10,8 +10,9 @@
  * pull-up to 3.3 V) and R2 (10 kΩ pull-down to GND).
  *
  * The pressed-button checks press the button themselves (final round: a
- * runtime stimulus on SW1 / SW2 「按下」, the inspector's runtime-param path),
- * so 「檢查此步驟」 never depends on a box the learner left ticked, and the
+ * runtime stimulus on SW1 / SW2 'pressed', the runtime-param path the 3D
+ * press and the inspector's 按住 / 保持按下 use), so 「檢查此步驟」 never
+ * depends on a button the learner left kept pressed, and the
  * acceptance reads the firmware's PA0=0 / PA1=1 while the check holds them.
  *
  * Header taps on this bench (Blue Pill at h10, one free hole per pin):
@@ -241,8 +242,8 @@ export const LESSON: Lesson = {
       id: 'b3-s3',
       title: '按住 SW1：PA0 變成 0',
       body: doc(
-        '模擬執行中（沒有的話按上方的「▶ 執行模擬」），在屬性面板勾選 SW1 的「按下」（或在麵包板上按住它）：PA0 降到約 0 V，板上 PC13 LED 亮起，終端機顯示 `PA0=0`。',
-        '放開時終端機顯示 `PA0=1`。按下時 R1 兩端是 3.3 V，流過 3.3 V ÷ 10 kΩ = 0.33 mA。觀察完請放開 SW1。「檢查此步驟」會自己按住 SW1 再量 PA0，不必一直勾著。',
+        '模擬執行中（沒有的話按上方的「▶ 執行模擬」），在麵包板上按住 SW1（想讓它一直按著：{滑鼠：雙擊｜觸控：點兩下} SW1，或在屬性面板打開「保持按下」）：PA0 降到約 0 V，板上 PC13 LED 亮起，終端機顯示 `PA0=0`。',
+        '放開時終端機顯示 `PA0=1`。按下時 R1 兩端是 3.3 V，流過 3.3 V ÷ 10 kΩ = 0.33 mA。觀察完請放開 SW1（關掉「保持按下」，或在麵包板上點一下 SW1）。「檢查此步驟」會自己按住 SW1 再量 PA0，不必一直按著。',
       ),
       highlight: { components: ['SW1', 'U1'] },
       check: {
@@ -276,8 +277,8 @@ export const LESSON: Lesson = {
       id: 'b3-s5',
       title: '按住 SW2：PA1 變成 1',
       body: doc(
-        '在屬性面板勾選 SW2 的「按下」（或在麵包板上按住它）：PA1 升到約 3.30 V，終端機顯示 `PA1=1`。',
-        '下拉的接法是「按下 = 1」（高態有效），正好與上拉相反。觀察完請放開 SW2。「檢查此步驟」會自己按住 SW2 再量 PA1。',
+        '在麵包板上按住 SW2（想讓它一直按著：{滑鼠：雙擊｜觸控：點兩下} SW2，或在屬性面板打開「保持按下」）：PA1 升到約 3.30 V，終端機顯示 `PA1=1`。',
+        '下拉的接法是「按下 = 1」（高態有效），正好與上拉相反。觀察完請放開 SW2（關掉「保持按下」，或在麵包板上點一下 SW2）。「檢查此步驟」會自己按住 SW2 再量 PA1。',
       ),
       highlight: { components: ['SW2', 'U1'] },
       check: {

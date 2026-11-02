@@ -24,7 +24,9 @@
  *
  * objectChipText(id) is the neutral chip over a part body / wire in select
  * mode (SC-12): 「U1 · STM32F103C8T6 Blue Pill 開發板 · 點一下選取」, and
- * 「… · 已選取」 once it is selected (SC-F2).
+ * 「… · 已選取」 once it is selected (SC-F2). A wire's chip names its colour
+ * and why (product chrome — wire-roles, the inspector's words): 「導線 W1 ·
+ * 紅色：電源正極（5 V 網路）· 點一下選取」.
  *
  * Live data (SC-4) while a simulation session exists (telemetry non-null):
  *  - MCU GPIO pins add the firmware-programmed mode in the inspector's own
@@ -38,7 +40,9 @@
  *  - an off-board terminal ref ("PS1:+") gets its own chip: 「PS1 正端 ·
  *    5.00 V」 (H1 terminalLabel);
  *  - pins of a part that can be held down in 3D (a 'pressed' param) end
- *    with 「按住即可按下」.
+ *    with 「按住即可按下 · 雙擊保持按下」 — 「已保持按下 · 按一下放開」 while
+ *    it is kept pressed (the latch, src/ui/embedded/latch.ts); its body's
+ *    object chip says the same instead of 「點一下選取」.
  *  - a function generator's output net says what the generator is SET to,
  *    「導線 W2 · 方波 100 Hz · 0–5.00 V · a10（R1 第 1 腳這一排）」 — the pin rows'
  *    and the 量測 tab's words (H4 NetLive 'source'), never the instantaneous
@@ -71,6 +75,9 @@ import { fmtVoltage, isTrustedVoltage } from '../../instruments/format'
 import { getNetLive, hasActivity, netLiveText } from '../embedded/instruments/net-activity'
 import { tc } from '../format'
 import { tidyCjkSpaces } from '../../i18n/tidy'
+import { canPress, isLatched } from '../embedded/latch'
+import { wireRoleOf } from '../wire-roles'
+import { isLegacyChrome } from '../chrome/legacy'
 
 /** One thing plugged into a hole. */
 type Occupant =
@@ -205,6 +212,17 @@ function pressable(o: Occupant): boolean {
   return o.kind === 'pin' && !!o.entry.params?.some((p) => p.key === 'pressed')
 }
 
+/**
+ * What a click does to a pressable part (SC-6 + the keep-pressed latch,
+ * src/ui/embedded/latch.ts): 「按住即可按下 · 雙擊保持按下」, or while it
+ * is kept pressed 「已保持按下 · 按一下放開」 (a momentary press releases it).
+ */
+export function pressHintText(layout: CircuitLayout, id: string): string {
+  return isLatched(id, layout)
+    ? dotJoin(t('kept pressed|latch'), t('click to release|latch'))
+    : dotJoin(t('hold to press'), t('double-click to keep pressed|latch'))
+}
+
 /** "PA5" for an MCU pin (port name only — the short form for lists), else the readable pin name. */
 function shortName(o: Occupant): string {
   if (o.kind === 'wire') return t('Wire {id}', { id: o.id })
@@ -268,7 +286,7 @@ export function holeChipTextFor(layout: CircuitLayout, hole: HoleRef, telemetry:
   const own = index.byHole.get(ref)
   if (own) {
     const mode = own.kind === 'pin' && own.mcu ? modeText(own, telemetry) : ''
-    const hint = telemetry && pressable(own) ? t('hold to press') : ''
+    const hint = telemetry && pressable(own) ? pressHintText(layout, own.id) : ''
     // a wire end says little by itself — name its strip the H2 way
     // (「導線 W7 · a20（U1 PA5 這一排）」)
     const named = own.kind === 'wire' && h.kind === 'strip' ? stripHoleName(layout, index, h, ref, own) : ''
@@ -324,9 +342,19 @@ export function objectChipText(id: string): string | null {
     const comp = layout.components.find((c) => c.id === id)
     if (comp) {
       const entry = getEntry(comp.type)
+      // a session: a click PRESSES a pressable part (and selects it) — say how,
+      // and how to keep it pressed (latch); 已選取 stays when it is selected
+      if (st.telemetry && canPress(entry)) {
+        const selected = st.selection.includes(id) ? action : ''
+        return dotJoin(id, entry ? partLabel(entry) : '', selected, pressHintText(layout, id))
+      }
       return dotJoin(id, entry ? partLabel(entry) : '', action)
     }
-    if (layout.wires.some((w) => w.id === id)) return dotJoin(t('Wire {id}', { id }), action)
+    if (layout.wires.some((w) => w.id === id)) {
+      // product chrome: the colour the board shows and why (wire-roles — the inspector's own words,
+      // 「導線 W1 · 紅色：電源正極（5 V 網路）· 點一下選取」); the classic chrome keeps the bare chip
+      return isLegacyChrome() ? dotJoin(t('Wire {id}', { id }), action) : dotJoin(t('Wire {id}', { id }), wireRoleOf(layout, id).reason, action)
+    }
     return null
   } catch {
     return null

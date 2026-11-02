@@ -28,7 +28,7 @@ import type { CatalogEntry } from '../../model/catalog'
 import { paramOf } from '../../model/catalog'
 import type { StampContext } from '../mna'
 import { pnLimit } from '../mna'
-import { BaseDevice } from '../devices'
+import { BaseDevice, bookBranch } from '../devices'
 
 // ------------------------------------------------------------------ math
 
@@ -107,6 +107,16 @@ export class Junction {
   /** Current anode → cathode at the solved voltage `v` with weight `w`. */
   current(v: number, w: number): number {
     return w > 0 ? w * this.isat * (expSafe(v / this.nVt) - 1) : 0
+  }
+
+  /** terminalCurrents: the last stamp's linearization between device pins `pa` (anode) → `pc` at x. */
+  book(out: Float64Array, off: number, nodes: ArrayLike<number>, x: Float64Array, pa: number, pc: number, w: number): void {
+    if (!(w > 0)) return
+    const vd = this.vLast
+    const u = vd / this.nVt
+    const id = w * this.isat * (expSafe(u) - 1)
+    const gd = (w * this.isat * expSafeDeriv(u)) / this.nVt + 1e-12
+    bookBranch(out, off, nodes, x, pa, pc, gd, id - gd * vd)
   }
 }
 
@@ -270,6 +280,11 @@ export class Winding {
     ctx.addConductance(a, b, this.geq)
     ctx.addCurrent(a, -this.ieq)
     ctx.addCurrent(b, this.ieq)
+  }
+
+  /** terminalCurrents: the stamped companion's current between device pins `pa` → `pb` at x */
+  book(out: Float64Array, off: number, nodes: ArrayLike<number>, x: Float64Array, pa: number, pb: number): void {
+    bookBranch(out, off, nodes, x, pa, pb, this.geq, this.ieq)
   }
 
   /** Accept the solved terminal voltage. */

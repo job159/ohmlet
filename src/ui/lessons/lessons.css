@@ -1155,6 +1155,30 @@ button.lsn-ref:focus-visible {
 .lsn-pass-actions .lg-btn {
   justify-content: flex-start;
 }
+/* a pass with the loaded answer (product chrome): the 「以解答完成」 grey, a still mark — it is not the lesson */
+.lsn-pass.is-answer {
+  background: rgba(142, 148, 166, 0.14);
+  box-shadow: inset 0 0 0 0.5px rgba(142, 148, 166, 0.4);
+}
+.lsn-pass.is-answer .lsn-pass-mark {
+  background: rgba(142, 148, 166, 0.7);
+  box-shadow: none;
+  animation: none;
+}
+/* the coach's line for that pass: neutral words, the one next step as a button */
+.lsn-coach-pass.is-answer {
+  align-items: center;
+}
+.lsn-coach-pass.is-answer .lsn-coach-pass-text {
+  color: var(--label-2);
+}
+.lsn-coach-pass .lsn-build-own {
+  height: auto;
+  min-height: 30px;
+  padding: 4px 12px;
+  white-space: normal;
+  text-align: left;
+}
 
 /* ---- the coach card ----------------------------------------------------------- */
 
@@ -1690,4 +1714,20 @@ body.ws-on .lsn-coach.is-floating.is-ws {
   max-width: 100%;
   white-space: normal;
   text-align: left;
+}
+
+/* 「卡住了？載入完整答案」 (product chrome — operation simplification): a calm
+   secondary action at the foot of the coach card, under a hairline */
+.lsn-coach-foot {
+  display: flex;
+  padding-top: 6px;
+  border-top: 0.5px solid var(--separator, rgba(255, 255, 255, 0.1));
+}
+.lsn-coach-answer {
+  min-height: 32px;
+  color: var(--label-2);
+  font-weight: 500;
+}
+.lsn-coach-answer:hover {
+  color: var(--ios-blue);
 }

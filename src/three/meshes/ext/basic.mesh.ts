@@ -26,6 +26,7 @@ import { paramOf } from '../../../model/catalog'
 import type { RoutedComponent } from '../../internal/wire-router'
 import { TERMINAL_TOP_Y } from '../../internal/wires'
 import { registerMeshBuilder } from '../registry'
+import { ledLook, ledPerceived, makeLedHalo, P_DARK, setHaloColor, type LedHaloRig } from '../led-look'
 import {
   BuildResult,
   HOLE_DEPTH,
@@ -47,7 +48,7 @@ import {
   roundedPath,
   shortLabel,
 } from '../shared'
-import { buildTo92, ledGlowTexture } from '../semis'
+import { buildTo92 } from '../semis'
 import { buildDiode } from '../passives'
 import {
   MM,
@@ -330,23 +331,14 @@ function buildRgbLed(comp: ComponentInstance, _entry: CatalogEntry, pins: V3[]):
   })
   for (const m of mergeStatic(legStatics)) group.add(m)
 
-  // mixed-color halo (additive billboard, never a light)
-  let glow: THREE.Sprite | null = null
-  let glowMat: THREE.SpriteMaterial | null = null
+  // mixed-color glow halo: the shared LED glow (led-look.ts — one brightness
+  // language with the 5 mm LED; a billboard, never a light)
+  let glow: LedHaloRig | null = null
   if (!ghost) {
-    glowMat = new THREE.SpriteMaterial({
-      map: ledGlowTexture(),
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    })
-    glow = new THREE.Sprite(glowMat)
-    glow.position.set(c.x, RGB_LED_TOP - 0.35, c.z)
-    glow.scale.setScalar(2.4)
-    glow.visible = false
-    group.add(glow)
+    // (the hue is the dies' mix, set per update; a saturated placeholder keeps
+    // the white-light boost off — it belongs to a phosphor white LED)
+    glow = makeLedHalo({ color: 0xff0000, at: new THREE.Vector3(c.x, RGB_LED_TOP - 0.35, c.z) })
+    group.add(glow.halo)
   }
 
   const mixed = new THREE.Color()
@@ -355,19 +347,22 @@ function buildRgbLed(comp: ComponentInstance, _entry: CatalogEntry, pins: V3[]):
   const update: BuildResult['update'] = (_c2, _e2, t) => {
     if (ghost) return
     const lv = t?.leds
-    const br = [unit(lv?.R), unit(lv?.G), unit(lv?.B)]
+    // vivid: each die's REAL current / 20 mA, shown perceptually (led-look.ts);
+    // a snapshot without the currents falls back to the 0..1 channel levels
+    const v = t?.values
+    const br =
+      v && typeof v.iR === 'number' && typeof v.iG === 'number' && typeof v.iB === 'number'
+        ? [v.iR, v.iG, v.iB].map((i, ch) => (unit([lv?.R, lv?.G, lv?.B][ch]) > 0 ? ledPerceived(Math.max(0, i) / 0.02) : 0))
+        : [unit(lv?.R), unit(lv?.G), unit(lv?.B)].map((b) => ledPerceived(b * 0.5))
     const max = Math.max(br[0], br[1], br[2])
     if (t?.burned && !state.burned) state.burned = true
     else if (!t?.burned && state.burned) state.burned = false
-    // unlit body color: milky white, scorched after a burn-out
-    glass.color.setHex(state.burned ? 0xcfc9bc : RGB_EPOXY_COLOR)
-    for (let ch = 0; ch < 3; ch++) dies[ch].emissiveIntensity = br[ch] <= 0.001 ? 0 : 0.6 + 6 * br[ch]
-    if (max <= 0.001) {
+    // unlit body color: milky white, charred brown after a burn-out
+    glass.color.setHex(state.burned ? 0x4a4036 : RGB_EPOXY_COLOR)
+    for (let ch = 0; ch < 3; ch++) dies[ch].emissiveIntensity = br[ch] <= P_DARK ? 0 : ledLook(Math.min(1.3, br[ch])).die
+    if (max <= P_DARK) {
       glass.emissiveIntensity = 0
-      if (glow && glowMat) {
-        glow.visible = false
-        glowMat.opacity = 0
-      }
+      glow?.apply(0)
       return
     }
     // additive mix of the die hues, normalized to the brightest component
@@ -380,24 +375,22 @@ function buildRgbLed(comp: ComponentInstance, _entry: CatalogEntry, pins: V3[]):
     }
     const m = Math.max(mixed.r, mixed.g, mixed.b)
     mixed.multiplyScalar(1 / m)
-    // ledBrightness is I / 10 mA; diffused LEDs look plainly lit at a few mA
-    // (perceptual √ curve, like the board indicator LEDs)
-    const perceived = Math.sqrt(max)
+    // perceived brightness of the brightest die (led-look.ts: light^0.45)
+    const perceived = Math.min(1, max)
+    const look = ledLook(Math.min(1.3, max))
     glass.emissive.copy(mixed)
-    // moderate emission: past ~1 the tone mapper bleaches a saturated hue to
-    // white — the color comes from the tinted body, the brightness from the
-    // dies and the halo
-    glass.emissiveIntensity = 0.22 + 0.62 * perceived
+    // moderate emission (the shared lens curve, ≤ 1.1 at the rating): past
+    // that the tone mapper bleaches a saturated hue to white — the color
+    // comes from the tinted body, the brightness from the dies and the halo
+    glass.emissiveIntensity = look.lens
     // the light scatters through the whole diffused body: its diffuse color
     // takes the mixed hue, a little darker than the emission so the key
     // light does not wash a magenta glow out to pink
     tint.copy(mixed).multiplyScalar(0.55)
-    glass.color.lerp(tint, 0.6 + 0.4 * perceived)
-    if (glow && glowMat) {
-      glow.visible = true
-      glowMat.color.copy(mixed)
-      glowMat.opacity = Math.min(1, 0.25 + 0.6 * perceived)
-      glow.scale.setScalar(2.0 + 1.6 * perceived)
+    glass.color.lerp(tint, Math.min(1, 0.6 + 0.6 * perceived))
+    if (glow) {
+      setHaloColor(glow, mixed)
+      glow.apply(Math.min(1.3, max))
     }
   }
   return { object: group, pinWorld: pins.map((p) => p.clone()), update }

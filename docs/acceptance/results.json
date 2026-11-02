@@ -1,7 +1,7 @@
 {
   "meta": {
-    "date": "2026-10-19T18:46:05.615Z",
-    "url": "http://localhost:5330/",
+    "date": "2026-11-02T09:09:29.064Z",
+    "url": "http://localhost:5480/",
     "browser": "Playwright + msedge"
   },
   "firmwareSha256": "63d2defbc788a0456ec7d28d22fab35c6e5e0dc10e75aca0fb9b0ca515c43072",
@@ -15,7 +15,7 @@
           "status": "pass",
           "evidence": [
             "啟動時麵包板上有前一次工作階段留下的電路：8 個元件、6 條導線（examples/blinky-555.json）。",
-            "透過「更多 → 清空麵包板 → 確認」建立新專案：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。"
+            "透過「更多 → 清空麵包板」建立新專案（不再二次確認，提示附〔復原〕）：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。"
           ],
           "shots": [
             {
@@ -24,7 +24,7 @@
             }
           ],
           "error": null,
-          "ms": 2360
+          "ms": 1946
         },
         {
           "id": 2,
@@ -41,7 +41,7 @@
             }
           ],
           "error": null,
-          "ms": 2136
+          "ms": 2045
         },
         {
           "id": 3,
@@ -58,7 +58,7 @@
             }
           ],
           "error": null,
-          "ms": 7383
+          "ms": 7104
         },
         {
           "id": 4,
@@ -69,11 +69,11 @@
             "PS1:- → bot-0（黑色）：電源 − → 下方藍色接地軌",
             "j27 → bot+21（紅色）：Blue Pill 5V（h27）→ +5 V 電源軌",
             "j28 → bot-22（黑色）：Blue Pill GND（h28）→ 接地軌",
-            "a20 → a33（黃色）：PA5（c20）→ 電阻 R1",
+            "a20 → a33（紫色）：PA5（c20）→ 電阻 R1",
             "j37 → bot-29（黑色）：LED 陰極 → 接地軌",
-            "j10 → j45（藍色）：PB12（h10）→ 按鈕 A 側",
+            "j10 → j45（青綠色）：PB12（h10）→ 按鈕 A 側",
             "j47 → bot-37（黑色）：按鈕 B 側 → 接地軌",
-            "共 8 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成，並以色票選擇導線顏色。"
+            "共 8 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成；顏色由電路自動決定（電源正紅、地黑、訊號用其他顏色），不需選色。"
           ],
           "shots": [
             {
@@ -82,7 +82,7 @@
             }
           ],
           "error": null,
-          "ms": 14708
+          "ms": 12438
         },
         {
           "id": 5,
@@ -100,7 +100,7 @@
             }
           ],
           "error": null,
-          "ms": 1175
+          "ms": 1116
         },
         {
           "id": 6,
@@ -111,7 +111,7 @@
           ],
           "shots": [],
           "error": null,
-          "ms": 185
+          "ms": 193
         },
         {
           "id": 7,
@@ -119,9 +119,9 @@
           "status": "pass",
           "evidence": [
             "狀態徽章顯示「執行中」；模擬畫格中 U1 的 state = running、韌體 = lab-acceptance.elf。",
-            "模擬時間前進 1.776 s 期間，週期計數 8,121,699 → 135,993,697（+127,871,998），≈ 72 M 週期 / 模擬秒。",
-            "PC 在 8 個不同位址間移動（例：0x0800029E、0x080002AA、0x080002A0、0x080002A8），全部位於快閃記憶體。",
-            "核心時脈 72 MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 77 %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 1.2 s，按下執行後 0.3 s 出現第一個執行中的畫格）。"
+            "模擬時間前進 1.856 s 期間，週期計數 12,441,697 → 146,073,696（+133,631,999），≈ 72 M 週期 / 模擬秒。",
+            "PC 在 8 個不同位址間移動（例：0x080002A8、0x0800029E、0x080002A6、0x080002A4），全部位於快閃記憶體。",
+            "核心時脈 72 MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 93 %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 1.3 s，按下執行後 0.2 s 出現第一個執行中的畫格）。"
           ],
           "shots": [
             {
@@ -130,11 +130,625 @@
             }
           ],
           "error": null,
-          "ms": 2742,
+          "ms": 2551,
           "realtime": {
-            "median": 0.688524590163935,
-            "min": 0.688524590163935,
-            "max": 0.7681647198664677
+            "median": 0.6251857723469847,
+            "min": 0.6251857723469847,
+            "max": 0.9266100848726296
+          }
+        },
+        {
+          "id": 8,
+          "title": "LED 根據韌體與接線狀態亮滅",
+          "status": "pass",
+          "evidence": [
+            "模擬 2.6 s 內 LED（LED1）亮度由求解器遙測逐畫格取樣：峰值 0.41（≈ 4.1 mA，滿亮度 = 10 mA），共 11 次亮滅轉換，半週期中位數 0.25 s → 2 Hz 閃爍（韌體 mode 0：250 ms 亮 / 250 ms 滅）。",
+            "目前 LED 電流 0 mA。",
+            "亮 / 滅截圖：在相位開始時以狀態膠囊暫停（閃爍半週期短於一次截圖所需時間），確認暫停畫格的 LED 遙測確實為亮 / 滅後才截圖，再繼續執行。"
+          ],
+          "shots": [
+            {
+              "file": "08-led-on.jpg",
+              "caption": "LED 亮（2 Hz 閃爍的亮相位，暫停後截圖）"
+            },
+            {
+              "file": "08-led-off.jpg",
+              "caption": "LED 滅（2 Hz 閃爍的滅相位，暫停後截圖）"
+            }
+          ],
+          "error": null,
+          "ms": 6651,
+          "realtime": {
+            "median": 0.9034085360109178,
+            "min": 0.4267952678518357,
+            "max": 0.9596797812469492
+          }
+        },
+        {
+          "id": 9,
+          "title": "按鈕能改變 GPIO 輸入",
+          "status": "pass",
+          "evidence": [
+            "放開時 PB12 = 3.3 V（韌體設定的內部上拉）。",
+            "第 1 次直接在 3D 場景按住按鈕 SW1（模擬執行中，在按鈕上按住滑鼠就是按下、放開就是放開，同時會選取它）；之後改用屬性面板的「按住」大按鈕。",
+            "第 1 次按下：PB12 最低 0 V → 韌體經 EXTI12 去彈跳後輸出「mode=1 blink 5 Hz」，LED 半週期中位數 0.102 s（5 Hz，16 次轉換 / 1.6 s）。",
+            "第 2 次按下 →「mode=2 solid on」，31 個畫格中 LED 全部恆亮（亮度 0.41）。",
+            "第 3 次按下 →「mode=3 off」，33 個畫格中 LED 全部熄滅。",
+            "第 4 次按下 →「mode=0 blink 2 Hz」，LED 半週期中位數 0.252 s，回到 2 Hz。"
+          ],
+          "shots": [
+            {
+              "file": "09-solid-on.jpg",
+              "caption": "mode 2：LED 恆亮（UART 終端機顯示模式切換訊息）"
+            },
+            {
+              "file": "09-off.jpg",
+              "caption": "mode 3：LED 熄滅"
+            }
+          ],
+          "error": null,
+          "ms": 8406,
+          "realtime": {
+            "median": 0.9454971674590237,
+            "min": 0.4267952678518357,
+            "max": 1.0136277727314582
+          }
+        },
+        {
+          "id": 10,
+          "title": "使用虛擬儀器觀察訊號",
+          "status": "pass",
+          "evidence": [
+            "邏輯分析儀（底部儀器列）以「新增通道」加入 U1 的 PA5、PC13、PB12、PA9，並縮放到每畫面 2 s。",
+            "記錄器在最近 2 s 內擷取 PA5 共 8 個邊緣，每個半週期 250 ms，最大偏差 0.01 µs（精確邊緣時間，非取樣）。",
+            "PC13（板載 LED 心跳）低電位脈衝寬 50 ms（韌體：每秒亮 50 ms）。",
+            "UART 終端機（U1 · USART1）顯示「boot ok」與四行模式訊息；線路設定標籤「115 200 Bd · 8N1」與模擬畫格中韌體寫入 USART_BRR / CR1 / CR2 的設定（115200 Bd、8 位元、無同位、1 停止位元）一致，並可點開「鮑率」名詞解釋。"
+          ],
+          "shots": [
+            {
+              "file": "10-logic.jpg",
+              "caption": "邏輯分析儀：PA5 方波（2 Hz）、PC13 心跳、PB12、PA9（USART1 TX）"
+            },
+            {
+              "file": "10-uart.jpg",
+              "caption": "UART 終端機：boot ok 與模式切換訊息，線路設定 115 200 Bd · 8N1"
+            }
+          ],
+          "error": null,
+          "ms": 6767,
+          "realtime": {
+            "median": 0.8739495798330008,
+            "min": 0.8096926713577575,
+            "max": 0.9364908502904968
+          }
+        },
+        {
+          "id": 11,
+          "title": "可以暫停、重置與重新執行",
+          "status": "pass",
+          "evidence": [
+            "點狀態膠囊暫停：running = false，0.8 s 內模擬時間停在 20.868 s、週期數停在 1,502,445,697，膠囊顯示「已暫停」。",
+            "「更多 → 重置模擬」：模擬時間歸零、UART 終端機緩衝清空（電源循環）。",
+            "再點狀態膠囊執行：韌體從頭開始，終端機重新出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.248 s（mode 0）。",
+            "先按一次按鈕進入 mode 1（終端機「mode=1 blink 5 Hz」），再按屬性面板「重置 MCU」（NRST 腳位重置：只重置核心，電路持續模擬）：日誌在 3.147 s 記錄「U1: reset」（模擬時間未歸零），韌體從重置向量重新開機，終端機再次出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.255 s——RAM 中的模式狀態已清除。"
+          ],
+          "shots": [
+            {
+              "file": "11-paused.jpg",
+              "caption": "已暫停：時間與週期數凍結"
+            }
+          ],
+          "error": null,
+          "ms": 8803,
+          "realtime": {
+            "median": 0.948697865696605,
+            "min": 0.001962901167972126,
+            "max": 0.9941520467835192
+          }
+        },
+        {
+          "id": 12,
+          "title": "儲存專案後能重新載入",
+          "status": "pass",
+          "evidence": [
+            "「更多 → 儲存專案」觸發瀏覽器下載：circuit.ohmlet.json（342,161 位元組，format = ohmlet-project，formatVersion 1），內含電路（5 個元件、8 條導線）、1 個韌體（U1：lab-acceptance.elf，SHA-256 一致）與儀器設定。",
+            "清除這個瀏覽器的 localStorage（自動儲存的電路與韌體綁定）後重新整理頁面 → 空白麵包板、沒有韌體。",
+            "「更多 → 開啟專案…」經檔案選擇器選取剛下載的檔案 → 5 個元件、8 條導線與儲存前完全相同；U1 的韌體 lab-acceptance.elf 已重新綁定（SHA-256 一致）。",
+            "執行開啟的專案：MCU 執行中，終端機輸出「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.255 s（2 Hz）。"
+          ],
+          "shots": [
+            {
+              "file": "12-reloaded-empty.jpg",
+              "caption": "重新整理後：瀏覽器儲存已清除，麵包板空白"
+            },
+            {
+              "file": "12-reopened-running.jpg",
+              "caption": "開啟儲存的專案後再次執行：韌體仍綁定、LED 閃爍、終端機輸出"
+            }
+          ],
+          "error": null,
+          "ms": 10290,
+          "realtime": {
+            "median": 0.8065625306248951,
+            "min": 0.8065625306248951,
+            "max": 0.9138770240044541
+          }
+        }
+      ],
+      "pageErrors": [],
+      "env": {
+        "bootMs": [
+          5732,
+          1263
+        ],
+        "cal": [
+          {
+            "at": "開始",
+            "mops": 139
+          },
+          {
+            "at": "模擬中",
+            "mops": 142
+          },
+          {
+            "at": "結束",
+            "mops": 143
+          }
+        ],
+        "startMs": 162.39999997615814,
+        "realtime": {
+          "median": 0.9034085360109178,
+          "min": 0.001962901167972126,
+          "max": 1.0136277727314582,
+          "frames": 1145
+        }
+      },
+      "startedAt": "2026-11-02T09:05:43.618Z",
+      "ids": {
+        "mcu": "U1",
+        "r": "R1",
+        "led": "LED1",
+        "btn": "SW1",
+        "psu": "PS1"
+      },
+      "finishedAt": "2026-11-02T09:07:01.491Z"
+    },
+    {
+      "index": 2,
+      "steps": [
+        {
+          "id": 1,
+          "title": "建立新專案",
+          "status": "pass",
+          "evidence": [
+            "啟動時麵包板上有前一次工作階段留下的電路：8 個元件、6 條導線（examples/blinky-555.json）。",
+            "透過「更多 → 清空麵包板」建立新專案（不再二次確認，提示附〔復原〕）：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。"
+          ],
+          "shots": [
+            {
+              "file": "01-new-project.jpg",
+              "caption": "新專案：空白麵包板（桌面工作區，繁體中文介面）"
+            }
+          ],
+          "error": null,
+          "ms": 1868
+        },
+        {
+          "id": 2,
+          "title": "放入 STM32F103C8T6 Blue Pill",
+          "status": "pass",
+          "evidence": [
+            "在元件庫搜尋並點選「STM32F103C8T6 Blue Pill 開發板」卡片 → 進入放置模式（stm32_bluepill）。",
+            "點擊麵包板孔位 h10（3D 場景中的實際孔位）→ 新元件 U1（stm32_bluepill），第 1 腳 PB12 位於 h10；放置後自動選取，屬性面板顯示該開發板。"
+          ],
+          "shots": [
+            {
+              "file": "02-bluepill.jpg",
+              "caption": "Blue Pill 放在麵包板上（右側屬性面板顯示韌體與執行區塊）"
+            }
+          ],
+          "error": null,
+          "ms": 2050
+        },
+        {
+          "id": 3,
+          "title": "放入麵包板元件：電阻、LED、按鈕與電源",
+          "status": "pass",
+          "evidence": [
+            "「電阻」R1：b33 – b37；「發光二極體 LED」LED1：陽極 e37、陰極 f37（跨越中央溝槽）；「按鈕（輕觸開關）」SW1：A1 位於 f45；「直流電源供應器」PS1：工作台電源（板外，預設 5 V）。",
+            "在 3D 場景點選 R1，於屬性面板的 E12 快速選值點「330 Ω」→ resistance = 330 Ω。"
+          ],
+          "shots": [
+            {
+              "file": "03-parts.jpg",
+              "caption": "五個元件就位：Blue Pill、電阻 330 Ω、LED、按鈕與工作台電源"
+            }
+          ],
+          "error": null,
+          "ms": 7018
+        },
+        {
+          "id": 4,
+          "title": "透過視覺化介面接線",
+          "status": "pass",
+          "evidence": [
+            "PS1:+ → bot+0（紅色）：電源 + → 下方紅色電源軌",
+            "PS1:- → bot-0（黑色）：電源 − → 下方藍色接地軌",
+            "j27 → bot+21（紅色）：Blue Pill 5V（h27）→ +5 V 電源軌",
+            "j28 → bot-22（黑色）：Blue Pill GND（h28）→ 接地軌",
+            "a20 → a33（紫色）：PA5（c20）→ 電阻 R1",
+            "j37 → bot-29（黑色）：LED 陰極 → 接地軌",
+            "j10 → j45（青綠色）：PB12（h10）→ 按鈕 A 側",
+            "j47 → bot-37（黑色）：按鈕 B 側 → 接地軌",
+            "共 8 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成；顏色由電路自動決定（電源正紅、地黑、訊號用其他顏色），不需選色。"
+          ],
+          "shots": [
+            {
+              "file": "04-wired.jpg",
+              "caption": "接線完成：電源、5V/GND、PA5 → 330 Ω → LED → GND、PB12 → 按鈕 → GND"
+            }
+          ],
+          "error": null,
+          "ms": 12487
+        },
+        {
+          "id": 5,
+          "title": "載入真正的 STM32F103 ELF 韌體",
+          "status": "pass",
+          "evidence": [
+            "在 3D 場景點選 U1，於屬性面板「韌體」區塊按「選擇檔案…」，經瀏覽器檔案選擇器選取 firmware/dist/lab-acceptance.elf。",
+            "綁定記錄：lab-acceptance.elf，格式 ELF，254436 位元組，SHA-256 63d2defbc788a0456ec7d28d22fab35c6e5e0dc10e75aca0fb9b0ca515c43072（與磁碟上的檔案一致）。",
+            "載入器描述：ELF32 ARM, EABI5, soft-float, Thumb entry 0x08001f55"
+          ],
+          "shots": [
+            {
+              "file": "05-firmware.jpg",
+              "caption": "屬性面板：韌體 lab-acceptance.elf 已載入（含 SHA-256）"
+            }
+          ],
+          "error": null,
+          "ms": 1114
+        },
+        {
+          "id": 6,
+          "title": "按下執行",
+          "status": "pass",
+          "evidence": [
+            "按屬性面板「執行」區塊的「執行」按鈕 → 應用程式狀態 running = true，狀態膠囊顯示「執行中」，按鈕變為「暫停」。"
+          ],
+          "shots": [],
+          "error": null,
+          "ms": 308
+        },
+        {
+          "id": 7,
+          "title": "MCU 模擬引擎開始執行韌體",
+          "status": "pass",
+          "evidence": [
+            "狀態徽章顯示「執行中」；模擬畫格中 U1 的 state = running、韌體 = lab-acceptance.elf。",
+            "模擬時間前進 1.892 s 期間，週期計數 14,385,697 → 150,609,696（+136,223,999），≈ 72 M 週期 / 模擬秒。",
+            "PC 在 8 個不同位址間移動（例：0x0800029E、0x080002A4、0x080002AA、0x080002A2），全部位於快閃記憶體。",
+            "核心時脈 72 MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 83 %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 1.2 s，按下執行後 0.2 s 出現第一個執行中的畫格）。"
+          ],
+          "shots": [
+            {
+              "file": "07-running.jpg",
+              "caption": "執行中：狀態徽章、PC、週期數、核心時脈與即時比"
+            }
+          ],
+          "error": null,
+          "ms": 2471,
+          "realtime": {
+            "median": 0.8179182082571778,
+            "min": 0.8179182082571778,
+            "max": 0.828866388644909
+          }
+        },
+        {
+          "id": 8,
+          "title": "LED 根據韌體與接線狀態亮滅",
+          "status": "pass",
+          "evidence": [
+            "模擬 2.6 s 內 LED（LED1）亮度由求解器遙測逐畫格取樣：峰值 0.41（≈ 4.1 mA，滿亮度 = 10 mA），共 10 次亮滅轉換，半週期中位數 0.251 s → 2 Hz 閃爍（韌體 mode 0：250 ms 亮 / 250 ms 滅）。",
+            "目前 LED 電流 0 mA。",
+            "亮 / 滅截圖：在相位開始時以狀態膠囊暫停（閃爍半週期短於一次截圖所需時間），確認暫停畫格的 LED 遙測確實為亮 / 滅後才截圖，再繼續執行。"
+          ],
+          "shots": [
+            {
+              "file": "08-led-on.jpg",
+              "caption": "LED 亮（2 Hz 閃爍的亮相位，暫停後截圖）"
+            },
+            {
+              "file": "08-led-off.jpg",
+              "caption": "LED 滅（2 Hz 閃爍的滅相位，暫停後截圖）"
+            }
+          ],
+          "error": null,
+          "ms": 6579,
+          "realtime": {
+            "median": 0.9286898838922758,
+            "min": 0.4759511137048805,
+            "max": 0.9758254716751427
+          }
+        },
+        {
+          "id": 9,
+          "title": "按鈕能改變 GPIO 輸入",
+          "status": "pass",
+          "evidence": [
+            "放開時 PB12 = 3.3 V（韌體設定的內部上拉）。",
+            "第 1 次直接在 3D 場景按住按鈕 SW1（模擬執行中，在按鈕上按住滑鼠就是按下、放開就是放開，同時會選取它）；之後改用屬性面板的「按住」大按鈕。",
+            "第 1 次按下：PB12 最低 0 V → 韌體經 EXTI12 去彈跳後輸出「mode=1 blink 5 Hz」，LED 半週期中位數 0.103 s（5 Hz，17 次轉換 / 1.6 s）。",
+            "第 2 次按下 →「mode=2 solid on」，33 個畫格中 LED 全部恆亮（亮度 0.41）。",
+            "第 3 次按下 →「mode=3 off」，36 個畫格中 LED 全部熄滅。",
+            "第 4 次按下 →「mode=0 blink 2 Hz」，LED 半週期中位數 0.255 s，回到 2 Hz。"
+          ],
+          "shots": [
+            {
+              "file": "09-solid-on.jpg",
+              "caption": "mode 2：LED 恆亮（UART 終端機顯示模式切換訊息）"
+            },
+            {
+              "file": "09-off.jpg",
+              "caption": "mode 3：LED 熄滅"
+            }
+          ],
+          "error": null,
+          "ms": 8685,
+          "realtime": {
+            "median": 0.9377138945485037,
+            "min": 0.29837101062657284,
+            "max": 1.0183495240187772
+          }
+        },
+        {
+          "id": 10,
+          "title": "使用虛擬儀器觀察訊號",
+          "status": "pass",
+          "evidence": [
+            "邏輯分析儀（底部儀器列）以「新增通道」加入 U1 的 PA5、PC13、PB12、PA9，並縮放到每畫面 2 s。",
+            "記錄器在最近 2 s 內擷取 PA5 共 8 個邊緣，每個半週期 250 ms，最大偏差 0 µs（精確邊緣時間，非取樣）。",
+            "PC13（板載 LED 心跳）低電位脈衝寬 50 ms（韌體：每秒亮 50 ms）。",
+            "UART 終端機（U1 · USART1）顯示「boot ok」與四行模式訊息；線路設定標籤「115 200 Bd · 8N1」與模擬畫格中韌體寫入 USART_BRR / CR1 / CR2 的設定（115200 Bd、8 位元、無同位、1 停止位元）一致，並可點開「鮑率」名詞解釋。"
+          ],
+          "shots": [
+            {
+              "file": "10-logic.jpg",
+              "caption": "邏輯分析儀：PA5 方波（2 Hz）、PC13 心跳、PB12、PA9（USART1 TX）"
+            },
+            {
+              "file": "10-uart.jpg",
+              "caption": "UART 終端機：boot ok 與模式切換訊息，線路設定 115 200 Bd · 8N1"
+            }
+          ],
+          "error": null,
+          "ms": 6649,
+          "realtime": {
+            "median": 0.8778361240873551,
+            "min": 0.7872151523758882,
+            "max": 0.9093581577669124
+          }
+        },
+        {
+          "id": 11,
+          "title": "可以暫停、重置與重新執行",
+          "status": "pass",
+          "evidence": [
+            "點狀態膠囊暫停：running = false，0.8 s 內模擬時間停在 20.992 s、週期數停在 1,511,330,497，膠囊顯示「已暫停」。",
+            "「更多 → 重置模擬」：模擬時間歸零、UART 終端機緩衝清空（電源循環）。",
+            "再點狀態膠囊執行：韌體從頭開始，終端機重新出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.25 s（mode 0）。",
+            "先按一次按鈕進入 mode 1（終端機「mode=1 blink 5 Hz」），再按屬性面板「重置 MCU」（NRST 腳位重置：只重置核心，電路持續模擬）：日誌在 2.992 s 記錄「U1: reset」（模擬時間未歸零），韌體從重置向量重新開機，終端機再次出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.253 s——RAM 中的模式狀態已清除。"
+          ],
+          "shots": [
+            {
+              "file": "11-paused.jpg",
+              "caption": "已暫停：時間與週期數凍結"
+            }
+          ],
+          "error": null,
+          "ms": 9157,
+          "realtime": {
+            "median": 0.8576823693711502,
+            "min": 0.7839066824646472,
+            "max": 0.9192934518061956
+          }
+        },
+        {
+          "id": 12,
+          "title": "儲存專案後能重新載入",
+          "status": "pass",
+          "evidence": [
+            "「更多 → 儲存專案」觸發瀏覽器下載：circuit.ohmlet.json（342,161 位元組，format = ohmlet-project，formatVersion 1），內含電路（5 個元件、8 條導線）、1 個韌體（U1：lab-acceptance.elf，SHA-256 一致）與儀器設定。",
+            "清除這個瀏覽器的 localStorage（自動儲存的電路與韌體綁定）後重新整理頁面 → 空白麵包板、沒有韌體。",
+            "「更多 → 開啟專案…」經檔案選擇器選取剛下載的檔案 → 5 個元件、8 條導線與儲存前完全相同；U1 的韌體 lab-acceptance.elf 已重新綁定（SHA-256 一致）。",
+            "執行開啟的專案：MCU 執行中，終端機輸出「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.245 s（2 Hz）。"
+          ],
+          "shots": [
+            {
+              "file": "12-reloaded-empty.jpg",
+              "caption": "重新整理後：瀏覽器儲存已清除，麵包板空白"
+            },
+            {
+              "file": "12-reopened-running.jpg",
+              "caption": "開啟儲存的專案後再次執行：韌體仍綁定、LED 閃爍、終端機輸出"
+            }
+          ],
+          "error": null,
+          "ms": 10017,
+          "realtime": {
+            "median": 0.7516949985789192,
+            "min": 0.7516949985789192,
+            "max": 1.0126458190135956
+          }
+        }
+      ],
+      "pageErrors": [],
+      "env": {
+        "bootMs": [
+          1860,
+          1240
+        ],
+        "cal": [
+          {
+            "at": "開始",
+            "mops": 162
+          },
+          {
+            "at": "模擬中",
+            "mops": 141
+          },
+          {
+            "at": "結束",
+            "mops": 136
+          }
+        ],
+        "startMs": 175.80000007152557,
+        "realtime": {
+          "median": 0.8778361240873551,
+          "min": 0.29837101062657284,
+          "max": 1.0183495240187772,
+          "frames": 1115
+        }
+      },
+      "startedAt": "2026-11-02T09:07:01.731Z",
+      "ids": {
+        "mcu": "U1",
+        "r": "R1",
+        "led": "LED1",
+        "btn": "SW1",
+        "psu": "PS1"
+      },
+      "finishedAt": "2026-11-02T09:08:15.679Z"
+    },
+    {
+      "index": 3,
+      "steps": [
+        {
+          "id": 1,
+          "title": "建立新專案",
+          "status": "pass",
+          "evidence": [
+            "啟動時麵包板上有前一次工作階段留下的電路：8 個元件、6 條導線（examples/blinky-555.json）。",
+            "透過「更多 → 清空麵包板」建立新專案（不再二次確認，提示附〔復原〕）：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。"
+          ],
+          "shots": [
+            {
+              "file": "01-new-project.jpg",
+              "caption": "新專案：空白麵包板（桌面工作區，繁體中文介面）"
+            }
+          ],
+          "error": null,
+          "ms": 1810
+        },
+        {
+          "id": 2,
+          "title": "放入 STM32F103C8T6 Blue Pill",
+          "status": "pass",
+          "evidence": [
+            "在元件庫搜尋並點選「STM32F103C8T6 Blue Pill 開發板」卡片 → 進入放置模式（stm32_bluepill）。",
+            "點擊麵包板孔位 h10（3D 場景中的實際孔位）→ 新元件 U1（stm32_bluepill），第 1 腳 PB12 位於 h10；放置後自動選取，屬性面板顯示該開發板。"
+          ],
+          "shots": [
+            {
+              "file": "02-bluepill.jpg",
+              "caption": "Blue Pill 放在麵包板上（右側屬性面板顯示韌體與執行區塊）"
+            }
+          ],
+          "error": null,
+          "ms": 2020
+        },
+        {
+          "id": 3,
+          "title": "放入麵包板元件：電阻、LED、按鈕與電源",
+          "status": "pass",
+          "evidence": [
+            "「電阻」R1：b33 – b37；「發光二極體 LED」LED1：陽極 e37、陰極 f37（跨越中央溝槽）；「按鈕（輕觸開關）」SW1：A1 位於 f45；「直流電源供應器」PS1：工作台電源（板外，預設 5 V）。",
+            "在 3D 場景點選 R1，於屬性面板的 E12 快速選值點「330 Ω」→ resistance = 330 Ω。"
+          ],
+          "shots": [
+            {
+              "file": "03-parts.jpg",
+              "caption": "五個元件就位：Blue Pill、電阻 330 Ω、LED、按鈕與工作台電源"
+            }
+          ],
+          "error": null,
+          "ms": 7080
+        },
+        {
+          "id": 4,
+          "title": "透過視覺化介面接線",
+          "status": "pass",
+          "evidence": [
+            "PS1:+ → bot+0（紅色）：電源 + → 下方紅色電源軌",
+            "PS1:- → bot-0（黑色）：電源 − → 下方藍色接地軌",
+            "j27 → bot+21（紅色）：Blue Pill 5V（h27）→ +5 V 電源軌",
+            "j28 → bot-22（黑色）：Blue Pill GND（h28）→ 接地軌",
+            "a20 → a33（紫色）：PA5（c20）→ 電阻 R1",
+            "j37 → bot-29（黑色）：LED 陰極 → 接地軌",
+            "j10 → j45（青綠色）：PB12（h10）→ 按鈕 A 側",
+            "j47 → bot-37（黑色）：按鈕 B 側 → 接地軌",
+            "共 8 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成；顏色由電路自動決定（電源正紅、地黑、訊號用其他顏色），不需選色。"
+          ],
+          "shots": [
+            {
+              "file": "04-wired.jpg",
+              "caption": "接線完成：電源、5V/GND、PA5 → 330 Ω → LED → GND、PB12 → 按鈕 → GND"
+            }
+          ],
+          "error": null,
+          "ms": 12354
+        },
+        {
+          "id": 5,
+          "title": "載入真正的 STM32F103 ELF 韌體",
+          "status": "pass",
+          "evidence": [
+            "在 3D 場景點選 U1，於屬性面板「韌體」區塊按「選擇檔案…」，經瀏覽器檔案選擇器選取 firmware/dist/lab-acceptance.elf。",
+            "綁定記錄：lab-acceptance.elf，格式 ELF，254436 位元組，SHA-256 63d2defbc788a0456ec7d28d22fab35c6e5e0dc10e75aca0fb9b0ca515c43072（與磁碟上的檔案一致）。",
+            "載入器描述：ELF32 ARM, EABI5, soft-float, Thumb entry 0x08001f55"
+          ],
+          "shots": [
+            {
+              "file": "05-firmware.jpg",
+              "caption": "屬性面板：韌體 lab-acceptance.elf 已載入（含 SHA-256）"
+            }
+          ],
+          "error": null,
+          "ms": 1110
+        },
+        {
+          "id": 6,
+          "title": "按下執行",
+          "status": "pass",
+          "evidence": [
+            "按屬性面板「執行」區塊的「執行」按鈕 → 應用程式狀態 running = true，狀態膠囊顯示「執行中」，按鈕變為「暫停」。"
+          ],
+          "shots": [],
+          "error": null,
+          "ms": 274
+        },
+        {
+          "id": 7,
+          "title": "MCU 模擬引擎開始執行韌體",
+          "status": "pass",
+          "evidence": [
+            "狀態徽章顯示「執行中」；模擬畫格中 U1 的 state = running、韌體 = lab-acceptance.elf。",
+            "模擬時間前進 1.757 s 期間，週期計數 11,145,697 → 137,649,696（+126,503,999），≈ 72 M 週期 / 模擬秒。",
+            "PC 在 8 個不同位址間移動（例：0x080002A4、0x0800029E、0x080002A0、0x080002A8），全部位於快閃記憶體。",
+            "核心時脈 72 MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 80 %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 1.3 s，按下執行後 0.2 s 出現第一個執行中的畫格）。"
+          ],
+          "shots": [
+            {
+              "file": "07-running.jpg",
+              "caption": "執行中：狀態徽章、PC、週期數、核心時脈與即時比"
+            }
+          ],
+          "error": null,
+          "ms": 2582,
+          "realtime": {
+            "median": 0.6145086875860936,
+            "min": 0.6145086875860936,
+            "max": 0.7957116159752236
           }
         },
         {
@@ -157,11 +771,11 @@
             }
           ],
           "error": null,
-          "ms": 5314,
+          "ms": 5233,
           "realtime": {
-            "median": 0.7988953545901547,
-            "min": 0.35757934161592414,
-            "max": 0.8167901234567004
+            "median": 0.8991959208111231,
+            "min": 0.540206968538452,
+            "max": 0.9330589041783699
           }
         },
         {
@@ -171,623 +785,9 @@
           "evidence": [
             "放開時 PB12 = 3.3 V（韌體設定的內部上拉）。",
             "第 1 次直接在 3D 場景按住按鈕 SW1（模擬執行中，在按鈕上按住滑鼠就是按下、放開就是放開，同時會選取它）；之後改用屬性面板的「按住」大按鈕。",
-            "第 1 次按下：PB12 最低 0 V → 韌體經 EXTI12 去彈跳後輸出「mode=1 blink 5 Hz」，LED 半週期中位數 0.101 s（5 Hz，16 次轉換 / 1.6 s）。",
+            "第 1 次按下：PB12 最低 0 V → 韌體經 EXTI12 去彈跳後輸出「mode=1 blink 5 Hz」，LED 半週期中位數 0.1 s（5 Hz，17 次轉換 / 1.6 s）。",
             "第 2 次按下 →「mode=2 solid on」，33 個畫格中 LED 全部恆亮（亮度 0.41）。",
-            "第 3 次按下 →「mode=3 off」，45 個畫格中 LED 全部熄滅。",
-            "第 4 次按下 →「mode=0 blink 2 Hz」，LED 半週期中位數 0.25 s，回到 2 Hz。"
-          ],
-          "shots": [
-            {
-              "file": "09-solid-on.jpg",
-              "caption": "mode 2：LED 恆亮（UART 終端機顯示模式切換訊息）"
-            },
-            {
-              "file": "09-off.jpg",
-              "caption": "mode 3：LED 熄滅"
-            }
-          ],
-          "error": null,
-          "ms": 9711,
-          "realtime": {
-            "median": 0.7097933513108389,
-            "min": 0.35757934161592414,
-            "max": 1.042013514873784
-          }
-        },
-        {
-          "id": 10,
-          "title": "使用虛擬儀器觀察訊號",
-          "status": "pass",
-          "evidence": [
-            "邏輯分析儀（底部儀器列）以「新增通道」加入 U1 的 PA5、PC13、PB12、PA9，並縮放到每畫面 2 s。",
-            "記錄器在最近 2 s 內擷取 PA5 共 8 個邊緣，每個半週期 250 ms，最大偏差 0.01 µs（精確邊緣時間，非取樣）。",
-            "PC13（板載 LED 心跳）低電位脈衝寬 50 ms（韌體：每秒亮 50 ms）。",
-            "UART 終端機（U1 · USART1）顯示「boot ok」與四行模式訊息；線路設定標籤「115 200 Bd · 8N1」與模擬畫格中韌體寫入 USART_BRR / CR1 / CR2 的設定（115200 Bd、8 位元、無同位、1 停止位元）一致，並可點開「鮑率」名詞解釋。"
-          ],
-          "shots": [
-            {
-              "file": "10-logic.jpg",
-              "caption": "邏輯分析儀：PA5 方波（2 Hz）、PC13 心跳、PB12、PA9（USART1 TX）"
-            },
-            {
-              "file": "10-uart.jpg",
-              "caption": "UART 終端機：boot ok 與模式切換訊息，線路設定 115 200 Bd · 8N1"
-            }
-          ],
-          "error": null,
-          "ms": 7845,
-          "realtime": {
-            "median": 0.6880733945190481,
-            "min": 0.5373878364911853,
-            "max": 0.7491340920332316
-          }
-        },
-        {
-          "id": 11,
-          "title": "可以暫停、重置與重新執行",
-          "status": "pass",
-          "evidence": [
-            "點狀態膠囊暫停：running = false，0.8 s 內模擬時間停在 18.608 s、週期數停在 1,339,689,696，膠囊顯示「已暫停」。",
-            "「更多 → 重置模擬」：模擬時間歸零、UART 終端機緩衝清空（電源循環）。",
-            "再點狀態膠囊執行：韌體從頭開始，終端機重新出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.254 s（mode 0）。",
-            "先按一次按鈕進入 mode 1（終端機「mode=1 blink 5 Hz」），再按屬性面板「重置 MCU」（NRST 腳位重置：只重置核心，電路持續模擬）：日誌在 3.151 s 記錄「U1: reset」（模擬時間未歸零），韌體從重置向量重新開機，終端機再次出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.248 s——RAM 中的模式狀態已清除。"
-          ],
-          "shots": [
-            {
-              "file": "11-paused.jpg",
-              "caption": "已暫停：時間與週期數凍結"
-            }
-          ],
-          "error": null,
-          "ms": 10199,
-          "realtime": {
-            "median": 0.7886963371220045,
-            "min": 0.5373878364911853,
-            "max": 0.8637709772950678
-          }
-        },
-        {
-          "id": 12,
-          "title": "儲存專案後能重新載入",
-          "status": "pass",
-          "evidence": [
-            "「更多 → 儲存專案」觸發瀏覽器下載：circuit.ohmlet.json（342,161 位元組，format = ohmlet-project，formatVersion 1），內含電路（5 個元件、8 條導線）、1 個韌體（U1：lab-acceptance.elf，SHA-256 一致）與儀器設定。",
-            "清除這個瀏覽器的 localStorage（自動儲存的電路與韌體綁定）後重新整理頁面 → 空白麵包板、沒有韌體。",
-            "「更多 → 開啟專案…」經檔案選擇器選取剛下載的檔案 → 5 個元件、8 條導線與儲存前完全相同；U1 的韌體 lab-acceptance.elf 已重新綁定（SHA-256 一致）。",
-            "執行開啟的專案：MCU 執行中，終端機輸出「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.252 s（2 Hz）。"
-          ],
-          "shots": [
-            {
-              "file": "12-reloaded-empty.jpg",
-              "caption": "重新整理後：瀏覽器儲存已清除，麵包板空白"
-            },
-            {
-              "file": "12-reopened-running.jpg",
-              "caption": "開啟儲存的專案後再次執行：韌體仍綁定、LED 閃爍、終端機輸出"
-            }
-          ],
-          "error": null,
-          "ms": 11629,
-          "realtime": {
-            "median": 0.5723338944585067,
-            "min": 0.5640620369389111,
-            "max": 0.6716269841269101
-          }
-        }
-      ],
-      "pageErrors": [],
-      "env": {
-        "bootMs": [
-          5517,
-          1337
-        ],
-        "cal": [
-          {
-            "at": "開始",
-            "mops": 115
-          },
-          {
-            "at": "模擬中",
-            "mops": 119
-          },
-          {
-            "at": "結束",
-            "mops": 118
-          }
-        ],
-        "startMs": 267.9000000357628,
-        "realtime": {
-          "median": 0.7031327697671447,
-          "min": 0.35757934161592414,
-          "max": 1.042013514873784,
-          "frames": 1223
-        }
-      },
-      "startedAt": "2026-10-19T18:41:57.843Z",
-      "ids": {
-        "mcu": "U1",
-        "r": "R1",
-        "led": "LED1",
-        "btn": "SW1",
-        "psu": "PS1"
-      },
-      "finishedAt": "2026-10-19T18:43:22.528Z"
-    },
-    {
-      "index": 2,
-      "steps": [
-        {
-          "id": 1,
-          "title": "建立新專案",
-          "status": "pass",
-          "evidence": [
-            "啟動時麵包板上有前一次工作階段留下的電路：8 個元件、6 條導線（examples/blinky-555.json）。",
-            "透過「更多 → 清空麵包板 → 確認」建立新專案：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。"
-          ],
-          "shots": [
-            {
-              "file": "01-new-project.jpg",
-              "caption": "新專案：空白麵包板（桌面工作區，繁體中文介面）"
-            }
-          ],
-          "error": null,
-          "ms": 2363
-        },
-        {
-          "id": 2,
-          "title": "放入 STM32F103C8T6 Blue Pill",
-          "status": "pass",
-          "evidence": [
-            "在元件庫搜尋並點選「STM32F103C8T6 Blue Pill 開發板」卡片 → 進入放置模式（stm32_bluepill）。",
-            "點擊麵包板孔位 h10（3D 場景中的實際孔位）→ 新元件 U1（stm32_bluepill），第 1 腳 PB12 位於 h10；放置後自動選取，屬性面板顯示該開發板。"
-          ],
-          "shots": [
-            {
-              "file": "02-bluepill.jpg",
-              "caption": "Blue Pill 放在麵包板上（右側屬性面板顯示韌體與執行區塊）"
-            }
-          ],
-          "error": null,
-          "ms": 2089
-        },
-        {
-          "id": 3,
-          "title": "放入麵包板元件：電阻、LED、按鈕與電源",
-          "status": "pass",
-          "evidence": [
-            "「電阻」R1：b33 – b37；「發光二極體 LED」LED1：陽極 e37、陰極 f37（跨越中央溝槽）；「按鈕（輕觸開關）」SW1：A1 位於 f45；「直流電源供應器」PS1：工作台電源（板外，預設 5 V）。",
-            "在 3D 場景點選 R1，於屬性面板的 E12 快速選值點「330 Ω」→ resistance = 330 Ω。"
-          ],
-          "shots": [
-            {
-              "file": "03-parts.jpg",
-              "caption": "五個元件就位：Blue Pill、電阻 330 Ω、LED、按鈕與工作台電源"
-            }
-          ],
-          "error": null,
-          "ms": 7594
-        },
-        {
-          "id": 4,
-          "title": "透過視覺化介面接線",
-          "status": "pass",
-          "evidence": [
-            "PS1:+ → bot+0（紅色）：電源 + → 下方紅色電源軌",
-            "PS1:- → bot-0（黑色）：電源 − → 下方藍色接地軌",
-            "j27 → bot+21（紅色）：Blue Pill 5V（h27）→ +5 V 電源軌",
-            "j28 → bot-22（黑色）：Blue Pill GND（h28）→ 接地軌",
-            "a20 → a33（黃色）：PA5（c20）→ 電阻 R1",
-            "j37 → bot-29（黑色）：LED 陰極 → 接地軌",
-            "j10 → j45（藍色）：PB12（h10）→ 按鈕 A 側",
-            "j47 → bot-37（黑色）：按鈕 B 側 → 接地軌",
-            "共 8 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成，並以色票選擇導線顏色。"
-          ],
-          "shots": [
-            {
-              "file": "04-wired.jpg",
-              "caption": "接線完成：電源、5V/GND、PA5 → 330 Ω → LED → GND、PB12 → 按鈕 → GND"
-            }
-          ],
-          "error": null,
-          "ms": 14706
-        },
-        {
-          "id": 5,
-          "title": "載入真正的 STM32F103 ELF 韌體",
-          "status": "pass",
-          "evidence": [
-            "在 3D 場景點選 U1，於屬性面板「韌體」區塊按「選擇檔案…」，經瀏覽器檔案選擇器選取 firmware/dist/lab-acceptance.elf。",
-            "綁定記錄：lab-acceptance.elf，格式 ELF，254436 位元組，SHA-256 63d2defbc788a0456ec7d28d22fab35c6e5e0dc10e75aca0fb9b0ca515c43072（與磁碟上的檔案一致）。",
-            "載入器描述：ELF32 ARM, EABI5, soft-float, Thumb entry 0x08001f55"
-          ],
-          "shots": [
-            {
-              "file": "05-firmware.jpg",
-              "caption": "屬性面板：韌體 lab-acceptance.elf 已載入（含 SHA-256）"
-            }
-          ],
-          "error": null,
-          "ms": 1172
-        },
-        {
-          "id": 6,
-          "title": "按下執行",
-          "status": "pass",
-          "evidence": [
-            "按屬性面板「執行」區塊的「執行」按鈕 → 應用程式狀態 running = true，狀態膠囊顯示「執行中」，按鈕變為「暫停」。"
-          ],
-          "shots": [],
-          "error": null,
-          "ms": 229
-        },
-        {
-          "id": 7,
-          "title": "MCU 模擬引擎開始執行韌體",
-          "status": "pass",
-          "evidence": [
-            "狀態徽章顯示「執行中」；模擬畫格中 U1 的 state = running、韌體 = lab-acceptance.elf。",
-            "模擬時間前進 1.794 s 期間，週期計數 4,017,697 → 133,185,697（+129,168,000），≈ 72 M 週期 / 模擬秒。",
-            "PC 在 8 個不同位址間移動（例：0x080002A8、0x080002A6、0x080002A0、0x080002A2），全部位於快閃記憶體。",
-            "核心時脈 72 MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 84 %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 1.2 s，按下執行後 0.2 s 出現第一個執行中的畫格）。"
-          ],
-          "shots": [
-            {
-              "file": "07-running.jpg",
-              "caption": "執行中：狀態徽章、PC、週期數、核心時脈與即時比"
-            }
-          ],
-          "error": null,
-          "ms": 2471,
-          "realtime": {
-            "median": 0.7264066686599782,
-            "min": 0.7264066686599782,
-            "max": 0.8378888778252261
-          }
-        },
-        {
-          "id": 8,
-          "title": "LED 根據韌體與接線狀態亮滅",
-          "status": "pass",
-          "evidence": [
-            "模擬 2.6 s 內 LED（LED1）亮度由求解器遙測逐畫格取樣：峰值 0.41（≈ 4.1 mA，滿亮度 = 10 mA），共 11 次亮滅轉換，半週期中位數 0.25 s → 2 Hz 閃爍（韌體 mode 0：250 ms 亮 / 250 ms 滅）。",
-            "目前 LED 電流 4.07 mA。",
-            "亮 / 滅截圖：在相位開始時以狀態膠囊暫停（閃爍半週期短於一次截圖所需時間），確認暫停畫格的 LED 遙測確實為亮 / 滅後才截圖，再繼續執行。"
-          ],
-          "shots": [
-            {
-              "file": "08-led-on.jpg",
-              "caption": "LED 亮（2 Hz 閃爍的亮相位，暫停後截圖）"
-            },
-            {
-              "file": "08-led-off.jpg",
-              "caption": "LED 滅（2 Hz 閃爍的滅相位，暫停後截圖）"
-            }
-          ],
-          "error": null,
-          "ms": 5077,
-          "realtime": {
-            "median": 0.7842749900946906,
-            "min": 0.45563549160143957,
-            "max": 0.8989205103045201
-          }
-        },
-        {
-          "id": 9,
-          "title": "按鈕能改變 GPIO 輸入",
-          "status": "pass",
-          "evidence": [
-            "放開時 PB12 = 3.3 V（韌體設定的內部上拉）。",
-            "第 1 次直接在 3D 場景按住按鈕 SW1（模擬執行中，在按鈕上按住滑鼠就是按下、放開就是放開，同時會選取它）；之後改用屬性面板的「按住」大按鈕。",
-            "第 1 次按下：PB12 最低 0 V → 韌體經 EXTI12 去彈跳後輸出「mode=1 blink 5 Hz」，LED 半週期中位數 0.101 s（5 Hz，16 次轉換 / 1.6 s）。",
-            "第 2 次按下 →「mode=2 solid on」，31 個畫格中 LED 全部恆亮（亮度 0.41）。",
-            "第 3 次按下 →「mode=3 off」，54 個畫格中 LED 全部熄滅。",
-            "第 4 次按下 →「mode=0 blink 2 Hz」，LED 半週期中位數 0.25 s，回到 2 Hz。"
-          ],
-          "shots": [
-            {
-              "file": "09-solid-on.jpg",
-              "caption": "mode 2：LED 恆亮（UART 終端機顯示模式切換訊息）"
-            },
-            {
-              "file": "09-off.jpg",
-              "caption": "mode 3：LED 熄滅"
-            }
-          ],
-          "error": null,
-          "ms": 10342,
-          "realtime": {
-            "median": 0.6465812383761379,
-            "min": 0.43629651801543073,
-            "max": 1.0276448177694202
-          }
-        },
-        {
-          "id": 10,
-          "title": "使用虛擬儀器觀察訊號",
-          "status": "pass",
-          "evidence": [
-            "邏輯分析儀（底部儀器列）以「新增通道」加入 U1 的 PA5、PC13、PB12、PA9，並縮放到每畫面 2 s。",
-            "記錄器在最近 2 s 內擷取 PA5 共 8 個邊緣，每個半週期 250 ms，最大偏差 0.01 µs（精確邊緣時間，非取樣）。",
-            "PC13（板載 LED 心跳）低電位脈衝寬 50 ms（韌體：每秒亮 50 ms）。",
-            "UART 終端機（U1 · USART1）顯示「boot ok」與四行模式訊息；線路設定標籤「115 200 Bd · 8N1」與模擬畫格中韌體寫入 USART_BRR / CR1 / CR2 的設定（115200 Bd、8 位元、無同位、1 停止位元）一致，並可點開「鮑率」名詞解釋。"
-          ],
-          "shots": [
-            {
-              "file": "10-logic.jpg",
-              "caption": "邏輯分析儀：PA5 方波（2 Hz）、PC13 心跳、PB12、PA9（USART1 TX）"
-            },
-            {
-              "file": "10-uart.jpg",
-              "caption": "UART 終端機：boot ok 與模式切換訊息，線路設定 115 200 Bd · 8N1"
-            }
-          ],
-          "error": null,
-          "ms": 7064,
-          "realtime": {
-            "median": 0.7279579490571307,
-            "min": 0.6465812383761379,
-            "max": 0.9160003948073191
-          }
-        },
-        {
-          "id": 11,
-          "title": "可以暫停、重置與重新執行",
-          "status": "pass",
-          "evidence": [
-            "點狀態膠囊暫停：running = false，0.8 s 內模擬時間停在 19.185 s、週期數停在 1,381,197,698，膠囊顯示「已暫停」。",
-            "「更多 → 重置模擬」：模擬時間歸零、UART 終端機緩衝清空（電源循環）。",
-            "再點狀態膠囊執行：韌體從頭開始，終端機重新出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.248 s（mode 0）。",
-            "先按一次按鈕進入 mode 1（終端機「mode=1 blink 5 Hz」），再按屬性面板「重置 MCU」（NRST 腳位重置：只重置核心，電路持續模擬）：日誌在 2.957 s 記錄「U1: reset」（模擬時間未歸零），韌體從重置向量重新開機，終端機再次出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.252 s——RAM 中的模式狀態已清除。"
-          ],
-          "shots": [
-            {
-              "file": "11-paused.jpg",
-              "caption": "已暫停：時間與週期數凍結"
-            }
-          ],
-          "error": null,
-          "ms": 9537,
-          "realtime": {
-            "median": 0.8164662168863216,
-            "min": 0.542295016472122,
-            "max": 1.0036804933730963
-          }
-        },
-        {
-          "id": 12,
-          "title": "儲存專案後能重新載入",
-          "status": "pass",
-          "evidence": [
-            "「更多 → 儲存專案」觸發瀏覽器下載：circuit.ohmlet.json（342,161 位元組，format = ohmlet-project，formatVersion 1），內含電路（5 個元件、8 條導線）、1 個韌體（U1：lab-acceptance.elf，SHA-256 一致）與儀器設定。",
-            "清除這個瀏覽器的 localStorage（自動儲存的電路與韌體綁定）後重新整理頁面 → 空白麵包板、沒有韌體。",
-            "「更多 → 開啟專案…」經檔案選擇器選取剛下載的檔案 → 5 個元件、8 條導線與儲存前完全相同；U1 的韌體 lab-acceptance.elf 已重新綁定（SHA-256 一致）。",
-            "執行開啟的專案：MCU 執行中，終端機輸出「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.249 s（2 Hz）。"
-          ],
-          "shots": [
-            {
-              "file": "12-reloaded-empty.jpg",
-              "caption": "重新整理後：瀏覽器儲存已清除，麵包板空白"
-            },
-            {
-              "file": "12-reopened-running.jpg",
-              "caption": "開啟儲存的專案後再次執行：韌體仍綁定、LED 閃爍、終端機輸出"
-            }
-          ],
-          "error": null,
-          "ms": 11591,
-          "realtime": {
-            "median": 0.5627747923790293,
-            "min": 0.5023469489902668,
-            "max": 0.743559718960824
-          }
-        }
-      ],
-      "pageErrors": [],
-      "env": {
-        "bootMs": [
-          1955,
-          1342
-        ],
-        "cal": [
-          {
-            "at": "開始",
-            "mops": 122
-          },
-          {
-            "at": "模擬中",
-            "mops": 121
-          },
-          {
-            "at": "結束",
-            "mops": 109
-          }
-        ],
-        "startMs": 217.60000002384186,
-        "realtime": {
-          "median": 0.7264915535845128,
-          "min": 0.43629651801543073,
-          "max": 1.0276448177694202,
-          "frames": 1189
-        }
-      },
-      "startedAt": "2026-10-19T18:43:22.786Z",
-      "ids": {
-        "mcu": "U1",
-        "r": "R1",
-        "led": "LED1",
-        "btn": "SW1",
-        "psu": "PS1"
-      },
-      "finishedAt": "2026-10-19T18:44:42.719Z"
-    },
-    {
-      "index": 3,
-      "steps": [
-        {
-          "id": 1,
-          "title": "建立新專案",
-          "status": "pass",
-          "evidence": [
-            "啟動時麵包板上有前一次工作階段留下的電路：8 個元件、6 條導線（examples/blinky-555.json）。",
-            "透過「更多 → 清空麵包板 → 確認」建立新專案：元件 0、導線 0、韌體綁定 0，模擬停止、時間 0 s。"
-          ],
-          "shots": [
-            {
-              "file": "01-new-project.jpg",
-              "caption": "新專案：空白麵包板（桌面工作區，繁體中文介面）"
-            }
-          ],
-          "error": null,
-          "ms": 2411
-        },
-        {
-          "id": 2,
-          "title": "放入 STM32F103C8T6 Blue Pill",
-          "status": "pass",
-          "evidence": [
-            "在元件庫搜尋並點選「STM32F103C8T6 Blue Pill 開發板」卡片 → 進入放置模式（stm32_bluepill）。",
-            "點擊麵包板孔位 h10（3D 場景中的實際孔位）→ 新元件 U1（stm32_bluepill），第 1 腳 PB12 位於 h10；放置後自動選取，屬性面板顯示該開發板。"
-          ],
-          "shots": [
-            {
-              "file": "02-bluepill.jpg",
-              "caption": "Blue Pill 放在麵包板上（右側屬性面板顯示韌體與執行區塊）"
-            }
-          ],
-          "error": null,
-          "ms": 2145
-        },
-        {
-          "id": 3,
-          "title": "放入麵包板元件：電阻、LED、按鈕與電源",
-          "status": "pass",
-          "evidence": [
-            "「電阻」R1：b33 – b37；「發光二極體 LED」LED1：陽極 e37、陰極 f37（跨越中央溝槽）；「按鈕（輕觸開關）」SW1：A1 位於 f45；「直流電源供應器」PS1：工作台電源（板外，預設 5 V）。",
-            "在 3D 場景點選 R1，於屬性面板的 E12 快速選值點「330 Ω」→ resistance = 330 Ω。"
-          ],
-          "shots": [
-            {
-              "file": "03-parts.jpg",
-              "caption": "五個元件就位：Blue Pill、電阻 330 Ω、LED、按鈕與工作台電源"
-            }
-          ],
-          "error": null,
-          "ms": 7529
-        },
-        {
-          "id": 4,
-          "title": "透過視覺化介面接線",
-          "status": "pass",
-          "evidence": [
-            "PS1:+ → bot+0（紅色）：電源 + → 下方紅色電源軌",
-            "PS1:- → bot-0（黑色）：電源 − → 下方藍色接地軌",
-            "j27 → bot+21（紅色）：Blue Pill 5V（h27）→ +5 V 電源軌",
-            "j28 → bot-22（黑色）：Blue Pill GND（h28）→ 接地軌",
-            "a20 → a33（黃色）：PA5（c20）→ 電阻 R1",
-            "j37 → bot-29（黑色）：LED 陰極 → 接地軌",
-            "j10 → j45（藍色）：PB12（h10）→ 按鈕 A 側",
-            "j47 → bot-37（黑色）：按鈕 B 側 → 接地軌",
-            "共 8 條導線，全部以「導線」工具在 3D 麵包板上逐孔點擊完成，並以色票選擇導線顏色。"
-          ],
-          "shots": [
-            {
-              "file": "04-wired.jpg",
-              "caption": "接線完成：電源、5V/GND、PA5 → 330 Ω → LED → GND、PB12 → 按鈕 → GND"
-            }
-          ],
-          "error": null,
-          "ms": 14676
-        },
-        {
-          "id": 5,
-          "title": "載入真正的 STM32F103 ELF 韌體",
-          "status": "pass",
-          "evidence": [
-            "在 3D 場景點選 U1，於屬性面板「韌體」區塊按「選擇檔案…」，經瀏覽器檔案選擇器選取 firmware/dist/lab-acceptance.elf。",
-            "綁定記錄：lab-acceptance.elf，格式 ELF，254436 位元組，SHA-256 63d2defbc788a0456ec7d28d22fab35c6e5e0dc10e75aca0fb9b0ca515c43072（與磁碟上的檔案一致）。",
-            "載入器描述：ELF32 ARM, EABI5, soft-float, Thumb entry 0x08001f55"
-          ],
-          "shots": [
-            {
-              "file": "05-firmware.jpg",
-              "caption": "屬性面板：韌體 lab-acceptance.elf 已載入（含 SHA-256）"
-            }
-          ],
-          "error": null,
-          "ms": 1278
-        },
-        {
-          "id": 6,
-          "title": "按下執行",
-          "status": "pass",
-          "evidence": [
-            "按屬性面板「執行」區塊的「執行」按鈕 → 應用程式狀態 running = true，狀態膠囊顯示「執行中」，按鈕變為「暫停」。"
-          ],
-          "shots": [],
-          "error": null,
-          "ms": 308
-        },
-        {
-          "id": 7,
-          "title": "MCU 模擬引擎開始執行韌體",
-          "status": "pass",
-          "evidence": [
-            "狀態徽章顯示「執行中」；模擬畫格中 U1 的 state = running、韌體 = lab-acceptance.elf。",
-            "模擬時間前進 1.856 s 期間，週期計數 9,633,697 → 143,265,696（+133,631,999），≈ 72 M 週期 / 模擬秒。",
-            "PC 在 8 個不同位址間移動（例：0x080002A8、0x080002A0、0x080002A4、0x0800029E），全部位於快閃記憶體。",
-            "核心時脈 72 MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 81 %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 1.4 s，按下執行後 0.2 s 出現第一個執行中的畫格）。"
-          ],
-          "shots": [
-            {
-              "file": "07-running.jpg",
-              "caption": "執行中：狀態徽章、PC、週期數、核心時脈與即時比"
-            }
-          ],
-          "error": null,
-          "ms": 2721,
-          "realtime": {
-            "median": 0.5603532875368012,
-            "min": 0.5603532875368012,
-            "max": 0.8068003144937211
-          }
-        },
-        {
-          "id": 8,
-          "title": "LED 根據韌體與接線狀態亮滅",
-          "status": "pass",
-          "evidence": [
-            "模擬 2.6 s 內 LED（LED1）亮度由求解器遙測逐畫格取樣：峰值 0.41（≈ 4.1 mA，滿亮度 = 10 mA），共 11 次亮滅轉換，半週期中位數 0.249 s → 2 Hz 閃爍（韌體 mode 0：250 ms 亮 / 250 ms 滅）。",
-            "目前 LED 電流 0 mA。",
-            "亮 / 滅截圖：在相位開始時以狀態膠囊暫停（閃爍半週期短於一次截圖所需時間），確認暫停畫格的 LED 遙測確實為亮 / 滅後才截圖，再繼續執行。"
-          ],
-          "shots": [
-            {
-              "file": "08-led-on.jpg",
-              "caption": "LED 亮（2 Hz 閃爍的亮相位，暫停後截圖）"
-            },
-            {
-              "file": "08-led-off.jpg",
-              "caption": "LED 滅（2 Hz 閃爍的滅相位，暫停後截圖）"
-            }
-          ],
-          "error": null,
-          "ms": 5348,
-          "realtime": {
-            "median": 0.825906120013926,
-            "min": 0.5813261968533981,
-            "max": 0.8836843141216645
-          }
-        },
-        {
-          "id": 9,
-          "title": "按鈕能改變 GPIO 輸入",
-          "status": "pass",
-          "evidence": [
-            "放開時 PB12 = 3.3 V（韌體設定的內部上拉）。",
-            "第 1 次直接在 3D 場景按住按鈕 SW1（模擬執行中，在按鈕上按住滑鼠就是按下、放開就是放開，同時會選取它）；之後改用屬性面板的「按住」大按鈕。",
-            "第 1 次按下：PB12 最低 0 V → 韌體經 EXTI12 去彈跳後輸出「mode=1 blink 5 Hz」，LED 半週期中位數 0.1 s（5 Hz，16 次轉換 / 1.6 s）。",
-            "第 2 次按下 →「mode=2 solid on」，31 個畫格中 LED 全部恆亮（亮度 0.41）。",
-            "第 3 次按下 →「mode=3 off」，46 個畫格中 LED 全部熄滅。",
+            "第 3 次按下 →「mode=3 off」，32 個畫格中 LED 全部熄滅。",
             "第 4 次按下 →「mode=0 blink 2 Hz」，LED 半週期中位數 0.248 s，回到 2 Hz。"
           ],
           "shots": [
@@ -801,11 +801,11 @@
             }
           ],
           "error": null,
-          "ms": 9986,
+          "ms": 8572,
           "realtime": {
-            "median": 0.7665915106626625,
-            "min": 0.3915764378592221,
-            "max": 1.042592773915405
+            "median": 0.9160685806070704,
+            "min": 0.39700522119790665,
+            "max": 1.013566653511614
           }
         },
         {
@@ -829,11 +829,11 @@
             }
           ],
           "error": null,
-          "ms": 7673,
+          "ms": 6663,
           "realtime": {
-            "median": 0.6869025327356456,
-            "min": 0.6251242297824523,
-            "max": 0.7343843544290007
+            "median": 0.9010967296565852,
+            "min": 0.7594191522405884,
+            "max": 0.9434526778384732
           }
         },
         {
@@ -841,10 +841,10 @@
           "title": "可以暫停、重置與重新執行",
           "status": "pass",
           "evidence": [
-            "點狀態膠囊暫停：running = false，0.8 s 內模擬時間停在 19.372 s、週期數停在 1,394,726,496，膠囊顯示「已暫停」。",
+            "點狀態膠囊暫停：running = false，0.8 s 內模擬時間停在 19.972 s、週期數停在 1,437,897,697，膠囊顯示「已暫停」。",
             "「更多 → 重置模擬」：模擬時間歸零、UART 終端機緩衝清空（電源循環）。",
-            "再點狀態膠囊執行：韌體從頭開始，終端機重新出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.249 s（mode 0）。",
-            "先按一次按鈕進入 mode 1（終端機「mode=1 blink 5 Hz」），再按屬性面板「重置 MCU」（NRST 腳位重置：只重置核心，電路持續模擬）：日誌在 3.103 s 記錄「U1: reset」（模擬時間未歸零），韌體從重置向量重新開機，終端機再次出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.245 s——RAM 中的模式狀態已清除。"
+            "再點狀態膠囊執行：韌體從頭開始，終端機重新出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.248 s（mode 0）。",
+            "先按一次按鈕進入 mode 1（終端機「mode=1 blink 5 Hz」），再按屬性面板「重置 MCU」（NRST 腳位重置：只重置核心，電路持續模擬）：日誌在 3.23 s 記錄「U1: reset」（模擬時間未歸零），韌體從重置向量重新開機，終端機再次出現「boot ok」「mode=0 blink 2 Hz」，LED 半週期 0.25 s——RAM 中的模式狀態已清除。"
           ],
           "shots": [
             {
@@ -853,11 +853,11 @@
             }
           ],
           "error": null,
-          "ms": 10972,
+          "ms": 9442,
           "realtime": {
-            "median": 0.776068717548108,
-            "min": 0.4930131863574966,
-            "max": 0.8493827160492967
+            "median": 0.8124938223367033,
+            "min": 0.014763779527559062,
+            "max": 0.9434526778384732
           }
         },
         {
@@ -881,43 +881,43 @@
             }
           ],
           "error": null,
-          "ms": 11473,
+          "ms": 10044,
           "realtime": {
-            "median": 0.6232042009607128,
-            "min": 0.5432122932431006,
-            "max": 0.6658680243268691
+            "median": 0.8288822947576664,
+            "min": 0.8288822947576664,
+            "max": 0.9597523220270415
           }
         }
       ],
       "pageErrors": [],
       "env": {
         "bootMs": [
-          1869,
-          1262
+          1778,
+          1200
         ],
         "cal": [
           {
             "at": "開始",
-            "mops": 124
+            "mops": 159
           },
           {
             "at": "模擬中",
-            "mops": 123
+            "mops": 132
           },
           {
             "at": "結束",
-            "mops": 115
+            "mops": 145
           }
         ],
-        "startMs": 154.79999995231628,
+        "startMs": 150.70000004768372,
         "realtime": {
-          "median": 0.7216596204723109,
-          "min": 0.3915764378592221,
-          "max": 1.042592773915405,
-          "frames": 1266
+          "median": 0.8936764412317898,
+          "min": 0.014763779527559062,
+          "max": 1.013566653511614,
+          "frames": 1140
         }
       },
-      "startedAt": "2026-10-19T18:44:42.942Z",
+      "startedAt": "2026-11-02T09:08:15.937Z",
       "ids": {
         "mcu": "U1",
         "r": "R1",
@@ -925,7 +925,7 @@
         "btn": "SW1",
         "psu": "PS1"
       },
-      "finishedAt": "2026-10-19T18:46:05.161Z"
+      "finishedAt": "2026-11-02T09:09:28.630Z"
     }
   ]
 }

@@ -55,6 +55,7 @@ import {
   layoutCentroid,
   ledBase,
   ledLens,
+  logicLed,
   mergeParts,
   moduleFrame,
   nylon,
@@ -336,8 +337,8 @@ function buildCh340(comp: ComponentInstance, entry: CatalogEntry, pins: THREE.Ve
       setShunt(paramOf(c2.params, e2, 'logic'))
       if (ghost) return
       applyLed(leds.PWR ?? null, subLed(t, 'LED_PWR'))
-      applyLed(leds.TXD ?? null, t?.leds?.TX)
-      applyLed(leds.RXD ?? null, t?.leds?.RX)
+      applyLed(leds.TXD ?? null, logicLed(t?.leds?.TX))
+      applyLed(leds.RXD ?? null, logicLed(t?.leds?.RX))
     },
   }
 }
@@ -506,7 +507,7 @@ function buildHc05(comp: ComponentInstance, _entry: CatalogEntry, pins: THREE.Ve
     object: group,
     pinWorld: pins.map((p) => p.clone()),
     update: (_c2, _e2, t) => {
-      if (!ghost) applyLed(led, t?.leds?.LED)
+      if (!ghost) applyLed(led, logicLed(t?.leds?.LED))
     },
   }
 }
@@ -1028,7 +1029,7 @@ function buildEsp01(comp: ComponentInstance, _entry: CatalogEntry, pins: THREE.V
     update: (_c2, _e2, t) => {
       if (ghost) return
       applyLed(pwr, subLed(t, 'LED_PWR'))
-      applyLed(tx, t?.leds?.TX)
+      applyLed(tx, logicLed(t?.leds?.TX))
     },
   }
 }

@@ -166,11 +166,18 @@ const PULL_ZH: Record<string, string> = { 'pull-up': '上拉電阻', 'pull-down'
 // patterns
 // ---------------------------------------------------------------------------
 
+// The LED model's burn rule as every burn sentence states it (src/sim/erc/rules-led.ts
+// LED_BURN_RULE / LED_BURN_RULE_WHEN — the junction-temperature model of
+// src/sim/devices.ts: 150 °C, or 150 mA held for 1 ms), and in zh-TW.
+const LED_BURN_RULE_EN = 'its junction passed about 150 °C, far over its rating for seconds, or more than 150 mA flowed for over 1 ms'
+const LED_BURN_RULE_WHEN_EN = 'its junction passes about 150 °C, far over its rating for seconds, or more than 150 mA flows for over 1 ms'
+const LED_BURN_RULE_ZH = '電流長時間遠超額定、接面溫度超過約 150 °C，或電流超過 150 mA 達 1 ms 以上'
+
 export const MESSAGES_ZH: MessagePattern[] = [
   // ------------------------------------------------ sentences appended to LED findings
   tpl(
-    '«m» The simulation’s LED model has already burned it out (over 30 mA for more than 1 ms).',
-    (g) => `${tr(g.m)}模擬的 LED 模型已將它燒毀（超過 30 mA 達 1 ms 以上）。`,
+    `«m» The simulation’s LED model has already burned it out (${LED_BURN_RULE_EN}).`,
+    (g) => `${tr(g.m)}模擬的 LED 模型已將它燒毀（${LED_BURN_RULE_ZH}）。`,
     (g) => translates(g.m),
   ),
   tpl(
@@ -318,8 +325,8 @@ export const MESSAGES_ZH: MessagePattern[] = [
       `${listZh(g.rs, resItemZh)} 會讓最多約 ${g.i} 的電流從 ${whatZh(g.w)} 流過 ${edgeZh(g.name)}${g.rd ? g.rd.replace(/^ \(with the driver’s ≈ (.+) Ω output resistance\)$/, '（含驅動器約 $1 Ω 的輸出電阻）') : ''}——超過它的額定連續電流 ${g.max}。請串聯至少 ${g.r} 的電阻。`,
   ),
   tpl(
-    '«id» burned out in the simulation (over 30 mA for more than 1 ms) — its series resistance is too small for the voltage driving it. Use a larger series resistor.',
-    (g) => `${g.id} 在模擬中燒毀（超過 30 mA 達 1 ms 以上）——相對於驅動它的電壓，串聯電阻太小。請使用較大的串聯電阻。`,
+    `«id» burned out in the simulation (${LED_BURN_RULE_EN}) — its series resistance is too small for the voltage driving it. Use a larger series resistor.`,
+    (g) => `${g.id} 在模擬中燒毀（${LED_BURN_RULE_ZH}）——相對於驅動它的電壓，串聯電阻太小。請使用較大的串聯電阻。`,
   ),
   tpl(
     '«name» is wired in reverse: its cathode (−, the short lead / flat side) goes toward «hi» and its anode toward «lo», so it can never light. Swap its two leads.',
@@ -337,8 +344,8 @@ export const MESSAGES_ZH: MessagePattern[] = [
 
   // ------------------------------------------------------------ live ratings
   tpl(
-    '«id» burned out in the simulation (the LED model latches it after more than 30 mA for over 1 ms). Add or enlarge its series resistor, then reset the simulation.',
-    (g) => `${g.id} 在模擬中燒毀（LED 模型在電流超過 30 mA 達 1 ms 以上後鎖定為燒毀）。請加上或加大串聯電阻，然後重置模擬。`,
+    `«id» burned out in the simulation (the LED model latches it as burned when ${LED_BURN_RULE_WHEN_EN}). Add or enlarge its series resistor, then reset the simulation.`,
+    (g) => `${g.id} 在模擬中燒毀（LED 模型在${LED_BURN_RULE_ZH}時鎖定為燒毀）。請加上或加大串聯電阻，然後重置模擬。`,
   ),
   tpl(
     '«id» («l») burned out in the simulation (its model latched an over-current). Limit the current through it, then reset the simulation.',
@@ -360,8 +367,8 @@ export const MESSAGES_ZH: MessagePattern[] = [
     (g) => `${g.id}（${labelZh(g.l)}）在模擬中的電流為 ${capZh(g.i)}，超過其連續額定值 ${g.max}。請減輕負載或改用規格更大的元件。`,
   ),
   tpl(
-    '«id»’s on-board LED «el» burned out in the simulation (over 30 mA for more than 1 ms): something drives its pin with too much current. Check what is wired to «pins».',
-    (g) => `${g.id} 的板載 LED ${g.el} 在模擬中燒毀（超過 30 mA 達 1 ms 以上）：有東西以過大的電流驅動它的腳位。請檢查接到 ${g.pins} 的電路。`,
+    `«id»’s on-board LED «el» burned out in the simulation (${LED_BURN_RULE_EN}): something drives its pin with too much current. Check what is wired to «pins».`,
+    (g) => `${g.id} 的板載 LED ${g.el} 在模擬中燒毀（${LED_BURN_RULE_ZH}）：有東西以過大的電流驅動它的腳位。請檢查接到 ${g.pins} 的電路。`,
   ),
   tpl(
     '«id»’s on-board LED «el» carries «i» in the simulation, above a typical «max» LED rating.',
@@ -790,8 +797,10 @@ export const NOTES_ZH: Record<string, string> = polishNotes({
     '5 V 輸出驅動不耐受 5 V 的 3.3 V MCU 腳位，或晶片輸入被驅動到超過其絕對最大輸入電壓',
   'the same through a resistor, or a 3.3 V output drives a 5 V CMOS input whose VIH is above 3.3 V': '同上但經由電阻，或 3.3 V 輸出驅動 VIH 高於 3.3 V 的 5 V CMOS 輸入',
   'a 5 V output drives a 5 V-tolerant (FT) pin': '5 V 輸出驅動 5 V 耐受（FT）腳位',
-  'Over rating (live)': '超過額定值（即時）',
-  'the simulation’s own model reports the part destroyed (LED burned out)': '模擬本身的模型回報元件已損壞（LED 燒毀）',
+  // (the t() texts are in words.ts; the same wording here for tMessage)
+  'Over rating': '超出額定',
+  'the simulation’s own model reports the part destroyed (an LED or RGB die burned out, a resistor burned open, an electrolytic capacitor vented); or, before Run, a polarized capacitor sits reversed by more than 1 V between two rails, so it will vent once powered':
+    '模擬模型回報元件已損毀（LED 或 RGB LED 的晶粒燒毀、電阻燒斷、電解電容爆開）；或在執行前就看得出：有極性（電解）電容反接在兩條電源軌之間超過 1 V，一通電就會爆開',
   'measured power/current above the part’s rating, a regulator in current limit or dropout, or a GPIO driver above 25 mA':
     '量測到的功率／電流超過元件額定值、穩壓器進入限流或壓降區，或 GPIO 驅動器超過 25 mA',
   'Ground reference': '接地參考',

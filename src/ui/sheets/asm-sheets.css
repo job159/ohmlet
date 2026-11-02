@@ -339,6 +339,12 @@
   font: 400 17px/22px var(--lg-font);
   color: var(--label);
 }
+/* product chrome: the speed options read 「0.1 倍」…「10 倍」 — keep each on
+   one line (five segments in a ~300 px well wrapped 「0.1／倍」) */
+.asm-seg-speed .lg-seg-item {
+  padding: 0 4px;
+  white-space: nowrap;
+}
 
 /* level-colored issue dots */
 .asm-dot {

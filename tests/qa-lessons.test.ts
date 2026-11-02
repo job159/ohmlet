@@ -15,7 +15,11 @@
  *  - F9 b2's meter steps offer 開始接線, derived meter wires, the unwired-lead text;
  *  - F10 rail holes read 「上方 + 電源軌第 0 孔（top+0）」, a missing part offers
  *    載入起始電路 instead of a mark;
- *  - the qa-lessons dictionary is Taiwan-usage Chinese.
+ *  - the qa-lessons dictionary is Taiwan-usage Chinese;
+ *  - final walkthrough: F7 also for 從第一課開始 (tests/ux-contracts K9) — 開始引導 /
+ *    下一課 load at once in the product chrome, the classic chrome asks; a lesson load
+ *    drops the lesson's earlier results at once (before its firmware loads); placing
+ *    the part a step armed shows no toast over the sheet that opened (P3).
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -40,10 +44,12 @@ import { __setFirmwareBlobStoreForTests, createMemoryBlobStore } from '../src/st
 import { __resetHistoryForTests, useStore } from '../src/state/store'
 import { useLab } from '../src/ui/embedded/lab'
 import { useLogicReveal } from '../src/ui/embedded/probe-actions'
-import { dismissToast, getToasts } from '../src/ui/kit'
+import { useInspectorFocus } from '../src/ui/embedded/problems'
+import { dismissToast, getToasts, showToast } from '../src/ui/kit'
 import {
   __resetLessonLayoutForTests,
   addLogicChannels,
+  armPart,
   coachArmedWiring,
   goToLesson,
   goToStep,
@@ -184,7 +190,20 @@ describe('every entry point lands on the lesson’s own circuit (LS-F1)', () => 
     expect(useLessonProgress.getState().lessons[b1.id]?.step).toBe(0)
   })
 
-  it('開始引導 on another circuit asks to replace it and starts nothing', LONG, async () => {
+  it('開始引導 on another circuit loads the lesson’s start at once (product chrome, F7 — 〔復原〕 in the toast)', LONG, async () => {
+    const b1 = lesson('b1-led-resistor')
+    const b2 = lesson('b2-voltage-divider')
+    await loadLessonCircuit(b1, 'start')
+    startGuide(b2, 0)
+    expect(useLessonUi.getState().confirm).toBeNull()
+    for (let i = 0; i < 50 && useLessonUi.getState().coachId !== b2.id; i++) await wait(20)
+    expect(useLessonUi.getState().coachId).toBe(b2.id)
+    expect(ids()).toEqual(['DMM1', 'DMM2', 'PS1'])
+    expect(getToasts()[getToasts().length - 1]?.action?.label).toBe('復原')
+  })
+
+  it('… the English classic chrome still asks to replace it and starts nothing', LONG, async () => {
+    __setLangForTests('en')
     const b1 = lesson('b1-led-resistor')
     const b2 = lesson('b2-voltage-divider')
     await loadLessonCircuit(b1, 'start')
@@ -194,7 +213,22 @@ describe('every entry point lands on the lesson’s own circuit (LS-F1)', () => 
     expect(ids()).toEqual(['DMM1', 'LED1', 'PS1'])
   })
 
-  it('下一課 stops the old guide, opens the new lesson’s steps and asks to load its circuit', LONG, async () => {
+  it('下一課 stops the old guide, opens the new lesson’s steps and loads its circuit at once (product chrome)', LONG, async () => {
+    const b1 = lesson('b1-led-resistor')
+    const b2 = lesson('b2-voltage-divider')
+    await loadLessonCircuit(b1, 'solution')
+    goToLesson(b2)
+    expect(useLessonUi.getState().viewId).toBe(b2.id)
+    expect(useLessonUi.getState().section).toBe('steps')
+    expect(useLessonUi.getState().confirm).toBeNull()
+    // b2's start circuit and its guide on step 1 (「放上 R1」 places R1, not R2)
+    for (let i = 0; i < 50 && useLessonUi.getState().coachId !== b2.id; i++) await wait(20)
+    expect(ids()).toEqual(['DMM1', 'DMM2', 'PS1'])
+    expect(useLessonUi.getState().coachId).toBe(b2.id)
+  })
+
+  it('… the English classic chrome: 下一課 stops the old guide and asks to load the new lesson’s circuit', LONG, async () => {
+    __setLangForTests('en')
     const b1 = lesson('b1-led-resistor')
     const b2 = lesson('b2-voltage-divider')
     await loadLessonCircuit(b1, 'solution')
@@ -203,7 +237,7 @@ describe('every entry point lands on the lesson’s own circuit (LS-F1)', () => 
     expect(useLessonUi.getState().viewId).toBe(b2.id)
     expect(useLessonUi.getState().section).toBe('steps')
     expect(useLessonUi.getState().confirm).toEqual({ lessonId: b2.id, which: 'start' })
-    // 取代 → b2's start circuit and its guide on step 1 (「放上 R1」 places R1, not R2)
+    // Replace → b2's start circuit and its guide on step 1
     await loadLessonCircuit(b2, 'start')
     expect(ids()).toEqual(['DMM1', 'DMM2', 'PS1'])
     expect(useLessonUi.getState().coachId).toBe(b2.id)
@@ -673,5 +707,104 @@ describe('the qa-lessons dictionary', () => {
       if (/執行中/.test(zh.replace(/模擬執行中/g, ''))) bad.push(`執行中: ${zh}`)
     }
     expect(bad).toEqual([])
+  })
+})
+
+
+// ------------------------------------------------- final walkthrough P3 / loads
+describe('placing the part a step armed (final walkthrough P3)', () => {
+  const place = () => {
+    vi.useFakeTimers()
+    useStore.setState({ layout: lesson('b1-led-resistor').start.layout })
+    armPart('resistor')
+    // the placement click: commit, then the app re-arms repeat placement
+    useStore.getState().addComponent('resistor', { holes: ['top+10', 'a14'] })
+    useStore.getState().setMode({ kind: 'place', type: 'resistor', pickedHoles: [] })
+    vi.runAllTimers()
+  }
+
+  it('product chrome: the properties sheet that opened is the feedback — no 「已放置 R1——屬性面板已打開」 toast over its one-tap value chips', () => {
+    // the lesson load's 〔復原〕 toast is still up when the learner places R1 quickly
+    showToast('已載入「LED 與限流電阻」的起始電路', { action: { label: '復原', run() {} } })
+    showToast('一則提示')
+    place()
+    expect(useStore.getState().mode).toEqual({ kind: 'select' })
+    expect(useStore.getState().selection).toEqual(['R1'])
+    expect(useInspectorFocus.getState().request?.componentId).toBe('R1') // the sheet / inspector opens on R1
+    expect(toasts().some((x) => x.startsWith('已放置'))).toBe(false)
+    // the board changed with the placement: that 〔復原〕 would undo nothing now, and it sat over the chips — gone
+    expect(getToasts().some((x) => x.action?.label === '復原')).toBe(false)
+    expect(toasts()).toEqual(['一則提示']) // anything else stays
+  })
+
+  it('the English classic chrome keeps its toast', () => {
+    __setLangForTests('en')
+    place()
+    expect(useStore.getState().selection).toEqual(['R1'])
+    expect(lastToast()).toBe('Placed R1 — its properties are open')
+  })
+
+  it('product chrome: the placing click’s repeat-placement re-arm never reaches the screen — select in the same synchronous turn (no 「繼續點孔位可再放一顆」 hint over the chips)', () => {
+    vi.useFakeTimers()
+    useStore.setState({ layout: lesson('b1-led-resistor').start.layout })
+    // what React (and every other listener) sees, in order
+    const seen: string[] = []
+    const unsub = useStore.subscribe((s, prev) => {
+      if (s.mode !== prev.mode) seen.push(`${prev.mode.kind}→${s.mode.kind}`)
+    })
+    armPart('resistor')
+    seen.length = 0
+    // App.tsx's placing click (a leads part): commit, then re-arm repeat placement — one synchronous turn
+    useStore.getState().addComponent('resistor', { holes: ['top+10', 'a14'] })
+    useStore.getState().setMode({ kind: 'place', type: 'resistor', pickedHoles: [] })
+    // before any timer / render: already back to select
+    expect(useStore.getState().mode).toEqual({ kind: 'select' })
+    expect(seen).toEqual(['place→place', 'place→select']) // every listener sees the re-arm, then the select, in order
+    vi.runAllTimers()
+    expect(useStore.getState().mode).toEqual({ kind: 'select' })
+    expect(useStore.getState().selection).toEqual(['R1'])
+    expect(useInspectorFocus.getState().request?.componentId).toBe('R1')
+    // the learner arms placement again by hand later: repeat placement is theirs (nothing takes it back)
+    useStore.getState().setMode({ kind: 'place', type: 'resistor', pickedHoles: [] })
+    expect(useStore.getState().mode).toMatchObject({ kind: 'place', type: 'resistor' })
+    unsub()
+  })
+
+  it('… a part the app itself returns to select for (not a leads part): nothing is taken back, nothing lingers', () => {
+    vi.useFakeTimers()
+    useStore.setState({ layout: lesson('b1-led-resistor').start.layout })
+    armPart('resistor')
+    useStore.getState().addComponent('resistor', { holes: ['top+10', 'a14'] })
+    useStore.getState().setMode({ kind: 'select' })
+    vi.runAllTimers()
+    expect(useStore.getState().selection).toEqual(['R1'])
+    // later, placement armed from the library card: stays armed
+    useStore.getState().setMode({ kind: 'place', type: 'resistor', pickedHoles: [] })
+    expect(useStore.getState().mode).toMatchObject({ kind: 'place', type: 'resistor' })
+  })
+
+  it('… the English classic chrome keeps its original sequence (the re-arm stands until the placement watch returns to select)', () => {
+    __setLangForTests('en')
+    vi.useFakeTimers()
+    useStore.setState({ layout: lesson('b1-led-resistor').start.layout })
+    armPart('resistor')
+    useStore.getState().addComponent('resistor', { holes: ['top+10', 'a14'] })
+    useStore.getState().setMode({ kind: 'place', type: 'resistor', pickedHoles: [] })
+    expect(useStore.getState().mode).toMatchObject({ kind: 'place', type: 'resistor' })
+    vi.runAllTimers()
+    expect(useStore.getState().mode).toEqual({ kind: 'select' })
+  })
+})
+
+describe('a lesson load replaces the lesson’s earlier results at once', () => {
+  it('… before its firmware loads: no earlier pass shows over the new circuit (nor 「課程完成」 for an answer’s pass)', LONG, async () => {
+    const i1 = lesson('i1-gpio-output')
+    useLessonUi.getState().setRun(runKey(i1.id), { status: 'done', progress: null, results: [{ pass: true } as never], at: 1 })
+    const loading = loadLessonCircuit(i1, 'start')
+    // synchronously, before the bundled firmware is fetched
+    expect(useStore.getState().layout.components.some((c) => c.id === 'U1')).toBe(true)
+    expect(useLessonUi.getState().runs[runKey(i1.id)]).toBeUndefined()
+    expect(await loading).toBe(true)
+    expect(useLessonUi.getState().runs[runKey(i1.id)]).toBeUndefined()
   })
 })

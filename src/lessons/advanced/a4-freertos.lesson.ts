@@ -232,7 +232,7 @@ export const LESSON: Lesson = {
       id: 'button',
       title: '接上按鈕：中斷把訊息送進佇列',
       body: doc(
-        '按下方的「開始接線」，從 `j10`（U1 PB12（板上 B12）的空孔）接到 `j45`（SW1 的 A 側），再從 `j47`（B 側）接到 `bot-38`（下方 − 電源軌）。接好後按幾下 SW1（{滑鼠：在麵包板上點按鈕｜觸控：點一下按鈕}，或在屬性面板勾選 SW1 的「按下」），終端機出現 `button #1 (EXTI ISR -> queue)`。',
+        '按下方的「開始接線」，從 `j10`（U1 PB12（板上 B12）的空孔）接到 `j45`（SW1 的 A 側），再從 `j47`（B 側）接到 `bot-38`（下方 − 電源軌）。接好後按幾下 SW1（{滑鼠：在麵包板上點按鈕｜觸控：點一下按鈕}，或在屬性面板按 SW1 的「按住」），終端機出現 `button #1 (EXTI ISR -> queue)`。',
         'EXTI15_10 中斷的優先權是 6：它在中斷裡呼叫 `xQueueSendFromISR()`，若 `logger` 因此醒來（比被打斷的閒置任務優先），`portYIELD_FROM_ISR()` 就讓 PendSV 在中斷結束時直接切到 `logger`，所以按下後約 0.2 ms 就開始印出。50 ms 內的接點彈跳只算一次。',
       ),
       highlight: { holes: [TAP.PB12, 'j45', 'j47', 'bot-38'], components: ['SW1'] },

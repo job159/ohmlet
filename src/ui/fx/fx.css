@@ -1,0 +1,128 @@
+/* vivid: the 「完成！」 celebration badge (CelebrationOverlay.tsx).
+   Rim tier (lg-rim ring), NO backdrop-filter. Pointer-transparent host; only
+   the badge itself takes the pointer (a tap closes it). */
+
+.fx-cele-host {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* just under the run capsule: the badge stays clear of the circuit it celebrates
+     (the circuit is framed in the middle of the view; the 3D confetti bursts there) */
+  padding-top: calc(var(--lg-safe-top, 0px) + 64px);
+  pointer-events: none;
+  font-family: var(--lg-font, system-ui, sans-serif);
+}
+
+.fx-cele-badge {
+  position: relative; /* hosts the lg-rim ring */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 220px;
+  max-width: min(86vw, 420px);
+  padding: 22px 28px 20px;
+  border-radius: 28px;
+  border: 0.5px solid rgba(255, 255, 255, 0.18);
+  background: radial-gradient(120% 90% at 50% 0%, rgba(60, 196, 120, 0.32), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, rgb(40, 52, 48), rgb(24, 30, 30));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(80, 220, 140, 0.18), 0 0 48px rgba(70, 220, 130, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --lg-rim-hi: 0.36;
+  --lg-rim-mid: 0.22;
+  --lg-rim-cool: 0.14;
+  --lg-rim-warm: 0.12;
+  --lg-rim-w: 1px;
+  color: #f4fff8;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  animation: fx-cele-pop 520ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.fx-cele-badge:focus-visible {
+  outline: 2px solid #7cf0ae;
+  outline-offset: 3px;
+}
+
+.fx-cele-check svg circle {
+  fill: rgba(52, 199, 89, 0.22);
+  stroke: #4ee08a;
+  stroke-width: 2.5;
+}
+.fx-cele-check svg path {
+  fill: none;
+  stroke: #eafff2;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 0;
+  animation: fx-cele-draw 480ms 140ms ease-out both;
+}
+.fx-cele-check {
+  display: block;
+  filter: drop-shadow(0 0 12px rgba(78, 224, 138, 0.75));
+}
+
+.fx-cele-title {
+  font: 800 34px/40px var(--lg-font, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 18px rgba(78, 224, 138, 0.55), 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.fx-cele-msg {
+  font: 500 15px/21px var(--lg-font, system-ui, sans-serif);
+  color: rgba(234, 255, 242, 0.9);
+}
+
+/* the burst around the check: ONE crisp ring that expands and fades once
+   (a 2 px line, not a haze; transform + opacity only — compositor work) */
+.fx-cele-burst {
+  position: absolute;
+  left: 50%;
+  top: 50px;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  border: 2px solid rgba(124, 240, 174, 0.95);
+  box-sizing: border-box;
+  pointer-events: none;
+  animation: fx-cele-burst 700ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes fx-cele-pop {
+  0% { opacity: 0; transform: translateY(14px) scale(0.6); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes fx-cele-draw {
+  from { stroke-dashoffset: 40; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes fx-cele-burst {
+  0% { opacity: 0.95; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+
+@media (max-width: 480px) {
+  .fx-cele-host { padding-top: calc(var(--lg-safe-top, 0px) + 60px); }
+  .fx-cele-title { font-size: 30px; line-height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-cele-badge,
+  .fx-cele-check svg path {
+    animation: none;
+  }
+  .fx-cele-burst { display: none; }
+}
+
+/* 更多 → 音效 row (SoundSettingRow) */
+.fx-sound-row-sub {
+  font-size: 13px;
+  color: var(--secondary-label, rgba(235, 235, 245, 0.6));
+}

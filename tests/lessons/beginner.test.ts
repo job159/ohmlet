@@ -155,7 +155,8 @@ function addWire(id: string, from: string, to: string) {
 const MISTAKES: Record<string, Mistake[]> = {
   'b1-led-resistor': [
     { what: 'LED reversed', circuit: (l) => edit(l.solution, moveHoles('LED1', ['c16', 'c14'])), fails: '電流' },
-    { what: '100 Ω burns the LED', circuit: (l) => edit(l.solution, setParam('R1', 'resistance', 100)), fails: '沒有燒毀' },
+    // honesty F11: 31 mA no longer burns the LED — it is over-driven (亮度 155 %, above the check's 25–150 %)
+    { what: '100 Ω over-drives the LED', circuit: (l) => edit(l.solution, setParam('R1', 'resistance', 100)), fails: '正常發光' },
     { what: '150 Ω: above the 20 mA rating', circuit: (l) => edit(l.solution, setParam('R1', 'resistance', 150)), fails: 'ERC' },
     { what: '10 kΩ: LED barely lit', circuit: (l) => edit(l.solution, setParam('R1', 'resistance', 10000)), fails: '電流' },
     { what: 'LED legs in one column', circuit: (l) => edit(l.solution, moveHoles('LED1', ['c14', 'd14'])), fails: '電流' },

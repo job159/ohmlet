@@ -750,13 +750,38 @@ describe('K9 startFirstLesson', () => {
     expect(useLessonUi.getState().sheetOpen).toBe(false) // phones keep the board visible
   })
 
-  it('on a board with content: asks first, opens the lessons tab in the workspace, touches nothing', async () => {
+  it('on a board with content (product chrome, F7 like 下一課): loads at once — 〔復原〕 in the toast — and opens the lessons tab', async () => {
     setDocument(LAYOUT)
     wide = true
     useLab.getState().setWorkspace({ enabled: true, left: { open: false, width: 300, tab: 'parts' } })
+    expect(await startFirstLesson()).toBe('loaded')
+    expect(useLessonUi.getState().confirm).toBeNull() // no "replace the current circuit?" question
+    expect(useLab.getState().workspace.left).toMatchObject({ open: true, tab: 'lessons' })
+    expect(useStore.getState().layout.components.some((c) => c.id === 'LED1')).toBe(true)
+    expect(useLessonUi.getState().coachId).toBe('b1-led-resistor')
+    expect(useLessonProgress.getState().lessons['b1-led-resistor']?.step).toBe(0)
+    const toast = getToasts()[getToasts().length - 1]
+    expect(toast?.text).toBe('已載入「LED 與限流電阻」的起始電路')
+    expect(toast?.action?.label).toBe('復原')
+    // 〔復原〕 brings the board it replaced back
+    toast!.action!.run()
+    expect(useStore.getState().layout.components.map((c) => c.id)).toEqual(['PS1', 'U1', 'R1'])
+  })
+
+  it('… a board whose firmware the first lesson does not overwrite loads at once too (undo keeps the binding)', async () => {
+    setDocument(LAYOUT)
+    useLab.setState({ firmware: { U1: { name: 'hal-blink.elf', sha256: 'ab', size: 1, source: 'file' } as never } })
+    expect(await startFirstLesson()).toBe('loaded')
+    expect(useLessonUi.getState().confirm).toBeNull()
+    expect(useLab.getState().firmware.U1).toBeTruthy() // b1 has no board of its own: U1's firmware is not replaced
+  })
+
+  it('the English classic chrome still asks first and touches nothing (as before)', async () => {
+    __setLangForTests('en')
+    setDocument(LAYOUT)
+    expect(isLegacyChrome()).toBe(true)
     expect(await startFirstLesson()).toBe('confirm')
     expect(useLessonUi.getState().confirm).toEqual({ lessonId: 'b1-led-resistor', which: 'start' })
-    expect(useLab.getState().workspace.left).toMatchObject({ open: true, tab: 'lessons' })
     expect(useStore.getState().layout).toBe(LAYOUT)
   })
 })

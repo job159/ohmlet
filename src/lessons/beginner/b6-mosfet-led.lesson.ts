@@ -102,7 +102,7 @@ export const LESSON: Lesson = {
   start: { layout: START },
   solution: { layout: SOLUTION },
   expected: [
-    'SW1 在 b：Q1 閘極約 4.95 V，LED1 亮，電流約 9.7 mA（亮度約 97 %）',
+    'SW1 在 b：Q1 閘極約 4.95 V，LED1 亮，電流約 9.7 mA（亮度約 49 %，以額定 20 mA 為 100 %）',
     'SW1 在 b：DMM1（V_DS）約 0.25 mV，對應 R_DS(on) ≈ 0.25 mV ÷ 9.7 mA ≈ 25 mΩ',
     'SW1 在 a：閘極被 R3 拉到約 0 V，LED1 熄滅（電流小於 1 µA），DMM1 約 3.7 V',
     'R3 流過約 0.5 mA（4.95 V ÷ 10 kΩ），閘極本身沒有直流電流',

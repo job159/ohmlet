@@ -202,6 +202,9 @@ export function checkGpioVoltages(c: Circuit, out: ErcFinding[]): void {
           message,
           short,
           ref: 'DS5319 Tables 7 and 9',
+          // beyond the absolute maximum (vivid damage facts): one row with the
+          // simulator's measured 「… exceeds VDD + 0.3 V」 of the same pin
+          fact: rule === 'gpio-overvoltage' && level === 'error' ? `absmax:${p.board.comp.id}:${p.pin}` : undefined,
           componentIds: [p.board.comp.id, s.compId, s.via?.compId],
           nets: [p.net, s.via ? otherEnd(s.via, p.net) : null],
           holes: [p.ref, s.via?.refA, s.via?.refB],

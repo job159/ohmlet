@@ -34,7 +34,7 @@ import type { ComponentInstance, ComponentTelemetry, ParamValue } from '../../mo
 import type { CatalogEntry } from '../../model/catalog'
 import { getEntry } from '../../model/catalog'
 import type { StampContext } from '../mna'
-import { registerDevice } from '../devices'
+import { bookBranch, registerDevice } from '../devices'
 import type { AnalogDevice } from '../devices'
 import { registerChip } from '../chip-api'
 import type { ChipInstance, ChipStepCtx } from '../chip-api'
@@ -105,6 +105,11 @@ class DcMotorDevice extends MotorsDevice {
     ctx.addConductance(a, b, this.comp_.geq)
     ctx.addCurrent(a, -this.comp_.ieq)
     ctx.addCurrent(b, this.comp_.ieq)
+  }
+
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const pins = this.entry.pins
+    bookBranch(out, off, this.nodes, x, pins.indexOf('M+'), pins.indexOf('M-'), this.comp_.geq, this.comp_.ieq)
   }
 
   endStep(x: Float64Array): void {
@@ -231,6 +236,14 @@ class Sg90Device extends MotorsDevice {
     ctx.addCurrent(vcc, -this.c)
     ctx.addCurrent(gnd, this.c)
     ctx.addConductance(this.node('SIG'), gnd, 1 / SG90_R_SIG)
+  }
+
+  /** the supply branch and the SIG input on their own pins (SIG tied to VCC or GND) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const pins = this.entry.pins
+    const gnd = pins.indexOf('GND')
+    bookBranch(out, off, this.nodes, x, pins.indexOf('VCC'), gnd, this.g, this.c)
+    bookBranch(out, off, this.nodes, x, pins.indexOf('SIG'), gnd, 1 / SG90_R_SIG)
   }
 
   endStep(x: Float64Array): void {
@@ -380,6 +393,15 @@ class StepperDevice extends MotorsDevice {
     for (let k = 0; k < this.w.length; k++) this.w[k].stamp(ctx, this.nA[k], this.nB[k])
   }
 
+  /** every winding on its own pins (a coil shorted by a wire brakes the rotor) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const pins = this.entry.pins
+    for (let k = 0; k < this.w.length; k++) {
+      const s = this.spec.windings[k]
+      this.w[k].book(out, off, this.nodes, x, pins.indexOf(s.a), pins.indexOf(s.b))
+    }
+  }
+
   endStep(x: Float64Array): void {
     let iA = 0
     let iB = 0
@@ -503,6 +525,22 @@ class L298nDevice extends MotorsDevice {
     let lim = false
     for (const leg of this.legs) if (leg.stamp(ctx, x)) lim = true
     this.limited = lim
+  }
+
+  /** every branch of the last stamp on its own pins (ENA wired to +5V, an IN tied to GND …) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const P = (p: string) => this.entry.pins.indexOf(p)
+    const n = this.nodes
+    const gnd = P('GND')
+    const v5 = P('+5V')
+    const vs = P('+12V')
+    bookBranch(out, off, n, x, P('ENA'), v5, this.jumperEnA ? G_ON : G_OFF)
+    bookBranch(out, off, n, x, P('ENB'), v5, this.jumperEnB ? G_ON : G_OFF)
+    bookBranch(out, off, n, x, vs, P('@reg_in'), this.jumper5v ? G_ON : G_OFF)
+    for (const p of ['ENA', 'IN1', 'IN2', 'IN3', 'IN4', 'ENB']) bookBranch(out, off, n, x, P(p), gnd, 1 / L298_R_IN)
+    bookBranch(out, off, n, x, v5, gnd, L298_G_SS)
+    if (this.logicOn) bookBranch(out, off, n, x, vs, gnd, L298_G_S)
+    for (let k = 0; k < 4; k++) this.legs[k].book(out, off, n, x, P(`OUT${k + 1}`), vs, gnd)
   }
 
   endStep(x: Float64Array): void {
@@ -675,6 +713,19 @@ class Tb6612Device extends MotorsDevice {
     this.limited = lim
   }
 
+  /** every branch of the last stamp on its own pins (STBY tied to VCC, an input tied to GND …) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const P = (p: string) => this.entry.pins.indexOf(p)
+    const n = this.nodes
+    const gnd = P('GND')
+    const vm = P('VM')
+    for (const p of Tb6612Device.INS) bookBranch(out, off, n, x, P(p), gnd, 1 / TB_R_PD)
+    bookBranch(out, off, n, x, P('VCC'), gnd, 1e-3 / 5)
+    bookBranch(out, off, n, x, vm, gnd, 1e-3 / 12)
+    const outs = ['AO1', 'AO2', 'BO1', 'BO2']
+    for (let k = 0; k < 4; k++) this.legs[k].book(out, off, n, x, P(outs[k]), vm, gnd)
+  }
+
   endStep(x: Float64Array): void {
     const vg = vAt(x, this.node('GND'))
     this.vm = vAt(x, this.node('VM')) - vg
@@ -818,6 +869,20 @@ class Drv8833Device extends MotorsDevice {
     let lim = false
     for (const leg of this.legs) if (leg.stamp(ctx, x)) lim = true
     this.limited = lim
+  }
+
+  /** every branch of the last stamp on its own pins (SLP tied to VM, an input tied to GND …) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const P = (p: string) => this.entry.pins.indexOf(p)
+    const n = this.nodes
+    const gnd = P('GND')
+    const vm = P('VM')
+    for (const p of Drv8833Device.INS) bookBranch(out, off, n, x, P(p), gnd, 1 / D33_R_PD)
+    bookBranch(out, off, n, x, P('SLP'), gnd, 1 / D33_R_PD_SLP)
+    bookBranch(out, off, n, x, vm, gnd, this.slp.level === 1 ? 1.7e-3 / 5 : 1e-6 / 5)
+    if (this.faultUntil[0] > this.t0 || this.faultUntil[1] > this.t0) bookBranch(out, off, n, x, P('FLT'), gnd, 1 / 50)
+    const outs = ['AOUT1', 'AOUT2', 'BOUT1', 'BOUT2']
+    for (let k = 0; k < 4; k++) this.legs[k].book(out, off, n, x, P(outs[k]), vm, gnd)
   }
 
   endStep(x: Float64Array): void {
@@ -1218,6 +1283,22 @@ class StepStickDevice extends MotorsDevice {
     for (const leg of this.legs) if (leg.stamp(ctx, x)) lim = true
     for (const br of this.bridges) if (br.stamp(ctx, x)) lim = true
     this.limited = lim
+  }
+
+  /** every branch of the last stamp on its own pins (RST tied to SLP, EN and MS pins tied to GND …) */
+  terminalCurrents(x: Float64Array, out: Float64Array, off: number): void {
+    const P = (p: string) => this.entry.pins.indexOf(p)
+    const n = this.nodes
+    const S = this.spec.pins
+    const gnd = P('GND')
+    const vm = P(S.vm)
+    for (const [pin, r] of Object.entries(this.spec.pullDowns)) bookBranch(out, off, n, x, P(pin), gnd, 1 / r)
+    bookBranch(out, off, n, x, vm, gnd, this.spec.gVm)
+    if (S.vdd && this.spec.gVdd > 0) bookBranch(out, off, n, x, P(S.vdd), gnd, this.spec.gVdd)
+    const outs = [S.a1, S.a2, S.b1, S.b2]
+    for (let k = 0; k < 4; k++) this.legs[k].book(out, off, n, x, P(outs[k]), vm, gnd)
+    this.bridges[0].book(out, off, n, x, P(S.a1), P(S.a2), vm, gnd)
+    this.bridges[1].book(out, off, n, x, P(S.b1), P(S.b2), vm, gnd)
   }
 
   endStep(x: Float64Array): void {

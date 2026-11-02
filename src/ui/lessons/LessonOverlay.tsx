@@ -51,6 +51,8 @@ import { useSimPhase } from '../chrome/run-control'
 import { stepPendingWire, stepPinTarget } from '../../lessons/step-actions'
 import { useWorkspaceActive } from '../workspace/state'
 import { useLegacyChrome } from '../chrome/legacy'
+import { firmwareAtRisk, firmwareRiskDialog } from '../chrome/edit-feedback'
+import { getEntry } from '../../model/catalog'
 import { runKey, useLessonUi } from './state'
 import {
   WIRE_FOCUS,
@@ -68,7 +70,8 @@ import {
   watchStepChecks,
 } from './actions'
 import type { Lesson } from '../../lessons/types'
-import { CoachWiringLine, LessonBrowser, StepBody } from './LessonBrowser'
+import { BuildItYourselfButton, CoachWiringLine, FullAnswerButton, LessonBrowser, StepBody } from './LessonBrowser'
+import { entryUsesSolution, lessonEarned, runUsesSolution } from '../fx/lesson-pass'
 import { lessonCode } from './labels'
 import './lessons.css'
 
@@ -258,6 +261,9 @@ function CoachCard({ workspaceOn, desktop, onOpenMore }: { workspaceOn: boolean;
     const r = coachId ? s.runs[runKey(coachId)] : undefined
     return !!r && r.status === 'done' && !!r.results && r.results.length > 0 && r.results.every((x) => x.pass)
   })
+  const passTotal = useLessonUi((s) => (coachId ? s.runs[runKey(coachId)]?.results?.length ?? 0 : 0))
+  // the answer-pass verdict the acceptance run took for the circuit it evaluated (lesson-pass.ts)
+  const passRunVerdict = useLessonUi((s) => runUsesSolution(coachId ? s.runs[runKey(coachId)] : undefined))
 
   useEffect(() => {
     useLessonUi.getState().setCoachDocked(docked)
@@ -285,6 +291,9 @@ function CoachCard({ workspaceOn, desktop, onOpenMore }: { workspaceOn: boolean;
   }, [show, docked])
 
   if (!lesson || !show) return null
+  // the board holds the loaded full answer (its load stamps follow undo / redo — lesson-pass.ts):
+  // the coach's 「卡住了？」 has nothing more to offer
+  const answerLoaded = entryUsesSolution(progress)
   const step = lesson.steps[index]
   const done = progress?.stepsDone.includes(step.id) ?? false
   const stepLine = t('Step {n}/{m} · {title}', { n: index + 1, m: lesson.steps.length, title: step.title })
@@ -338,7 +347,9 @@ function CoachCard({ workspaceOn, desktop, onOpenMore }: { workspaceOn: boolean;
       </div>
       {!desktop && !docked && <CoachProblemLine onOpenMore={onOpenMore} />}
       {wireFold && <CoachWiringLine lesson={lesson} index={index} />}
-      {passed && <CoachPassLine lesson={lesson} />}
+      {passed && (
+        <CoachPassLine lesson={lesson} answer={!legacy && (passRunVerdict ?? answerLoaded)} earned={lessonEarned(progress)} total={passTotal} />
+      )}
       {!shownFolded && (
         <div className="lsn-coach-body">
           {focus && !focus.key.startsWith(WIRE_FOCUS) && (
@@ -350,6 +361,13 @@ function CoachCard({ workspaceOn, desktop, onOpenMore }: { workspaceOn: boolean;
             </div>
           )}
           <StepBody lesson={lesson} index={index} compact />
+          {/* product chrome (operation simplification): a calm way out for a stuck learner —
+              the finished circuit in one tap, one undo away; a pass with it reads 「以解答完成」 */}
+          {!legacy && !passed && !answerLoaded && (
+            <div className="lsn-coach-foot">
+              <FullAnswerButton lesson={lesson} calm />
+            </div>
+          )}
         </div>
       )}
     </aside>
@@ -424,9 +442,29 @@ function CoachProblemLine({ onOpenMore }: { onOpenMore?: () => void }) {
   )
 }
 
-/** 「課程完成——下一課：電阻分壓 →」 in the coach once the acceptance passes (LS-12), folded or not. */
-function CoachPassLine({ lesson }: { lesson: Lesson }) {
+/**
+ * 「課程完成——下一課：電阻分壓 →」 in the coach once the acceptance passes (LS-12), folded or not.
+ * A pass with the loaded answer (product chrome — `answer`) says what the toast and the 驗收
+ * headline say: 「全部 n 項條件都通過（用的是載入的解答）」, never 「課程完成」, and offers the one
+ * honest next step 〔載入起始電路，自己接一次〕 (a lesson already earned on the learner's own
+ * circuit keeps its 下一課).
+ */
+export function CoachPassLine({ lesson, answer, earned, total }: { lesson: Lesson; answer: boolean; earned: boolean; total: number }) {
   const next = nextLesson(lesson)
+  if (answer) {
+    return (
+      <div className="lsn-coach-pass is-answer" role="status">
+        <span className="lsn-coach-pass-text">{t('All {n} conditions pass (with the loaded solution)', { n: total })}</span>
+        {earned && next ? (
+          <button type="button" className="lsn-link is-inline" onClick={() => goToLesson(next)}>
+            {t('Next lesson: {title} →', { title: next.title })}
+          </button>
+        ) : (
+          <BuildItYourselfButton lesson={lesson} variant="tinted" />
+        )}
+      </div>
+    )
+  }
   return (
     <div className="lsn-coach-pass" role="status">
       <span className="lsn-coach-pass-text">{t('Lesson complete')}</span>
@@ -481,28 +519,44 @@ function LessonsSheet({ desktop, workspaceOn }: { desktop: boolean; workspaceOn:
 
 // ------------------------------------------------------------ confirmation
 
+/** The MCU ids a lesson load binds or clears (its circuit's boards). */
+function lessonMcuIds(lesson: Lesson, which: 'start' | 'solution'): Set<string> {
+  const circuit = which === 'start' ? lesson.start : lesson.solution
+  return new Set(circuit.layout.components.filter((c) => !!getEntry(c.type)?.mcu).map((c) => c.id))
+}
+
 function ConfirmLoad({ desktop }: { desktop: boolean }) {
   const confirm = useLessonUi((s) => s.confirm)
   const setConfirm = useLessonUi((s) => s.setConfirm)
   const lesson = confirm ? lessonById(confirm.lessonId) : undefined
   const which = confirm?.which ?? 'start'
+  // product chrome: a load (載入…, 下一課, 開始引導) asks only when the board's loaded firmware would be
+  // replaced (actions.loadNeedsConfirm — review F7) — then the sheet names the boards and says the
+  // firmware cannot be undone (firmwareRiskDialog, the same words as 範例 → 開啟)
+  const classic = useLegacyChrome()
+  const confirmLayout = useStore((s) => (confirm ? s.layout : null))
+  const firmware = useLab((s) => s.firmware)
+  const boards = !classic && !!lesson && !!confirmLayout ? firmwareAtRisk(confirmLayout, firmware, lessonMcuIds(lesson, which)) : []
+  const risk = lesson && boards.length > 0 ? firmwareRiskDialog(lesson.title, boards, firmware) : null
   return (
     <ActionSheet
       open={!!confirm && !!lesson}
       onDismiss={() => setConfirm(null)}
       desktop={desktop}
       anchor="left"
-      title={t('Replace the current circuit?')}
+      title={risk ? risk.title : t('Replace the current circuit?')}
       message={
         lesson
-          ? which === 'start'
-            ? t('The starting circuit of “{title}” replaces everything on the board (you can undo).', { title: lesson.title })
-            : t('The solution of “{title}” replaces everything on the board (you can undo).', { title: lesson.title })
+          ? risk
+            ? risk.message
+            : which === 'start'
+              ? t('The starting circuit of “{title}” replaces everything on the board (you can undo).', { title: lesson.title })
+              : t('The solution of “{title}” replaces everything on the board (you can undo).', { title: lesson.title })
           : undefined
       }
       actions={[
         {
-          label: which === 'start' ? t('Load starting circuit') : t('Load solution'),
+          label: which === 'start' ? t('Load starting circuit') : classic ? t('Load solution') : t('Load the full answer'),
           destructive: true,
           onSelect: () => {
             if (lesson) void loadLessonCircuit(lesson, which)

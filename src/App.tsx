@@ -39,6 +39,14 @@
  * why (SH-F6), undo / redo / Delete name what changed and the 「這裡不能接」
  * toast leaves with wire mode (SH-F9) — decisions in ui/chrome/edit-feedback.ts.
  *
+ * Operation simplification (product owner, new chrome only): there is no
+ * wire colour to pick — the scene draws every wire in its net's role colour
+ * (contract C1, ui/wire-roles.ts: supply red, ground black, signals by
+ * function; pushWireColors on every layout change, setWireColorOverride) and
+ * a new wire is stored with it; deleting never asks first (the long-press
+ * 「刪除」, the Delete key, the inspector, the selection pill and 清空麵包板
+ * act at once, their toast carries 〔復原〕).
+ *
  * UI chrome state (which sheet is open, onboarding…) lives HERE in React
  * state — never in the store.
  */
@@ -75,6 +83,7 @@ import {
   type DockItem,
 } from './ui/kit'
 import { EmptyState, Onboarding, StatusBar, WireColorStrip, hintForMode, markOnboarded, needsOnboarding, pushRenderProgress } from './ui/chrome'
+import { FlowToggle } from './ui/chrome/FlowToggle'
 import { StatusPill, pillProblem } from './ui/chrome/StatusPill'
 import { ShortcutsSheet } from './ui/chrome/ShortcutsSheet'
 import { isLegacyChrome, isWorkspaceShowing, useLegacyChrome } from './ui/chrome/legacy'
@@ -107,6 +116,7 @@ import {
 import {
   deletedToast,
   dismissWireRefusalToast,
+  editCue,
   placementSpotReason,
   redoWithFeedback,
   refusalConcernsFrom,
@@ -116,6 +126,7 @@ import {
   wireStartCheck,
 } from './ui/chrome/edit-feedback'
 import { conventionWireColor, resetWireColorPick, wireColorPicked } from './ui/chrome/wire-convention'
+import { wireRoleColors, wireRoleOf } from './ui/wire-roles'
 import { UndoPill } from './ui/chrome/UndoPill'
 import { SelectionPill } from './ui/chrome/SelectionPill'
 import { RotateButton } from './ui/chrome/RotateButton'
@@ -130,9 +141,12 @@ import { computeGeometry, setHoveredObject, useWorkspaceActive } from './ui/work
 import { holeLabelFor } from './ui/workspace/hole-labels'
 import { holeChipText } from './ui/workspace/hole-chip'
 import { frameCircuit, registerScene } from './ui/workspace/scene-bridge'
+import { CelebrationOverlay } from './ui/fx/CelebrationOverlay'
+import { applyFlowChrome } from './ui/fx/flow'
 import { openProbeMenu } from './ui/workspace/ProbeMenu'
 import { useLab } from './ui/embedded/lab'
 import { startProblemsWatcher, useProblems } from './ui/embedded/problems'
+import { bindLatchScene, latchPart, latchSheetItem, pressMomentary } from './ui/embedded/latch'
 import { useLessonUi } from './ui/lessons/state'
 import { openLessons, startFirstLesson } from './ui/lessons/actions'
 import { PerfOverlay } from './ui/perf/PerfOverlay'
@@ -181,9 +195,9 @@ function syncOverlays(scene: BreadboardScene, s: AppState): void {
 
 /**
  * Wire-mode click on any endpoint (hole or off-board terminal). New chrome
- * (SH-8): until the user picks a swatch, the wire takes the conventional
- * colour of its endpoints (ground black, supply red, signal yellow) — the
- * preview from the first end, the committed wire from both.
+ * (operation simplification, contract C1): no swatch to pick — the
+ * committed wire is stored with its net's role colour (wire-roles.ts) on the
+ * layout it joins, the colour the scene draws it in.
  *
  * New chrome (release QA SH-F1): a start that can never be completed is
  * never stored — a part pin's hole moves the start to the free hole of the
@@ -199,6 +213,29 @@ function wireEndpointClick(endpoint: string): void {
   const { from } = st.mode
   const legacy = isLegacyChrome()
   const auto = !wireColorPicked() && !legacy
+  // product chrome (contract C1): no colour to pick — a wire is stored with
+  // the colour of its net's role (the scene shows the role colours anyway;
+  // the stored one is what an export / the classic chrome shows)
+  if (!legacy && from) {
+    const color = roleColorOfNewWire(st.layout, from, endpoint)
+    const before = st.layout.wires.length
+    const refusal = wireRefusal(st.layout, from, endpoint)
+    st.addWire(from, endpoint, color)
+    const after = useStore.getState().layout
+    if (after.wires.length > before) {
+      tick() // wire complete (DESIGN.md §1 Haptics)
+      editCue('wire') // …and a quiet sound cue (product chrome, 音效 on)
+      dismissWireRefusalToast() // the re-aim worked
+      wireConnectedText = wireConnectedHint(after, from, endpoint)
+      st.setMode({ kind: 'wire', from: null, color }) // done — ready for the next wire
+      return
+    }
+    if (refusal) {
+      showWireRefusalToast(wireRefusedHint(refusal, after))
+      if (refusalConcernsFrom(refusal, from)) st.setMode({ kind: 'wire', from: null, color: st.mode.color })
+    }
+    return
+  }
   if (!from) {
     let start = endpoint
     if (!legacy) {
@@ -224,6 +261,7 @@ function wireEndpointClick(endpoint: string): void {
   const after = useStore.getState().layout
   if (after.wires.length > before) {
     tick() // wire complete (DESIGN.md §1 Haptics)
+    editCue('wire') // product chrome only (the classic chrome stays silent)
     dismissWireRefusalToast() // the re-aim worked
     // new chrome (SH-12): the mode hint toast confirms it, both ends named
     if (!legacy) wireConnectedText = wireConnectedHint(after, from, endpoint)
@@ -237,6 +275,21 @@ function wireEndpointClick(endpoint: string): void {
     showWireRefusalToast(wireRefusedHint(refusal, after))
     if (refusalConcernsFrom(refusal, from)) st.setMode({ kind: 'wire', from: null, color: st.mode.color })
   }
+}
+
+/** The role colour (C1) a wire from → to would take once added to `layout`. */
+function roleColorOfNewWire(layout: AppState['layout'], from: string, to: string): string {
+  const probe = { id: '__new_wire__', from, to }
+  return wireRoleOf({ ...layout, wires: [...layout.wires, probe] }, probe.id).color
+}
+
+/**
+ * Contract C1: the scene draws the product chrome's wires in their net's
+ * role colour (src/ui/wire-roles.ts); the classic chrome keeps the stored
+ * colours. Called on a layout change and a chrome switch — never per frame.
+ */
+function pushWireColors(scene: BreadboardScene, layout: AppState['layout']): void {
+  scene.setWireColorOverride(isLegacyChrome() ? null : wireRoleColors(layout))
 }
 
 /** A wire was just committed: the next mode hint confirms it (SH-12). */
@@ -286,6 +339,7 @@ function handleHoleClick(hole: HoleRef): void {
       const comps = useStore.getState().layout.components
       if (comps.length > before) {
         tick() // placement commit
+        editCue('place') // …and its quiet sound cue (product chrome, 音效 on)
         st.setMode({ kind: 'select' })
         st.select(comps[comps.length - 1].id)
       } else if (!isLegacyChrome()) {
@@ -325,7 +379,10 @@ function handleHoleClick(hole: HoleRef): void {
       st.addComponent(mode.type, { holes: picked })
       const comps = useStore.getState().layout.components
       const added = comps.length > before
-      if (added) tick() // placement commit
+      if (added) {
+        tick() // placement commit
+        editCue('place') // product chrome only
+      }
       if (added && entry.placement === 'leads') {
         // stay in place mode for repeat placement of leads parts
         placedAgainId = comps[comps.length - 1].id
@@ -586,20 +643,33 @@ function holeLabelText(hole: HoleRef): string | null {
 /**
  * 3D press-and-hold of an interactive part while the simulation runs (SC-6):
  * a part whose catalog entry has the runtime 'pressed' param follows the
- * pointer (down → pressed, up → released; never an undo step).
+ * pointer (down → pressed, up → released; never an undo step). A momentary
+ * hold (latch.ts): pressing and letting go of a part kept pressed (保持按下)
+ * releases it.
  */
 function handleObjectPress(id: string, down: boolean): void {
   const st = useStore.getState()
   const comp = st.layout.components.find((c) => c.id === id)
   const entry = comp ? getEntry(comp.type) : undefined
   if (!entry?.params?.some((p) => p.key === 'pressed')) return
-  st.setParam(id, 'pressed', down)
+  pressMomentary(id, down)
   if (!down) return
   // the part being pressed is the one the user is working with: select it
   // (a long hold never resolves to a tap/click) so the inspector shows its
   // live pins while it is held
   if (st.mode.kind === 'select' && !(st.selection.length === 1 && st.selection[0] === id)) st.select(id)
   tick()
+}
+
+/**
+ * Keep-pressed latch (保持按下 — latch.ts): a double-click on a pressable
+ * part in 3D keeps it pressed (it is selected by its clicks). The classic
+ * chrome declines (the scene then lets go as before).
+ */
+function handleObjectLatch(id: string): boolean {
+  if (isLegacyChrome() || !latchPart(id)) return false
+  tick(16)
+  return true
 }
 
 /**
@@ -737,6 +807,12 @@ export default function App() {
   const lastWireColor = useRef('red')
   if (mode.kind === 'wire') lastWireColor.current = mode.color
 
+  // 顯示電流 follows the chrome (review THREE-2 / UI-3): the classic chrome has
+  // no control for it, so the stored choice ('bb.flow') shows no dots and
+  // tracks no currents there; the product chrome shows it again. Declared
+  // before the scene mounts: its flow layer starts from this chrome's value.
+  useEffect(() => applyFlowChrome(legacy), [legacy])
+
   // mount the 3D scene once; keep it in sync with the store
   useEffect(() => {
     const container = containerRef.current
@@ -769,6 +845,8 @@ export default function App() {
       onInstrumentMoveCommit: handleInstrumentMoveCommit,
       // SC-6: hold a button in 3D while running
       onObjectPress: handleObjectPress,
+      // …and a double-click keeps it pressed (保持按下, latch.ts)
+      onObjectLatch: handleObjectLatch,
       // SC-5: right-click a hole / pin / terminal → the probe menu (workspace)
       // (SH-15: a touch long-press too — the menu comes up as a sheet on
       // phones, hosted by the Parts sheet there, by the workspace on desktop)
@@ -785,13 +863,18 @@ export default function App() {
     // the one way UI code outside the shell points the 3D view (K4)
     registerScene(scene)
 
-    // initial sync
+    // initial sync — contract C1 first: the product chrome draws every wire
+    // in its net's role colour (supply red, ground black, signals by
+    // function), the classic chrome keeps the stored colours (null)
     const s0 = useStore.getState()
+    pushWireColors(scene, s0.layout)
     scene.setLayout(s0.layout)
     scene.setSelection(s0.selection)
     scene.setInteractionMode?.(s0.mode.kind)
     syncOverlays(scene, s0)
     setTelemetrySink((t) => scene.setTelemetry(t)) // also pushes current telemetry
+    // keep-pressed parts: lock badges + 重置模擬 lets them go (product chrome)
+    const unbindLatch = bindLatchScene(scene, () => !isLegacyChrome())
 
     // Loaded examples / imports / applied AI circuits can sit anywhere on the
     // board, far outside the fixed home framing of a phone viewport — spring
@@ -800,7 +883,10 @@ export default function App() {
     if (s0.layout.components.length > 0 || s0.layout.wires.length > 0) scene.frameContent?.()
 
     const unsub = useStore.subscribe((s, prev) => {
-      if (s.layout !== prev.layout) scene.setLayout(s.layout)
+      if (s.layout !== prev.layout) {
+        scene.setLayout(s.layout)
+        pushWireColors(scene, s.layout)
+      }
       if (s.selection !== prev.selection) scene.setSelection(s.selection)
       if (s.mode.kind !== prev.mode.kind) scene.setInteractionMode?.(s.mode.kind)
       if (s.mode !== prev.mode || s.hoverHole !== prev.hoverHole || s.layout !== prev.layout) {
@@ -834,6 +920,7 @@ export default function App() {
       if (shotRig) delete (window as unknown as Record<string, unknown>).__shotRig
       setLayoutLoadedSink(null)
       setTelemetrySink(null)
+      unbindLatch()
       unsub()
       registerScene(null)
       sceneRef.current = null
@@ -844,6 +931,13 @@ export default function App() {
   // problems store (K3): ERC + simulator issues + MCU states, ≤ 1 Hz — the
   // status pill, the inspector's problems panel and the More sheet read it
   useEffect(() => startProblemsWatcher(), [])
+
+  // contract C1: a chrome switch (Settings → 介面語言 / the workspace) swaps
+  // role colours ↔ stored colours
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (scene) pushWireColors(scene, useStore.getState().layout)
+  }, [legacy])
 
   // a resting phone sheet (≥ 0.4 detent) covers the scene's bottom (SH-8)
   const [sheetCover, setSheetCover] = useState(sheetCoverHeight)
@@ -1262,6 +1356,19 @@ export default function App() {
   const actionSheetActions: ActionSheetAction[] = []
   if (targetComp) {
     actionSheetActions.push({ label: t('Properties'), onSelect: () => select(targetComp.id) })
+    // 保持按下 / 放開 (latch.ts — product chrome): a button can be kept pressed from here before a
+    // run or between runs; during a session a touch long-press on it presses it instead (SC-6 —
+    // the finger is the hand on the button), and the part it selects shows the same switch in its
+    // sheet (a double-tap keeps it pressed too)
+    const latchItem = legacy ? null : latchSheetItem(targetComp.id, layout)
+    if (latchItem) {
+      actionSheetActions.push({
+        label: latchItem.label,
+        onSelect: () => {
+          if (latchItem.run()) tick(latchItem.kept ? 8 : 16)
+        },
+      })
+    }
     // dip/footprint packages only — the rotation feature's placed-part surface
     // (DIPs toggle 0↔180, footprints step to the next VALID quarter turn)
     if (targetEntry && (targetEntry.placement === 'dip' || targetEntry.placement === 'footprint')) {
@@ -1319,6 +1426,7 @@ export default function App() {
 
       {/* top-center run capsule */}
       <StatusBar />
+      <FlowToggle /> {/* 顯示電流 chip beside the capsule (product chrome, while a session exists) */}
 
       {/* status pill under it: the top problem or the next step (new chrome;
           self-hides in the classic chrome and when there is nothing to say) */}
@@ -1435,6 +1543,7 @@ export default function App() {
 
       {/* glass toast pills above the dock */}
       <ToastHost wide={!legacy} />
+      <CelebrationOverlay />
 
       {/* 「鍵盤快速鍵」 (? or More → 鍵盤快速鍵; new chrome only — the classic
           chrome routes none of its keys, SH-10) */}

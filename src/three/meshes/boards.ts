@@ -55,7 +55,8 @@ import {
   plastic,
   textTexture,
 } from './shared'
-import { LED_COLORS, ledGlowTexture } from './semis'
+import { LED_COLORS } from './semis'
+import { applyIndicator, indicatorHalo, ledPerceived, lightOf, type LedHaloRig } from './led-look'
 import {
   MM,
   PcbPainter,
@@ -755,7 +756,8 @@ const LENS_TINT: Record<string, number> = { red: 0xf4d2cc, green: 0xd6efd4 }
 
 interface LedRig {
   lens: THREE.MeshPhysicalMaterial
-  glow: THREE.Sprite | null
+  /** glow: the shared LED glow halo (led-look.ts), null on a ghost */
+  halo: LedHaloRig | null
   tint: number
   burned: boolean
 }
@@ -813,7 +815,8 @@ export function buildBluePill(
     }
   }
 
-  // on-board LEDs: per-instance lens (emissive) + additive halo sprite
+  // on-board LEDs: per-instance lens (emissive) + the shared glow halo
+  // (led-look.ts: one brightness language with the 5 mm LED, SMD-sized)
   const mkLed = (pos: { x: number; z: number }, colorName: 'red' | 'green'): LedRig => {
     const color = LED_COLORS[colorName]
     const tint = LENS_TINT[colorName]
@@ -835,24 +838,9 @@ export function buildBluePill(
     const lensMesh = new THREE.Mesh(LED_LENS_GEO(), lens)
     lensMesh.position.set(pos.x * MM, Y_TOP + LIFT + (0.3 + 0.16) * MM, pos.z * MM)
     group.add(lensMesh)
-    let glow: THREE.Sprite | null = null
-    if (!ghost) {
-      glow = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: ledGlowTexture(),
-          color,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        }),
-      )
-      glow.position.set(pos.x * MM, Y_TOP + 0.35, pos.z * MM)
-      glow.scale.setScalar(1.2)
-      glow.visible = false
-      group.add(glow)
-    }
-    return { lens, glow, tint, burned: false }
+    const halo = indicatorHalo(color, new THREE.Vector3(pos.x * MM, Y_TOP + 0.35, pos.z * MM), ghost)
+    if (halo) group.add(halo.halo)
+    return { lens, halo, tint, burned: false }
   }
   const leds = { pwr: mkLed(LED_PWR, 'red'), pc13: mkLed(LED_PC13, 'green') }
 
@@ -861,9 +849,9 @@ export function buildBluePill(
     if (t?.burned) {
       if (!rig.burned) {
         rig.burned = true
-        rig.lens.color.setHex(0x3a3631) // smoked
+        rig.lens.color.setHex(0x1d1712) // charred (vivid damage look)
         rig.lens.emissiveIntensity = 0
-        if (rig.glow) rig.glow.visible = false
+        rig.halo?.apply(0)
       }
       return
     }
@@ -871,24 +859,11 @@ export function buildBluePill(
       rig.burned = false
       rig.lens.color.setHex(rig.tint)
     }
-    // ledBrightness is the engine's I / 10 mA. Board indicator LEDs run at
-    // 1-3 mA (PWR: (3.3 − 1.8) V / 1 kΩ ≈ 1.5 mA) and modern SMD dies are
-    // plainly lit there — the display maps brightness through a perceptual
-    // √ curve (lightness ~ luminance^0.5); off stays exactly off
-    const br = THREE.MathUtils.clamp(t?.ledBrightness ?? 0, 0, 1)
-    const perceived = Math.sqrt(br)
-    rig.lens.emissiveIntensity = br <= 0.001 ? 0 : 1.2 + 4.0 * perceived
-    if (rig.glow) {
-      const mat = rig.glow.material
-      if (br > 0.002) {
-        rig.glow.visible = true
-        mat.opacity = Math.min(1, 0.35 + 0.65 * perceived)
-        rig.glow.scale.setScalar(0.8 + 1.1 * perceived)
-      } else {
-        rig.glow.visible = false
-        mat.opacity = 0
-      }
-    }
+    // light = the REAL LED current / 20 mA, shown in the one brightness
+    // language (led-look.ts): board indicator LEDs run at 1-3 mA (PWR:
+    // (3.3 − 1.8) V / 1 kΩ ≈ 1.5 mA) — plainly lit, far from a 20 mA LED;
+    // off stays exactly off
+    applyIndicator(rig, Math.min(ledPerceived(lightOf(t)), 1.3))
   }
 
   return {
