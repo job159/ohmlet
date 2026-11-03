@@ -1,0 +1,4813 @@
+{
+  "bare-blink": {
+    "kind": "bare",
+    "description": "Register-level blink at 8 MHz HSI: SysTick 1 ms, PA5/PC13 toggle every 250 ms",
+    "expect": "PA5 and PC13 toggle every 250 ms (2 Hz square waves), PC13 = !PA5"
+  },
+  "bare-button": {
+    "kind": "bare",
+    "description": "Register-level button mirror at 8 MHz HSI: PA0 (pull-up, button to GND) polled; PA5 high and PC13 LED on while pressed",
+    "expect": "8 MHz HSI, no SysTick, no UART. PA0 input pull-up, PA5/PC13 push-pull. Idle (button open): PA0=1, PA5=0, PC13=1. Every PA0 level change (contact bounce included, pulses >= 5 us) is mirrored within 5 us: PA0=0 -> PA5=1 and PC13=0 (LED on); PA0=1 -> PA5=0 and PC13=1. Always PA5 = !PA0 and PC13 = PA0 (PC13 follows PA5 within 1 us).",
+    "checks": {
+      "hclkHz": 8000000,
+      "t0": "settle",
+      "settleMs": 1,
+      "circuit": [
+        "PA0: push-button to GND, no external resistor (the internal pull-up holds it high)",
+        "PA5: LED + 330 ohm to GND",
+        "PC13: Blue Pill on-board LED (active low)"
+      ],
+      "pins": {
+        "PA0": "input-pullup",
+        "PA5": "output-pp",
+        "PC13": "output-pp"
+      },
+      "idle": {
+        "PA0": 1,
+        "PA5": 0,
+        "PC13": 1
+      },
+      "signals": [
+        {
+          "pin": "PA5",
+          "invertOf": "PA0",
+          "skewUs": 5,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "sameAs": "PA0",
+          "skewUs": 5,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "invertOf": "PA5",
+          "skewUs": 1,
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "press and release are mirrored",
+          "durationMs": 20,
+          "drive": [
+            {
+              "at": 1,
+              "pin": "PA0",
+              "level": 0
+            },
+            {
+              "at": 11,
+              "pin": "PA0",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                1,
+                1.005
+              ],
+              "pin": "PA5",
+              "edge": 1
+            },
+            {
+              "at": [
+                1,
+                1.005
+              ],
+              "pin": "PC13",
+              "edge": 0
+            },
+            {
+              "at": [
+                11,
+                11.005
+              ],
+              "pin": "PA5",
+              "edge": 0
+            },
+            {
+              "at": [
+                11,
+                11.005
+              ],
+              "pin": "PC13",
+              "edge": 1
+            }
+          ],
+          "quiet": [
+            "PA5",
+            "PC13"
+          ]
+        },
+        {
+          "name": "contact bounce is mirrored edge for edge (no debounce)",
+          "durationMs": 10,
+          "drive": [
+            {
+              "at": 1,
+              "pin": "PA0",
+              "level": 0
+            },
+            {
+              "at": 1.1,
+              "pin": "PA0",
+              "level": "open"
+            },
+            {
+              "at": 1.2,
+              "pin": "PA0",
+              "level": 0
+            },
+            {
+              "at": 1.35,
+              "pin": "PA0",
+              "level": "open"
+            },
+            {
+              "at": 1.5,
+              "pin": "PA0",
+              "level": 0
+            },
+            {
+              "at": 5,
+              "pin": "PA0",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                1,
+                1.005
+              ],
+              "pin": "PA5",
+              "edge": 1
+            },
+            {
+              "at": [
+                1.1,
+                1.105
+              ],
+              "pin": "PA5",
+              "edge": 0
+            },
+            {
+              "at": [
+                1.2,
+                1.205
+              ],
+              "pin": "PA5",
+              "edge": 1
+            },
+            {
+              "at": [
+                1.35,
+                1.355
+              ],
+              "pin": "PA5",
+              "edge": 0
+            },
+            {
+              "at": [
+                1.5,
+                1.505
+              ],
+              "pin": "PA5",
+              "edge": 1
+            },
+            {
+              "at": [
+                5,
+                5.005
+              ],
+              "pin": "PA5",
+              "edge": 0
+            }
+          ],
+          "quiet": [
+            "PA5"
+          ]
+        }
+      ]
+    }
+  },
+  "cpu-bench": {
+    "kind": "bare",
+    "description": "CPU throughput benchmark: the cpu-selftest workload repeated 60 times (about 41 M instructions), then BKPT",
+    "expect": "halts on BKPT #0x43; bench_result = fold over i of acc*31 + (selftest checksum + i)"
+  },
+  "cpu-selftest": {
+    "kind": "bare",
+    "description": "CPU self-test: CRC32, sorting, 64-bit math, bit ops, jump tables, struct copies, recursion, varargs; result left in RAM, then BKPT",
+    "expect": "halts on BKPT #0x42 with selftest_done = 0x600DF00D and selftest_checksum/selftest_text identical to the host (x86-64) build of selftest.c"
+  },
+  "hal-acs712": {
+    "kind": "hal",
+    "description": "ACS712-05B current sensor: ADC1 IN0 (PA0) averaged over 16 conversions every 200 ms, I = (mV - 2500) / 0.185, prints 'I=<mA> mA (out <mV> mV)' on USART1",
+    "expect": "72 MHz, ADCCLK 12 MHz. ADC1 independent, single conversion, software start, channel 0 (PA0 analog) sampled 239.5 cycles, calibrated with HAL_ADCEx_Calibration_Start. USART1 PA9/PA10 115200 8N1. Boot: 'ACS712-05B on PA0: 2500 mV = 0 A, 185 mV/A\\r\\n'. Every 200 ms (first right after boot) 16 conversions are summed; mV = round(sum x 3300 / (16 x 4095)), I = round((mV - 2500) x 1000 / 185) mA, printed as 'I=<mA> mA (out <mV> mV)\\r\\n', with ' (ADC full scale)' appended when every sample read 4094 or more (OUT above 3.3 V: currents above about +4.3 A). PA0 at 0 V reads 'I=-13514 mA (out 0 mV)'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PA0: 10k ohm pull-down to GND (tests/devices/sensors-firmware.test.ts wires an ACS712 module instead)"
+      ],
+      "pins": {
+        "PA0": "analog",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "ACS712-05B on PA0: 2500 mV = 0 A, 185 mV/A\r\nI=-13514 mA (out 0 mV)\r\n"
+      }
+    }
+  },
+  "hal-adc-dma": {
+    "kind": "hal",
+    "description": "HAL ADC1 continuous scan of IN0-IN3 + temperature sensor + VREFINT into SRAM by DMA1 channel 1 (circular); values, VDDA, die temperature and scan count printed every 200 ms on USART1",
+    "expect": "72 MHz, ADCCLK = PCLK2/6 = 12 MHz. ADC1 scan + continuous, software start, right aligned, 6 ranks IN0 (PA0), IN1 (PA1), IN2 (PA2), IN3 (PA3) (analog mode), IN16 temperature sensor, IN17 VREFINT (TSVREFE), all sampled 239.5 cycles: 252 ADCCLK = 21 us per conversion, 126 us per scan, back to back. DMA1 channel 1 peripheral-to-memory, half-words, memory increment, circular, 6 items; the transfer-complete interrupt (end of each scan) snapshots the buffer and counts scans. Every 200 ms (deadline based, first 200 ms after start) USART1 PA9/PA10 115200 8N1 prints 'in0=<r> in1=<r> in2=<r> in3=<r> ts=<r> vref=<r> vdda=<mV> temp=<C.d> seq=<n>\\r\\n': r = round(V / VDDA x 4095); vdda = 1200 x 4095 / vref; temp = (1430 mV - ts x vdda / 4095) / 4.3 mV/C + 25 (DS5319 typical values); n = completed scans, +1587 (200 ms / 126 us) per line. At VDD = 3.3 V and 25 C: ts=1775 vref=1489 vdda=3300 temp=25.0; a pin tied to GND reads 0, tied to 3V3 reads 4095.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 250,
+      "circuit": [
+        "PA0-PA3: nothing connected (tests/mcu/stm32f1/adc-firmware.test.ts wires PA0 to a potentiometer wiper, PA1 to GND, PA2 to 3V3 and PA3 to a 10 k / 10 k divider)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "analog",
+        "PA1": "analog",
+        "PA2": "analog",
+        "PA3": "analog",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^in0=\\d{1,4} in1=\\d{1,4} in2=\\d{1,4} in3=\\d{1,4} ts=17[67]\\d vref=14[89]\\d vdda=3\\d{3} temp=2[45]\\.\\d seq=158[67]\r\n$"
+        }
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^in0=\\d{1,4} in1=\\d{1,4} in2=\\d{1,4} in3=\\d{1,4} ts=17[67]\\d vref=14[89]\\d vdda=3\\d{3} temp=2[45]\\.\\d seq=\\d+\r\n$",
+          "firstAt": [
+            199.95,
+            200.05
+          ],
+          "everyMs": 200,
+          "tolUs": 20,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-adc-pot": {
+    "kind": "hal",
+    "description": "HAL ADC1 IN0 (PA0, analog) single conversion every 100 ms after HAL_ADCEx_Calibration_Start; prints 'adc=<raw> mv=<mV>' on USART1",
+    "expect": "72 MHz, ADCCLK = PCLK2/6 = 12 MHz. ADC1 independent mode, no scan, single conversion, software start, right aligned, channel 0 (PA0 in analog mode) sampled 55.5 cycles (conversion 68 ADCCLK = 5.67 us). After HAL_ADCEx_Calibration_Start (RSTCAL then CAL) a conversion is started every 100 ms (deadline based, no drift; the first right after init), EOC is polled and USART1 PA9/PA10 115200 8N1 prints 'adc=<raw> mv=<mV>\\r\\n' with raw = round(V(PA0) / VDDA x 4095) and mV = (raw x 3300 + 2047) / 4095 (VDDA assumed 3.3 V). PA0 at 0 V -> 'adc=0 mv=0', at VDD -> 'adc=4095 mv=3300'; a potentiometer between 3V3 and GND reads position x 4095.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA0: nothing else connected (the scenarios drive it; tests/mcu/stm32f1/adc-firmware.test.ts wires a 10 kohm potentiometer between 3V3 and GND with its wiper on PA0 instead)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "analog",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^adc=\\d{1,4} mv=\\d{1,4}\r\n$"
+        }
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^adc=\\d{1,4} mv=\\d{1,4}\r\n$",
+          "firstAt": [
+            98.95,
+            100.05
+          ],
+          "everyMs": 100,
+          "tolUs": 20,
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "PA0 tied to GND reads 0",
+          "durationMs": 250,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PA0",
+              "level": 0
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                0.08,
+                100.2
+              ],
+              "uart": "adc=0 mv=0\r\n"
+            }
+          ],
+          "quiet": []
+        },
+        {
+          "name": "PA0 tied to 3V3 reads full scale",
+          "durationMs": 250,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PA0",
+              "level": 1
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                0.08,
+                100.2
+              ],
+              "uart": "adc=4095 mv=3300\r\n"
+            }
+          ],
+          "quiet": []
+        }
+      ]
+    }
+  },
+  "hal-bh1750": {
+    "kind": "hal",
+    "description": "GY-302 BH1750 on I2C1 (PB6 SCL / PB7 SDA, 0x23): power on, continuous H-resolution mode, prints lux = count / 1.2 every 200 ms on USART1",
+    "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz (the GY-302 brings its own pull-ups). USART1 PA9/PA10 115200 8N1. Boot: 'BH1750 on I2C1 (PB6 SCL / PB7 SDA)\\r\\n', instruction 0x01 (Power On) to 0x23: not acknowledged -> 'BH1750 not found at 0x23\\r\\n' and idle; otherwise 0x10 (Continuously H-Resolution Mode, 120 ms typ per measurement) and 'continuous H-resolution mode\\r\\n'. Every 200 ms (first 200 ms after that line) a 2-byte read prints 'lux=<n>.<d> (count <c>)\\r\\n' with count = MSB << 8 | LSB and lux = count / 1.2 rounded to 0.1 lx (count 600 -> 'lux=500.0').",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no BH1750 on the bus (tests/devices/sensors-firmware.test.ts wires a GY-302 module instead)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "BH1750 on I2C1 (PB6 SCL / PB7 SDA)\r\nBH1750 not found at 0x23\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-blink": {
+    "kind": "hal",
+    "description": "HAL blinky: 72 MHz HSE+PLL, HAL_Delay(500) toggles PA5 and PC13 (on-board LED)",
+    "expect": "PA5 and PC13 toggle every 501 ms (HAL v1.1.9 HAL_Delay(500) waits 500 + uwTickFreq ticks), PC13 = !PA5"
+  },
+  "hal-bme280": {
+    "kind": "hal",
+    "description": "GY-BME280 / GY-BMP280 on I2C1 (PB6 SCL / PB7 SDA, 0x76): trimming read-out, forced-mode x16 conversions every 500 ms, Bosch integer compensation, prints T / P / H on USART1",
+    "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz (the module brings 10 kOhm pull-ups to its 3.3 V). USART1 PA9/PA10 115200 8N1. Boot: 'BME280 on I2C1 (PB6 SCL / PB7 SDA)\\r\\n', HAL_Delay(10) for the sensor start-up, chip id (0xD0) read from 0x76: no acknowledge or an id other than 0x60 / 0x58 -> 'no BME280/BMP280 at 0x76\\r\\n' and idle. Otherwise the trimming registers (0x88-0x9F, plus 0xA1 and 0xE1-0xE7 on a BME280) are read and 'id=0x<id> dig_T1=<u> dig_P1=<u> dig_H1=<u>\\r\\n' printed. Every 500 ms (first right after boot): ctrl_hum = 0x05 (BME280 only), ctrl_meas = 0xB5 (T x16, P x16, forced), status bit 3 polled every 1 ms (150 ms timeout -> 'conversion timeout'), burst read of 0xF7-0xFE (0xF7-0xFC on a BMP280) and the datasheet compensation (BME280_compensate_T_int32, BMP280_compensate_P_int64, bme280_compensate_H_int32) printed as 'T=<C>.<cc> P=<Pa>.<pp> H=<%>.<hh>\\r\\n' (no H on a BMP280; P and H fractions truncated to 0.01). A transfer error prints 'i2c error'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no BME280 on the bus: every address is NACKed (tests/devices/sensors-firmware.test.ts wires GY-BME280 / GY-BMP280 modules instead)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "BME280 on I2C1 (PB6 SCL / PB7 SDA)\r\nno BME280/BMP280 at 0x76\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-button-exti": {
+    "kind": "hal",
+    "description": "HAL EXTI button: PB12 falling edge + 20 ms debounce toggles PA5 and prints 'press N' on USART1 115200 8N1",
+    "expect": "72 MHz. PB12 input pull-up + EXTI falling; PA5 push-pull, 0 after boot; USART1 PA9/PA10 115200 8N1, silent until the first press. A press is accepted 19-20 ms after the LAST falling edge on PB12 if PB12 still reads low: PA5 toggles then (+<20 us) and 'press N\\r\\n' (N = 1, 2, ...) starts right after (first byte done 0.08-0.15 ms after the PA5 edge). Press bounce counts once, holding counts once, release bounce and low pulses shorter than 19 ms never count.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PB12: push-button to GND, no external resistor",
+        "PA5: LED + 330 ohm to GND",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB12": "input-pullup",
+        "PA5": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": ""
+      },
+      "idle": {
+        "PB12": 1,
+        "PA5": 0
+      },
+      "scenarios": [
+        {
+          "name": "two clean presses",
+          "durationMs": 400,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 100,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 200,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 300,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "p1",
+              "at": [
+                19,
+                20.02
+              ],
+              "pin": "PA5",
+              "edge": 1
+            },
+            {
+              "from": "p1",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "press 1\r\n"
+            },
+            {
+              "id": "p2",
+              "at": [
+                219,
+                220.02
+              ],
+              "pin": "PA5",
+              "edge": 0
+            },
+            {
+              "from": "p2",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "press 2\r\n"
+            }
+          ],
+          "quiet": [
+            "PA5",
+            "USART1"
+          ]
+        },
+        {
+          "name": "bouncy press counts once, bouncy release never",
+          "durationMs": 300,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 0.3,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 0.6,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1.1,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 1.5,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 150,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 150.4,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 150.9,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 151.3,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 151.6,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "p1",
+              "at": [
+                20.5,
+                21.52
+              ],
+              "pin": "PA5",
+              "edge": 1
+            },
+            {
+              "from": "p1",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "press 1\r\n"
+            }
+          ],
+          "quiet": [
+            "PA5",
+            "USART1"
+          ]
+        },
+        {
+          "name": "a low pulse shorter than the debounce window is ignored",
+          "durationMs": 100,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 15,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [],
+          "quiet": [
+            "PA5",
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-ch340": {
+    "kind": "hal",
+    "description": "HAL USART2 (PA2/PA3, 115200 8N1) line echo through a CH340 USB-to-TTL adapter: banner, then 'echo N: <line>' for every line typed in the PC's COM port",
+    "expect": "72 MHz. USART2 PA2 (TX, AF push-pull) / PA3 (RX, input pull-up), 115200 8N1 (PCLK1 36 MHz: BRR 19 + 8/16 = 115384.6 baud, +0.16 %, as on real silicon). Wiring: PA2 -> CH340 RXD, PA3 <- CH340 TXD, GND, CH340 logic jumper at 3.3 V; the CH340's COM port opened at 115200 8N1. Once after reset: 'CH340 echo on USART2 (115200 8N1)\r\n'. Then every line received on USART2 (ended by CR or LF; empty lines ignored; at most 63 characters kept) is answered right after its terminator with 'echo N: <line>\r\n' (N counts the lines from 1). A COM port opened at another baud shows garbage, exactly like a real adapter.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART2",
+      "settleMs": 150,
+      "circuit": [
+        "CH340 module: not placed on this bench (the checks runner cannot place it; the COM-port round trip is covered by tests/devices/comm-firmware.test.ts) — the scenario types into USART2 directly",
+        "USART2: virtual terminal on PA2 (TX) / PA3 (RX)"
+      ],
+      "pins": {
+        "PA2": "af-pp",
+        "PA3": "input-pullup"
+      },
+      "uart": {
+        "USART2": {
+          "tx": "PA2",
+          "rx": "PA3",
+          "baud": 115384.6,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART2": "CH340 echo on USART2 (115200 8N1)\r\n"
+      },
+      "scenarios": [
+        {
+          "name": "two lines echoed",
+          "durationMs": 60,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART2",
+              "text": "hello\r"
+            },
+            {
+              "at": 30,
+              "uart": "USART2",
+              "text": "ohmlet lab\n"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                10.4,
+                11.5
+              ],
+              "uart": "echo 1: hello\r\n"
+            },
+            {
+              "at": [
+                30.8,
+                32
+              ],
+              "uart": "echo 2: ohmlet lab\r\n"
+            }
+          ],
+          "quiet": [
+            "USART2"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-dc-motor": {
+    "kind": "hal",
+    "description": "L298N DC motor demo: ENA = PA0 TIM2 1 kHz PWM, IN1/IN2 = PB0/PB1; fwd 25/50/75/100 %, brake, rev 50/100 %, coast, 400 ms each, USART1 log",
+    "expect": "72 MHz; TIM2 PSC 71, ARR 999: 1 kHz PWM on PA0 (AF push-pull), CCR1 = 10 x duty (preloaded), PB0/PB1 push-pull, both written with one BSRR store per phase. USART1 PA9/PA10 115200 8N1: 'L298N DC motor demo\\r\\n' then the first phase 'fwd 25%\\r\\n'; every 400 ms (HAL_GetTick deadlines, no drift) the next phase and its log line: fwd 25% (PB0=1 PB1=0, duty 25), fwd 50%, fwd 75%, fwd 100%, brake (PB0=PB1=0, duty 100), rev 50% (PB0=0 PB1=1), rev 100%, coast (duty 0), then again from fwd 25% (3.2 s per cycle). With an L298N (ENA jumper removed, VS 7.5 V) and a 130-size motor on OUT1/OUT2 the motor speeds up in four steps, brakes, runs in reverse and coasts down (PWM on ENA = drive / coast: an unloaded motor already turns fast at low duty).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA0, PB0, PB1: L298N ENA / IN1 / IN2 in the full circuit (motor speed covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "af-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup",
+        "PB0": "output-pp",
+        "PB1": "output-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "L298N DC motor demo\r\nfwd 25%\r\n"
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^(fwd (25|50|75|100)%|brake|rev (50|100)%|coast)\\r\\n$",
+          "firstAt": [
+            397,
+            403
+          ],
+          "everyMs": 400,
+          "tolUs": 100
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-dht": {
+    "kind": "hal",
+    "description": "DHT22 / AM2302 on PB12 (open drain, module pull-up) read every 2.5 s with DWT->CYCCNT microsecond timing: start pulse, answer, 40 bits, checksum; prints RH and T on USART1",
+    "expect": "72 MHz. PB12 open-drain output idling released (the module's 10 kOhm pull-up holds DATA high; PB12 is 5 V tolerant), DWT->CYCCNT enabled for microsecond timing. USART1 PA9/PA10 115200 8N1. Boot: 'DHT22 on PB12 (DWT timing)\\r\\n'. 2.5 s after boot and then every 2.5 s: PB12 low for 1.2 ms (host start), released; with interrupts masked the firmware waits <= 200 us for the sensor's answer (none -> 'DHT22: no response\\r\\n'), its 80 us low / 80 us high, then times the high phase of each of the 40 bits (> 40 us = 1); a missing edge prints 'DHT22: timeout in bit <n>\\r\\n', a wrong sum 'DHT22: checksum error\\r\\n', otherwise 'RH=<%>.<d> T=[-]<C>.<d>\\r\\n' with RH = (b0 << 8 | b1) / 10 and T = ((b2 & 0x7F) << 8 | b3) / 10, negative when b2 bit 7 is set. The DHT22 sends the measurement it took after the PREVIOUS read, so a change shows up one read later.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB12: 10k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no DHT22 on PB12 (tests/devices/sensors-firmware.test.ts wires a DHT22 module instead)"
+      ],
+      "pins": {
+        "PB12": "output-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "DHT22 on PB12 (DWT timing)\r\n"
+      }
+    }
+  },
+  "hal-dma-m2m": {
+    "kind": "hal",
+    "description": "HAL DMA1 channel 1 memory-to-memory copy of 1 KiB (256 words), verified and timed with DWT->CYCCNT; prints 'm2m ok <cycles>' every 500 ms on USART1",
+    "expect": "72 MHz. DMA1 channel 1 MEM2MEM, 32-bit words, both addresses incremented, normal mode, low priority. Right after init and then every 500 ms (deadline based): fill src[256] with a per-round xorshift pattern, clear dst[256] + a guard word, t0 = DWT->CYCCNT, HAL_DMA_Start + HAL_DMA_PollForTransfer(FULL, 10 ms), t1 = DWT->CYCCNT, compare. USART1 PA9/PA10 115200 8N1 prints 'm2m ok <t1 - t0>\\r\\n' when the copy matches and the guard is intact (else 'm2m FAIL <first bad index>' / 'm2m ERROR <status>'). With the simulator's DMA timing (6 HCLK per SRAM-to-SRAM word: arbitration 2 + read 2 + write 2) the count is 256 x 6 = 1536 cycles plus HAL start / poll overhead, identical every round.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^m2m ok (15[3-9]\\d|1[6-9]\\d\\d)\r\n$"
+        }
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^m2m ok (15[3-9]\\d|1[6-9]\\d\\d)\r\n$",
+          "firstAt": [
+            498.95,
+            500.05
+          ],
+          "everyMs": 500,
+          "tolUs": 20,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-ds18b20": {
+    "kind": "hal",
+    "description": "DS18B20 1-Wire on PB12 (open drain + external 4.7k pull-up, DWT slot timing): READ ROM at boot, then CONVERT T / READ SCRATCHPAD with CRC8 every second; prints the temperature and the conversion time on USART1",
+    "expect": "72 MHz. PB12 open-drain output idling released, DWT->CYCCNT slot timing with interrupts masked per slot. USART1 PA9/PA10 115200 8N1. Boot: 'DS18B20 on PB12 (1-Wire, DWT timing)\\r\\n', then a reset (500 us low, presence sampled at 70 us, 430 us tail) and READ ROM: 'ROM 28-..-..-..-..-..-..-<crc> CRC ok\\r\\n'. Every 1000 ms (first right after boot): reset, SKIP ROM, CONVERT T, read slots until a 1 (12 bit: 750 ms), reset, SKIP ROM, READ SCRATCHPAD, 9 bytes, CRC8 over bytes 0-7 checked; prints 'T=[-]<C>.<dddd> C (conv <ms> ms)\\r\\n' with T = (int16)(b1 << 8 | b0) / 16. Before every reset the released line must read high: without the pull-up (or with DQ shorted low) it prints '1-Wire bus low: missing 4.7k pull-up?\\r\\n'; a pulled-up bus without a sensor prints 'no DS18B20 (no presence pulse)\\r\\n'; a bad CRC 'scratchpad CRC error\\r\\n'; a conversion that never ends 'conversion timeout\\r\\n'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB12: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no DS18B20 on the bus (tests/devices/sensors-firmware.test.ts wires one instead)"
+      ],
+      "pins": {
+        "PB12": "output-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "DS18B20 on PB12 (1-Wire, DWT timing)\r\nno DS18B20 (no presence pulse)\r\nno DS18B20 (no presence pulse)\r\n"
+      }
+    }
+  },
+  "hal-esp01": {
+    "kind": "hal",
+    "description": "HAL USART2 to an ESP-01 (ESP8266) at 115200: PB0 enables CH_PD, the boot ROM banner (74880 baud) is skipped up to 'ready', then ATE0, AT, AT+GMR, AT+CWMODE? and AT+CWJAP (ERROR: the lab has no Wi-Fi); report on USART1",
+    "expect": "72 MHz. USART2 PA2 -> ESP-01 RXD, PA3 <- ESP-01 TXD, 115200 8N1 (PCLK1 36 MHz: BRR 19 + 8/16 = 115384.6 baud, +0.16 %, as on real silicon); PB0 -> CH_PD (push-pull, low after reset); ESP-01 VCC 3.3 V; USART1 PA9 115200 8N1 report. After reset: 'ESP-01 test (USART2 115200 8N1, CH_PD on PB0)\r\n', PB0 high, then every received line is discarded until 'ready' (the 74880-baud ROM banner arrives as garbage at 115200), up to 1.5 s: none -> 'no ready from the ESP-01 (CH_PD high? 3.3 V?)\r\n' and the core sleeps. Else 'ready after T ms\r\n' (T about 250 ms: the module boot), then one line per command (200 ms answer timeout): 'ATE0 -> OK', 'AT -> OK', 'AT+GMR -> AT version:1.7.4.0(...)' (first line of the version), 'AT+CWMODE? -> +CWMODE:1 OK', 'AT+CWJAP -> ERROR' (joining a network fails: Wi-Fi is not simulated), then 'esp01 ok\r\n' when every answer matched, else 'esp01 FAILED\r\n', then WFI.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "ESP-01 module: not placed on this bench (the checks runner cannot place it; the AT dialogue is covered by tests/devices/comm-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA2": "af-pp",
+        "PA3": "input-pullup",
+        "PA9": "af-pp",
+        "PB0": "output-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        },
+        "USART2": {
+          "tx": "PA2",
+          "rx": "PA3",
+          "baud": 115384.6,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "ESP-01 test (USART2 115200 8N1, CH_PD on PB0)\r\n"
+      },
+      "idle": {
+        "PB0": 1
+      }
+    }
+  },
+  "hal-gpio-modes": {
+    "kind": "hal",
+    "description": "HAL GPIO mode fixture: PB6/PB7 open-drain 10 Hz in opposite phase; PA1 pull-up, PA2 pull-down, PA3 floating reported every 200 ms on USART1",
+    "expect": "72 MHz. PB6/PB7 open-drain (PB6 starts released/Hi-Z, PB7 low), both toggled by ONE BSRR write every 50 ms: 10 Hz square waves (50 ms / 50 ms, +-20 us), PB7 = !PB6 always (needs external pull-ups to read high). PA1 input pull-up, PA2 input pull-down, PA3 floating input. USART1 PA9/PA10 115200 8N1: 'PA1=x PA2=y PA3=z\\r\\n' (x, y, z = 0/1, one sample per line) right after init, then exactly every 200 ms (+-20 us), each line starting right after a PB6/PB7 toggle. Unconnected: PA1=1 PA2=0, PA3 undefined.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7 kohm pull-up to 3V3 each (released open-drain outputs only read high with one)",
+        "PA1, PA2, PA3: unconnected unless a scenario drives them (PA3 then floats)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB6": "output-od",
+        "PB7": "output-od",
+        "PA1": "input-pullup",
+        "PA2": "input-pulldown",
+        "PA3": "input-floating",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^PA1=1 PA2=0 PA3=[01]\r\n$"
+        }
+      },
+      "idle": {
+        "PA1": 1,
+        "PA2": 0
+      },
+      "signals": [
+        {
+          "pin": "PB6",
+          "square": [
+            50,
+            50
+          ],
+          "tolUs": 20,
+          "firstEdge": 0,
+          "firstEdgeAt": [
+            48.85,
+            49.95
+          ],
+          "always": true
+        },
+        {
+          "pin": "PB7",
+          "invertOf": "PB6",
+          "skewUs": 0.1,
+          "always": true
+        },
+        {
+          "uart": "USART1",
+          "match": "^PA1=[01] PA2=[01] PA3=[01]\r\n$",
+          "firstAt": [
+            198.95,
+            200.05
+          ],
+          "everyMs": 200,
+          "tolUs": 20,
+          "afterEdgeOf": "PB6",
+          "lagMs": [
+            0.08,
+            0.15
+          ],
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "internal pulls, PA3 tied low",
+          "durationMs": 450,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PA3",
+              "level": 0
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                0.08,
+                200.2
+              ],
+              "uart": "PA1=1 PA2=0 PA3=0\r\n"
+            }
+          ],
+          "quiet": []
+        },
+        {
+          "name": "external drive overrides the pulls",
+          "durationMs": 450,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PA1",
+              "level": 0
+            },
+            {
+              "at": 0,
+              "pin": "PA2",
+              "level": 1
+            },
+            {
+              "at": 0,
+              "pin": "PA3",
+              "level": 1
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                0.08,
+                200.2
+              ],
+              "uart": "PA1=0 PA2=1 PA3=1\r\n"
+            }
+          ],
+          "quiet": []
+        }
+      ]
+    }
+  },
+  "hal-hall": {
+    "kind": "hal",
+    "description": "A3144 Hall switch: open-collector OUT on PB12 (internal pull-up, EXTI12 both edges), prints 'magnet' / 'no magnet' on every change and mirrors it on the PC13 LED",
+    "expect": "72 MHz. PB12 input with pull-up, EXTI12 on both edges; PC13 push-pull (on-board LED, active low) idles high. USART1 PA9/PA10 115200 8N1. Boot: 'A3144 on PB12 (pull-up, EXTI12)\\r\\n' then the current state: PB12 low -> 'magnet (OUT low)\\r\\n' and PC13 low (LED on), PB12 high -> 'no magnet (OUT high)\\r\\n' and PC13 high. Every EXTI edge wakes the main loop, which prints the new state only when it differs from the last one printed.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PB12: open (the scenarios pull it low like the A3144's output transistor)"
+      ],
+      "pins": {
+        "PB12": "input-pullup",
+        "PC13": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "A3144 on PB12 (pull-up, EXTI12)\r\nno magnet (OUT high)\r\n"
+      },
+      "idle": {
+        "PB12": 1,
+        "PC13": 1
+      },
+      "scenarios": [
+        {
+          "name": "a magnet pulls OUT low for 50 ms",
+          "durationMs": 100,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 60,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "on",
+              "at": [
+                10,
+                10.05
+              ],
+              "pin": "PC13",
+              "edge": 0
+            },
+            {
+              "from": "on",
+              "at": [
+                0,
+                0.15
+              ],
+              "uart": "magnet (OUT low)\r\n"
+            },
+            {
+              "id": "off",
+              "at": [
+                60,
+                60.05
+              ],
+              "pin": "PC13",
+              "edge": 1
+            },
+            {
+              "from": "off",
+              "at": [
+                0,
+                0.15
+              ],
+              "uart": "no magnet (OUT high)\r\n"
+            }
+          ],
+          "quiet": [
+            "PC13",
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-hc05": {
+    "kind": "hal",
+    "description": "HAL USART2 to an HC-05 Bluetooth module: AT dialogue at 38400 (EN held high by a pull-up at power-up), AT+RESET into data mode at 9600, 'hello phone' and an echo of every line from the paired phone; report on USART1",
+    "expect": "72 MHz. USART2 PA2 -> HC-05 RXD, PA3 <- HC-05 TXD; PB0 -> HC-05 EN with a 10 kOhm pull-up to 3.3 V (PB0 input after reset, so EN is high at power-up = AT mode); PB1 <- STATE (input pull-down); USART1 PA9 115200 8N1 report. After reset: 'HC-05 test\r\n', 120 ms start-up wait, then up to 3 'AT' at 38400 8N1 (20 ms answer timeout each). No answer: 'no answer from the HC-05 (EN high at power-up? 38400 8N1?)\r\n' and the core sleeps. Else 'AT ok (try N)\r\n' and one report line '<cmd> -> <answer>' for AT+VERSION?, AT+NAME=OHMLET, AT+NAME?, AT+UART=9600,0,0, AT+UART?, AT+ROLE?, AT+PSWD? (answer lines joined by a space, e.g. 'AT+NAME? -> +NAME:OHMLET OK'); then PB0 driven low, 'AT+RESET -> OK', USART2 re-initialised at 9600 8N1, wait up to 1 s for STATE high: 'phone connected (STATE high after T ms)\r\n' (T about 100 ms: the module restart) or 'no phone (STATE low)\r\n'. To the phone: 'hello phone\r\n'; every line the phone sends is answered with 'you said: <line>\r\n' and reported as 'phone: <line>\r\n'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "HC-05 module: not placed on this bench (the checks runner cannot place it; the AT dialogue and the phone link are covered by tests/devices/comm-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA2": "af-pp",
+        "PA3": "input-pullup",
+        "PA9": "af-pp",
+        "PB0": "input-floating",
+        "PB1": "input-pulldown"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        },
+        "USART2": {
+          "tx": "PA2",
+          "rx": "PA3",
+          "baud": 38400,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "HC-05 test\r\nno answer from the HC-05 (EN high at power-up? 38400 8N1?)\r\n"
+      }
+    }
+  },
+  "hal-hcsr04": {
+    "kind": "hal",
+    "description": "HC-SR04 ultrasonic distance: 12 us TRIG pulse on PB12 every 100 ms, ECHO high time captured by TIM4 CH1 (rising) / CH2 (falling) on the 5 V-tolerant PB6 at 1 MHz; prints the distance on USART1",
+    "expect": "72 MHz. TIM4 PSC 71 (1 MHz), ARR 0xFFFF, IC1 = TI1 rising, IC2 = TI1 falling (indirect), no filter; PB6 floating input (5 V tolerant, the module drives ECHO at 5 V); PB12 push-pull output (TRIG). USART1 PA9/PA10 115200 8N1. Boot: 'HC-SR04: TRIG PB12, ECHO PB6 (TIM4 CH1/CH2 capture)\\r\\n'. Every 100 ms (first right after boot): CC flags cleared, PB12 high for 12 us (DWT), then CC1 (ECHO rising) is awaited up to 10 ms ('no echo (sensor not powered?)\\r\\n'), CC2 (falling) up to 60 ms ('echo stuck high\\r\\n'); t = CCR2 - CCR1 us; t >= 30000 prints 'out of range (echo <t> us)\\r\\n' (the module's 38 ms no-echo pulse), otherwise 'd=<cm>.<d> cm (echo <t> us)\\r\\n' with d = t x 0.0343 / 2 truncated to 0.1 cm.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no HC-SR04 (tests/devices/sensors-firmware.test.ts wires one instead): PB6 floats"
+      ],
+      "pins": {
+        "PB6": "input-floating",
+        "PB12": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "HC-SR04: TRIG PB12, ECHO PB6 (TIM4 CH1/CH2 capture)\r\nno echo (sensor not powered?)\r\n"
+      }
+    }
+  },
+  "hal-i2c-eeprom": {
+    "kind": "hal",
+    "description": "HAL I2C1 + AT24C02 EEPROM (0x50): 16 bytes written across two page boundaries with ACK polling, read back blocking (N = 16/1/2) and with interrupts, 'eeprom ok' on USART1",
+    "expect": "72 MHz. I2C1 PB6/PB7 AF open-drain, 100 kHz, event+error interrupts; AT24C02 at 0x50 (A2-A0 and WP at GND) with 4.7 kOhm pull-ups; USART1 PA9/PA10 115200 8N1. Once after reset: 'AT24C02 test\r\n'; no ACK from 0x50 (IsDeviceReady, 3 trials) -> 'eeprom not found at 0x50\r\n' and stop. Else 'before: ' + the 16 bytes at 0x1C as hex (FF on an erased part; A0..AF after an earlier run: the EEPROM is non-volatile) + '\r\n'; then A0+i is written to 0x1C+i in page-aligned pieces, each followed by ACK polling through the 5 ms write cycle: 'wrote 4 bytes at 0x1C, ready after P polls\r\n', 'wrote 8 bytes at 0x20, ...', 'wrote 4 bytes at 0x28, ...' (P about 45: one NACKed poll takes about 112 us); then 'read 16 ok\r\n' (Mem_Read 16 bytes), 'read 1 ok\r\n' (1 byte at 0x1C), 'read 2 ok\r\n' (2 bytes at 0x1D, POS procedure), 'read 16 (IT) ok\r\n' (Mem_Read_IT) and 'eeprom ok\r\n'; then WFI. A wrong byte prints 'mismatch at 0xAA: wrote 0xWW read 0xRR (<mode>)\r\n', a HAL failure '<step> error: HAL status S, ErrorCode 0xE\r\n', and the program stops there.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: AT24C02 (A2-A0, WP to GND) + 4.7k pull-ups to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^AT24C02 test\\r\\nbefore: (?:(?:FF ){15}FF|A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 AA AB AC AD AE AF)\\r\\nwrote 4 bytes at 0x1C, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nwrote 8 bytes at 0x20, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nwrote 4 bytes at 0x28, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nread 16 ok\\r\\nread 1 ok\\r\\nread 2 ok\\r\\nread 16 \\(IT\\) ok\\r\\neeprom ok\\r\\n$"
+        }
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-i2c-scan": {
+    "kind": "hal",
+    "description": "HAL I2C1 bus scan (PB6 SCL / PB7 SDA, 100 kHz): HAL_I2C_IsDeviceReady on 0x08-0x77, 'found 0xNN' per device, 'scan done N' on USART1",
+    "expect": "72 MHz. I2C1 on PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz standard mode (PCLK1 36 MHz: FREQ 36, CCR 180 = 5 us high / 5 us low, TRISE 37); the bus needs pull-ups. USART1 PA9/PA10 115200 8N1. Once after reset: 'I2C1 scan 0x08-0x77\r\n', then HAL_I2C_IsDeviceReady (1 trial, 2 ms) on every address 0x08..0x77 in order: 'found 0xNN\r\n' for each acknowledging device (an AT24C02 with A2-A0 at GND: 'found 0x50'); a NACKed probe (START, address, NACK, STOP) takes about 115 us on the bus. Then 'scan done N\r\n' (N = devices found), and the core sleeps (WFI) with SCL/SDA released high. Without pull-ups SDA/SCL never read high: SR2.BUSY stays set, the first probe returns HAL_BUSY after 25 ms and the scan stops: 'bus busy at 0x08: SDA/SCL stuck low (pull-ups?)\r\nscan done 0\r\n'. A START that is never generated (HAL_TIMEOUT) prints 'timeout at 0xNN' and stops.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "I2C1 scan 0x08-0x77\r\nscan done 0\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-ir-nec": {
+    "kind": "hal",
+    "description": "NEC IR remote decoder: VS1838B output on PB12 (pull-up, EXTI12 both edges), TIM2 free-running at 1 MHz times every burst and space; prints 'NEC addr=0x.. cmd=0x..' and 'NEC repeat' on USART1",
+    "expect": "72 MHz. TIM2 PSC 71 (1 MHz), ARR 0xFFFF, running from boot. PB12 input with pull-up, EXTI12 on both edges, priority 0. USART1 PA9/PA10 115200 8N1. Boot: 'NEC IR receiver on PB12 (EXTI12 + TIM2 1 MHz)\\r\\n'. Every edge is timestamped: a rising edge ends a burst (output low), a falling edge ends a space. A 9 ms burst (+-20 %) followed by a 4.5 ms space starts a frame, followed by a 2.25 ms space it is a repeat code ('NEC repeat\\r\\n'); in a frame each 562.5 us burst (+-40 %) is followed by a 562.5 us (bit 0) or 1687.5 us (bit 1) space, LSB first; after 32 bits the main loop prints 'NEC addr=0x<aa> cmd=0x<cc>\\r\\n' when bytes 2 and 4 are the inverses of 1 and 3, else 'NEC frame error <hex>\\r\\n'; any other timing aborts. Silent without IR input.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no IR receiver on PB12 (tests/devices/sensors-firmware.test.ts wires a VS1838B instead)"
+      ],
+      "pins": {
+        "PB12": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "NEC IR receiver on PB12 (EXTI12 + TIM2 1 MHz)\r\n"
+      },
+      "idle": {
+        "PB12": 1
+      }
+    }
+  },
+  "hal-joystick": {
+    "kind": "hal",
+    "description": "KY-023 joystick: ADC1 IN0 (PA0, VRx) and IN1 (PA1, VRy) single conversions + SW on PB12 (pull-up), prints 'x=<raw> y=<raw> sw=<0|1>' every 100 ms on USART1",
+    "expect": "72 MHz, ADCCLK = PCLK2/6 = 12 MHz. ADC1 independent, single conversion, software start, right aligned; after HAL_ADCEx_Calibration_Start each report selects IN0 (PA0, analog) then IN1 (PA1, analog) as regular rank 1, sampling 55.5 cycles, start + poll + read. PB12 input with pull-up. USART1 PA9/PA10 115200 8N1. Boot: 'KY-023 joystick: VRx PA0, VRy PA1, SW PB12\\r\\n'. Every 100 ms (first right after boot): 'x=<raw> y=<raw> sw=<0|1>\\r\\n' with raw = round(V / VDDA x 4095) and sw = 1 while PB12 is low. A KY-023 fed from 3.3 V reads about 2048 / 2048 at rest, 0 and 4095 at the stops.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PA0, PA1: 10k ohm pull-down to GND (tests/devices/sensors-firmware.test.ts wires a KY-023 joystick instead)"
+      ],
+      "pins": {
+        "PA0": "analog",
+        "PA1": "analog",
+        "PB12": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "KY-023 joystick: VRx PA0, VRy PA1, SW PB12\r\nx=0 y=0 sw=0\r\n"
+      },
+      "idle": {
+        "PB12": 1
+      }
+    }
+  },
+  "hal-ky040": {
+    "kind": "hal",
+    "description": "KY-040 rotary encoder: TIM4 encoder mode 3 on PB6 (CLK) / PB7 (DT, module pull-ups), 4 counts per detent, prints 'pos=<n>' at every new detent and the debounced push switch on PB12",
+    "expect": "72 MHz. TIM4 encoder mode 3 (TI12, IC1F = IC2F = 15), ARR 65535, PB6/PB7 floating inputs (the KY-040 has 10 kOhm pull-ups; both pins are 5 V tolerant), PB12 input with pull-up (SW). USART1 PA9/PA10 115200 8N1. Boot: 'KY-040: CLK PB6, DT PB7 (TIM4 encoder), SW PB12\\r\\n' then 'pos=0\\r\\n'. The main loop wakes every SysTick (WFI) and prints 'pos=<CNT/4>\\r\\n' whenever the signed 16-bit count is a multiple of 4 and differs from the last report (clockwise: CLK falls before DT -> up). PB12 low for 20 ms prints 'SW pressed\\r\\n', back high for 20 ms 'SW released\\r\\n'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PB6, PB7: 10k ohm pull-up to 3V3"
+      ],
+      "pins": {
+        "PB6": "input-floating",
+        "PB7": "input-floating",
+        "PB12": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "KY-040: CLK PB6, DT PB7 (TIM4 encoder), SW PB12\r\npos=0\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1,
+        "PB12": 1
+      },
+      "scenarios": [
+        {
+          "name": "one detent clockwise (CLK leads DT) reports pos=1",
+          "durationMs": 60,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 20,
+              "pin": "PB7",
+              "level": 0
+            },
+            {
+              "at": 30,
+              "pin": "PB6",
+              "level": "open"
+            },
+            {
+              "at": 40,
+              "pin": "PB7",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                40,
+                42
+              ],
+              "uart": "pos=1\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-lcd1602": {
+    "kind": "hal",
+    "description": "HD44780 LCD1602 in 4-bit mode (RS PB10, RW PB11, E PB1, D4-D7 PB12-PB15) with busy-flag polling: text, two CGRAM characters and a counter updated every 250 ms",
+    "expect": "72 MHz. LCD1602 (5 V) 4-bit bus on 5 V tolerant GPIOB: RS = PB10, RW = PB11, E = PB1, D4..D7 = PB12..PB15 (push-pull outputs, floating inputs while the busy flag is read); D0..D3 unconnected. USART1 PA9/PA10 115200 8N1. Prints 'LCD1602 4-bit demo\\r\\n'; initialization by instruction: 50 ms, nibble 3h, 5 ms, 3h, 150 us, 3h, 150 us, 2h, 150 us (busy loops), then every instruction / data write first reads BF (RS 0, RW 1, two E pulses >= 450 ns, D7 of the first nibble) until 0 (10 ms timeout -> 'LCD busy timeout\\r\\n', stop): 28h, 08h, 01h, 06h, 0Ch. Prints 'LCD ready, BF polls during clear: N\\r\\n' (N = reads with BF = 1 during the 1.52 ms clear; without an LCD the inputs float and the count is whatever the pins read). CGRAM char 0 = heart (00 0A 1F 1F 0E 04 00 00), char 1 = smiley (00 0A 0A 00 11 0E 00 00); DDRAM 00h 'Hello, ohmlet!', 40h char 0 + ' count:', 4Eh char 1. Every 250 ms (deadline based) count = 0, 1, 2, ... written right-aligned in 5 digits at 48h; every 4th update 'count N\\r\\n' on USART1.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB1, PB10, PB11, PB12-PB15: unconnected on this bench (LCD E / RS / RW / D4-D7 in the full circuit; the DDRAM / CGRAM contents are covered by tests/devices/displays-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB1": "output-pp",
+        "PB10": "output-pp",
+        "PB11": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^LCD1602 4-bit demo\r\n(LCD ready, BF polls during clear: \\d+|LCD busy timeout)\r\n"
+        }
+      }
+    }
+  },
+  "hal-lcd1602-i2c": {
+    "kind": "hal",
+    "description": "LCD1602 through a PCF8574 I2C backpack at 0x27 (I2C1 PB6 SCL / PB7 SDA, 100 kHz): 4-bit init through the expander, text and an uptime counter updated every second",
+    "expect": "72 MHz. I2C1 PB6/PB7 AF open drain, 100 kHz standard mode (CCR 180); the backpack's 4.7 kOhm pull-ups go to its 5 V VCC (PB6/PB7 are 5 V tolerant). USART1 PA9/PA10 115200 8N1. Prints 'LCD1602 I2C demo\\r\\n', waits 50 ms, probes 0x27 (2 trials): HAL_BUSY -> 'I2C bus busy: SDA/SCL stuck low (pull-ups?)\\r\\n', no ACK (no backpack, a PCF8574A board at 0x3F) -> 'PCF8574 not found at 0x27 (no ACK)\\r\\n', both stop. Port bits P0 = RS, P1 = RW (always 0), P2 = E, P3 = backlight (always 1), P4..P7 = D4..D7; every nibble is written twice (E high, E low). Init: port 08h, 50 ms, nibble 3h, 5 ms, 3h, 1 ms, 3h, 1 ms, 2h, then 28h, 0Ch, 01h, 2 ms, 06h; DDRAM 00h 'Hello via I2C!', 40h 'uptime'; prints 'LCD ready at 0x27\\r\\n'. Every 1000 ms after that (deadline based) N = 1, 2, ... is written right-aligned in 6 digits at DDRAM 4Ah and 'uptime N s\\r\\n' goes out on USART1. A failed transfer prints 'I2C error <HAL error code>\\r\\n' and stops.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no backpack on this bench: the probe of 0x27 is not acknowledged (the LCD contents are covered by tests/devices/displays-firmware.test.ts)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "LCD1602 I2C demo\r\nPCF8574 not found at 0x27 (no ACK)\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-max7219": {
+    "kind": "hal",
+    "description": "MAX7219 8x8 LED matrix on SPI1 (16-bit frames, PA5 CLK, PA7 DIN, PA4 CS/LOAD, 4.5 MHz): \"OHM \" scrolls left one column every 100 ms",
+    "expect": "72 MHz. SPI1 master transmit-only, 16-bit frames (DFF), mode 0, MSB first, prescaler 16: SCK 4.5 MHz on PA5, MOSI PA7 (AF push-pull); PA4 = CS/LOAD (push-pull, idle high, rising edge latches). USART1 PA9/PA10 115200 8N1. Prints 'MAX7219 scroll demo\\r\\n', writes 0F00, 0C00, 0900, 0A04, 0B07, 0100..0800, 0C01 (one CS-low frame each) and prints 'MAX7219 ready\\r\\n'. Then every 100 ms (deadline based) step s = 0, 1, 2, ...: rows 1..8 rewritten so that matrix column c (bit 7 - c of every row) shows column (s + c) mod 24 of the text 'OHM ' in a 5x7 font (5 columns + 1 blank per character, bit r of a font column = row r); every 10th step 'step N\\r\\n' on USART1 right after the frame. The module needs VIH >= 0.7 x V+: run it from 4.5 V with this 3.3 V MCU (at 5 V nothing is latched).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5, PA7, PA4: unconnected on this bench (MAX7219 CLK / DIN / CS in the full circuit; the matrix contents are covered by tests/devices/displays-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA4": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "MAX7219 scroll demo\r\nMAX7219 ready\r\nstep 0\r\n"
+      }
+    }
+  },
+  "hal-mpu6050": {
+    "kind": "hal",
+    "description": "GY-521 MPU-6050 on I2C1 (PB6 SCL / PB7 SDA): WHO_AM_I, wake from SLEEP, +-2 g / +-250 dps at 100 Hz, prints raw ax ay az gx gy gz and the temperature every 100 ms on USART1",
+    "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA), AF open-drain, 100 kHz; the GY-521 module brings 4.7 kOhm pull-ups to its 3.3 V regulator. USART1 PA9/PA10 115200 8N1; PB12 input with pull-up. Boot: 'MPU-6050 on I2C1 (PB6 SCL / PB7 SDA)\\r\\n', then HAL_I2C_Mem_Read of WHO_AM_I (0x75) from 0x68: no acknowledge -> 'MPU-6050 not found at 0x68\\r\\n' and the core idles (WFI); otherwise 'WHO_AM_I=0x68\\r\\n'. With PB12 open (high) the firmware clears SLEEP (PWR_MGMT_1 = 0x00) and writes CONFIG = 0x03 (DLPF 44 Hz, 1 kHz gyro rate), SMPLRT_DIV = 9 (100 Hz), GYRO_CONFIG = 0 (+-250 deg/s, 131 LSB/(deg/s)), ACCEL_CONFIG = 0 (+-2 g, 16384 LSB/g) and prints 'awake: +-2 g, +-250 dps, 100 Hz\\r\\n'; with PB12 tied to GND it prints 'PB12 low: PWR_MGMT_1 not written, the sensor stays asleep\\r\\n' and every reading stays 0 (the MPU-6050 powers up asleep). Every 100 ms (deadline from the end of boot) one 14-byte burst read from 0x3B prints 'ax=<n> ay=<n> az=<n> gx=<n> gy=<n> gz=<n> t=<C>.<cc>\\r\\n' with the raw signed counts and T = raw/340 + 36.53 C truncated to 0.01 C (asleep: all zero and t=36.53). A failed transfer prints 'i2c error <status>\\r\\n'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no MPU-6050 on the bus: every address is NACKed (tests/devices/sensors-firmware.test.ts wires a GY-521 module instead)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PB12": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "MPU-6050 on I2C1 (PB6 SCL / PB7 SDA)\r\nMPU-6050 not found at 0x68\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-oled-spi": {
+    "kind": "hal",
+    "description": "SSD1306 0.96\" 128x64 OLED (7-pin SPI module) on SPI1 (PA5 SCK, PA7 MOSI, 9 MHz) with PA4 CS, PB0 DC, PB1 RES: text + frame counter + progress bar redrawn every 200 ms",
+    "expect": "72 MHz. SPI1 master transmit-only, mode 0, MSB first, 8-bit, prescaler 8: SCK 9 MHz on PA5, MOSI PA7 (AF push-pull). GPIO push-pull: PA4 = CS (idle high), PB0 = DC, PB1 = RES (idle high). USART1 PA9/PA10 115200 8N1. Prints 'SSD1306 SPI OLED demo\\r\\n', waits 100 ms, pulses RES low (>= 3 us), waits 1 ms, sends the library init sequence (AEh, D5h 80h, A8h 3Fh, D3h 00h, 40h, 8Dh 14h, 20h 00h, A1h, C8h, DAh 12h, 81h CFh, D9h F1h, DBh 40h, A4h, A6h, 2Eh, AFh) with DC low inside one CS-low window and prints 'SSD1306 SPI ready\\r\\n' (SPI is write-only: no display detection). Every 200 ms (deadline based) frame N = 1, 2, ...: 21h 0..127 / 22h 0..7 with DC low, then the 1024 GDDRAM bytes with DC high, each inside its own CS-low window: border rectangle (0,0)-(127,63), 'Hello, ohmlet!' at (8,6), 'SSD1306 SPI' at (8,18), 'frame N' at (8,30), progress bar (8,44)-(99,53) filled by (N mod 100)*88/99 px from x = 10, circle r = 9 at (113,48). Every 5th frame 'frame N\\r\\n' on USART1.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5, PA7, PA4, PB0, PB1: unconnected on this bench (OLED D0 / D1 / CS / DC / RES in the full circuit; the picture is covered by tests/devices/displays-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA4": "output-pp",
+        "PB0": "output-pp",
+        "PB1": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "SSD1306 SPI OLED demo\r\nSSD1306 SPI ready\r\n"
+      }
+    }
+  },
+  "hal-oled-ssd1306": {
+    "kind": "hal",
+    "description": "SSD1306 0.96\" 128x64 OLED on I2C1 (PB6 SCL / PB7 SDA, 400 kHz): library init with charge pump, text + frame counter + progress bar + circle redrawn every 200 ms",
+    "expect": "72 MHz. I2C1 PB6/PB7 AF open drain, 400 kHz fast mode (DUTY 2, CCR 30); the OLED module has its own 4.7 kOhm pull-ups and 3.3 V regulator. USART1 PA9/PA10 115200 8N1. Prints 'SSD1306 OLED demo\\r\\n', waits 100 ms, probes 0x3C with HAL_I2C_IsDeviceReady (2 trials): HAL_BUSY -> 'I2C bus busy: SDA/SCL stuck low (pull-ups?)\\r\\n' and stops; no ACK (no module, module jumper at 0x3D, VCC not wired) -> 'SSD1306 not found at 0x3C (no ACK)\\r\\n' and stops. Otherwise sends the library init sequence (AEh, D5h 80h, A8h 3Fh, D3h 00h, 40h, 8Dh 14h, 20h 00h, A1h, C8h, DAh 12h, 81h CFh, D9h F1h, DBh 40h, A4h, A6h, 2Eh, AFh) with control byte 00h and prints 'SSD1306 at 0x3C ready\\r\\n'. Every 200 ms (deadline based) frame N = 1, 2, ...: window 21h 0..127 / 22h 0..7, then the 1024-byte GDDRAM image with control byte 40h (about 23 ms on the bus): border rectangle (0,0)-(127,63), 'Hello, ohmlet!' at (8,6), 'SSD1306 128x64' at (8,18), 'frame N' at (8,30) in a 5x7 font (6 px advance), progress bar outline (8,44)-(99,53) filled from x = 10 by (N mod 100)*88/99 px, circle r = 9 at (113,48). Every 5th frame 'frame N\\r\\n' on USART1. A failed transfer prints 'I2C error <HAL error code>\\r\\n' and stops.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no OLED on this bench: the probe of 0x3C is not acknowledged (the drawing loop is covered by tests/devices/displays-firmware.test.ts)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "SSD1306 OLED demo\r\nSSD1306 not found at 0x3C (no ACK)\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-pcf8574": {
+    "kind": "hal",
+    "description": "HAL I2C1 (100 kHz) + PCF8574 I/O expander at 0x20: LED chaser on P0-P6 (LEDs from 3.3 V, active low) every 100 ms and a push-button on P7 read back from the port; press / release reported on USART1",
+    "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA) AF open drain, 100 kHz; PCF8574 module at 0x20 on 3.3 V (its 10 kOhm SDA/SCL pull-ups). P0..P6: LED + 330 Ohm from 3.3 V into the pin; P7: push-button to GND. USART1 PA9/PA10 115200 8N1 report. After reset: 'PCF8574 chaser P0-P6, button P7 (I2C1 0x20)\r\n'; HAL_I2C_IsDeviceReady (2 trials): no ACK -> 'no PCF8574 at 0x20\r\n' and the core sleeps. Else every 100 ms (deadline based) one write of ~(1 << step) & 0x7F | 0x80 (one LED lit, P0 first, 7-step cycle = 700 ms) followed by a one-byte read of the port; P7 read low prints 'P7 button pressed (port 0xNN)\r\n', high 'P7 button released (port 0xNN)\r\n' — only on a change (the first read reports 'released' with the button open). A read of P0..P6 that differs from the written outputs prints 'port mismatch: wrote 0xWW read 0xRR' once.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "PCF8574 module: not placed on this bench (the checks runner cannot place it; the chaser and the button are covered by tests/devices/comm-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "PCF8574 chaser P0-P6, button P7 (I2C1 0x20)\r\nno PCF8574 at 0x20\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-pwm-fade": {
+    "kind": "hal",
+    "description": "Example: LED on PA6 fades 0 -> 100 -> 0 % in 2 s (TIM3 CH1 1 kHz PWM, preloaded CCR1 stepped by the update interrupt)",
+    "expect": "72 MHz; TIM3 CH1 on PA6 (AF push-pull), PWM mode 1 at 1 kHz (PSC 71, ARR 999: 1 us per count). The TIM3 update interrupt (IRQ 29) counts periods n = 1, 2, ... (mod 2000) and writes CCR1 = 10 x duty with duty = s for s = n / 10 <= 100 and 200 - s after the top; CCR1 is preloaded (OC1PE), so period n + 2 carries the value written in interrupt n. On the pin every period starts at an update event exactly 1.000 ms after the previous one; its high time is duty x 10 us: 0 us (no pulse) for duty 0, a constant high for 100 % (CCR1 1000 > ARR). The duty climbs 0, 1, ..., 100 % and falls 99, ..., 1 % in steps that last exactly 10 periods; the whole ramp repeats every 2000 periods = 2.000 s. With a 330 ohm + red LED to GND the LED brightness follows the duty.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PA6: red LED + 330 ohm to GND"
+      ],
+      "pins": {
+        "PA6": "af-pp"
+      },
+      "signals": [],
+      "scenarios": []
+    }
+  },
+  "hal-rs485": {
+    "kind": "hal",
+    "description": "Two MAX485 RS-485 modules on one bus, driven by USART1 (node A, DE/RE on PA8) and USART3 (node B, DE/RE on PB12) of one Blue Pill: 3 rounds of PING / PONG with half-duplex direction control; report on USART2",
+    "expect": "72 MHz. Node A: USART1 PA9 -> MAX485 #1 DI, PA10 <- RO, PA8 -> DE+RE. Node B: USART3 PB10 -> MAX485 #2 DI, PB11 <- RO, PB12 -> DE+RE. Modules on 5 V, A-A and B-B joined, R7 (120 Ohm) fitted on both (the two bus ends). RO is 5 V, so both RX pins are 5 V tolerant (PA10, PB11). USART1/USART3 115200 8N1 (USART3 on PCLK1 36 MHz: BRR 19 + 8/16 = 115384.6 baud, +0.16 %, as on real silicon; USART2 likewise) with RXNE interrupts into 64-byte rings; DE/RE outputs low (receive) after init. USART2 PA2 115200 8N1 report: 'RS-485 ping-pong: A=USART1 (DE PA8) <-> B=USART3 (DE PB12), 115200 8N1\r\n', then for i = 1..3: A raises DE, sends 'PING i\r\n' (blocking, until TC), lowers DE; B waits up to 20 ms for the line and answers 'PONG i\r\n' the same way; A waits up to 20 ms: 'round i: B got 'PING i', A got 'PONG i''. A missing line prints 'round i: B heard nothing' (or '..., A heard nothing'). Finally 'rs485 ok\r\n' (all rounds matched) or 'rs485 FAILED\r\n', then WFI. Without the modules (nothing on the bus) every round reports 'B heard nothing'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART2",
+      "settleMs": 150,
+      "circuit": [
+        "MAX485 modules: not placed on this bench (the checks runner cannot place them; the ping-pong on a real two-module bus is covered by tests/devices/comm-firmware.test.ts)",
+        "USART2: virtual terminal on PA2 (TX) / PA3 (RX)"
+      ],
+      "pins": {
+        "PA8": "output-pp",
+        "PB12": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup",
+        "PB10": "af-pp",
+        "PB11": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        },
+        "USART2": {
+          "tx": "PA2",
+          "rx": "PA3",
+          "baud": 115384.6,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        },
+        "USART3": {
+          "tx": "PB10",
+          "rx": "PB11",
+          "baud": 115384.6,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART2": "RS-485 ping-pong: A=USART1 (DE PA8) <-> B=USART3 (DE PB12), 115200 8N1\r\nround 1: B heard nothing\r\nround 2: B heard nothing\r\nround 3: B heard nothing\r\nrs485 FAILED\r\n"
+      },
+      "idle": {
+        "PB12": 0
+      }
+    }
+  },
+  "hal-sdcard": {
+    "kind": "hal",
+    "description": "HAL SPI1 + micro-SD module: SPI-mode initialization (74 clocks, CMD0, CMD8, ACMD41, CMD58), CSD capacity, block 0 (MBR) and the FAT boot sector; volume info and 'sd ok' on USART1",
+    "expect": "72 MHz. SPI1 master mode 0, MSB first: PA5 SCK, PA6 MISO (input pull-up), PA7 MOSI, PA4 = CS (push-pull, high). SCK 281 kHz (72 MHz / 256) until initialized, then 9 MHz. micro-SD module on 5 V. USART1 PA9 115200 8N1 report: 'SD card SPI test (SPI1, CS PA4)\r\n'; 80 clocks with CS high; CMD0 (CRC 95h) up to 10 times: 'CMD0: idle (R1 0x01)' or 'CMD0: no card (R1 0xNN)' + 'sd FAILED' (no card: MISO pulled up, R1 0xFF); CMD8(1AAh): 'CMD8: v2 card, echo 0x1AA'; CMD55 + ACMD41(HCS) every millisecond: 'ACMD41: ready after N tries' (the simulated card initializes 25 ms after the first ACMD41); CMD58: 'OCR 0xC0FF8000: SDHC (block addresses)'; CMD9: 'CSD v2: 4096 MiB'; CMD17 block 0 (token FEh, CRC16 checked): 'MBR: partition 1 type 0x0C at LBA 8192, 8380416 sectors'; CMD17 of that LBA: 'FAT32 volume \"OHMLET SD\": 512 B/sector, 64 sectors/cluster, 32 reserved, 2 FATs x 1023 sectors, root cluster 2'; 'sd ok'. (An SDSC card prints the byte-address variant, CSD v1 and a FAT16 line.)",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "micro-SD module: not placed on this bench (the checks runner cannot place it; the full card sequence is covered by tests/devices/comm-firmware.test.ts)",
+        "PA4, PA5, PA6, PA7: unconnected (SPI1 + CS)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA4": "output-pp",
+        "PA5": "af-pp",
+        "PA6": "input-pullup",
+        "PA7": "af-pp",
+        "PA9": "af-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "SD card SPI test (SPI1, CS PA4)\r\nCMD0: no card (R1 0xFF)\r\nsd FAILED\r\n"
+      },
+      "idle": {
+        "PA4": 1
+      }
+    }
+  },
+  "hal-servo": {
+    "kind": "hal",
+    "description": "HAL servo signal: TIM2 CH2 PA1 50 Hz, pulse sweeping 1.0 -> 2.0 -> 1.0 ms in 0.1 ms steps every 200 ms",
+    "expect": "72 MHz; TIM2 PSC 71 (1 us per count), ARR 19999: a rising edge on PA1 (AF push-pull) every 20.000 ms exactly (50 Hz), PWM mode 1, pulse width = CCR2 us. The width starts at 1.000 ms and steps by 0.100 ms every 200 ms (HAL_GetTick deadlines, no drift): 1.0, 1.1, ..., 2.0, 1.9, ..., 1.0, 1.1 ms ... (a full sweep and back every 4.000 s). CCR2 is preloaded (OC2PE), so a width changes only at a frame boundary and every width is sent in exactly 10 consecutive frames (the first width may be sent a little longer after start). No UART.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PA1: servo signal input or logic analyzer probe (no load needed)"
+      ],
+      "pins": {
+        "PA1": "af-pp"
+      },
+      "signals": [],
+      "scenarios": []
+    }
+  },
+  "hal-sg90": {
+    "kind": "hal",
+    "description": "SG90 servo sweep: TIM2 CH1 PA0 50 Hz, 0.5-2.5 ms pulses, 0 -> 180 -> 0 deg in 30 deg steps every 500 ms, USART1 log",
+    "expect": "72 MHz; TIM2 PSC 71 (1 us per count), ARR 19999: a rising edge on PA0 (AF push-pull) every 20.000 ms (50 Hz), PWM mode 1, pulse = CCR1 us, preloaded. USART1 PA9/PA10 115200 8N1 sends 'SG90 sweep 0-180 deg\\r\\n' and 'servo 0 deg (500 us)\\r\\n', then every 500 ms (HAL_GetTick deadlines, no drift) the next 30 deg step 'servo <a> deg (<us> us)\\r\\n' with a = 30, 60, ..., 180, 150, ..., 0, 30, ... and us = 500 + a*2000/180 rounded (833, 1167, 1500, 1833, 2167, 2500). An SG90 on PA0 (VCC 5 V) follows: 0.5 ms = 0 deg, 2.5 ms = 180 deg, about 50 ms per 30 deg step at 4.8 V.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA0: SG90 SIG (or a logic analyzer probe); the servo angle itself is covered by tests/devices/motors-firmware.test.ts",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "af-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "SG90 sweep 0-180 deg\r\nservo 0 deg (500 us)\r\n"
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^servo (30|60|90|120|150|180|0) deg \\((500|833|1167|1500|1833|2167|2500) us\\)\\r\\n$",
+          "firstAt": [
+            497,
+            503
+          ],
+          "everyMs": 500,
+          "tolUs": 100
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-spi-595": {
+    "kind": "hal",
+    "description": "HAL SPI1 (PA5 SCK / PA7 MOSI, mode 0, 4.5 MHz) + PA4 RCLK driving a 74HC595: 8-LED chaser on QA-QH at 10 Hz",
+    "expect": "72 MHz. SPI1 master mode 0, MSB first, 8-bit, SCK 72 MHz / 16 = 4.5 MHz on PA5, MOSI PA7 (AF push-pull); PA4 = 74HC595 RCLK (push-pull, low after init). 74HC595: SER = PA7, SRCLK = PA5, RCLK = PA4, SRCLR high, OE low, QA..QH -> LED + resistor to GND. USART1 PA9/PA10 115200 8N1 sends '74HC595 chaser 10 Hz\r\n' once. Then on the next HAL tick and every 100 ms after it (deadline based, no drift): RCLK low, one byte 1 << step clocked out (8 SCK pulses, 111 ns half period), RCLK high (rising edge = latch), step = 0..7 cyclically: QA, QB, ... QH light one at a time for 100 ms each (800 ms cycle). PA4 is high except for a pulse of about 5 us around each transfer.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5, PA7, PA4: 74HC595 (SRCLK, SER, RCLK; SRCLR to 3V3, OE to GND), QA-QH: LED + 220 ohm to GND",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA4": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "74HC595 chaser 10 Hz\r\n"
+      },
+      "signals": [
+        {
+          "pin": "PA4",
+          "square": [
+            99.9951,
+            0.0049
+          ],
+          "tolUs": 20,
+          "firstEdge": 1,
+          "firstEdgeAt": [
+            1.8,
+            3
+          ]
+        },
+        {
+          "pin": "PA5",
+          "edgesAfter": "PA4",
+          "maxLagUs": 4500
+        },
+        {
+          "pin": "PA7",
+          "edgesAfter": "PA4",
+          "maxLagUs": 4500
+        }
+      ]
+    }
+  },
+  "hal-spi-loopback": {
+    "kind": "hal",
+    "description": "HAL SPI1 full duplex with PA7 MOSI wired to PA6 MISO: 64-byte TransmitReceive in mode 0, mode 3 LSB-first, 16-bit frames and with hardware CRC, 'spi loopback ok' on USART1",
+    "expect": "72 MHz. SPI1 master full duplex: PA5 SCK and PA7 MOSI AF push-pull, PA6 MISO input; a wire connects PA7 to PA6. USART1 PA9/PA10 115200 8N1. Once after reset: 'SPI1 loopback (PA7 MOSI -> PA6 MISO)\r\n', then four blocking HAL_SPI_TransmitReceive passes of tx[i] = 37*i + 11, each compared with what was sent: mode 0 MSB first 9 MHz -> 'mode 0: 64 bytes ok\r\n'; mode 3 LSB first 18 MHz -> 'mode 3 lsb: 64 bytes ok\r\n'; mode 1 16-bit frames 4.5 MHz -> '16-bit: 32 words ok\r\n'; mode 0 with hardware CRC (polynomial 7, the CRC frame comes back and is checked) -> 'crc: 64 bytes ok, crc 0xNN\r\n'; then 'spi loopback ok\r\n' and WFI. A difference prints '<pass>: mismatch at byte N: sent 0xSS got 0xRR\r\n' and stops (without the wire the first pass fails this way); a HAL error prints '<pass>: HAL status S, ErrorCode 0xE\r\n'. No machine checks: the checks runner cannot place the PA7-PA6 wire; tests/mcu/stm32f1/spi-firmware.test.ts runs both variants.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA7 -> PA6: jumper wire",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA6": "input-floating",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "SPI1 loopback (PA7 MOSI -> PA6 MISO)\r\nmode 0: 64 bytes ok\r\nmode 3 lsb: 64 bytes ok\r\n16-bit: 32 words ok\r\ncrc: 64 bytes ok, crc 0x1E\r\nspi loopback ok\r\n"
+      },
+      "idle": {
+        "PA5": 0
+      },
+      "signals": [
+        {
+          "pin": "PA6",
+          "sameAs": "PA7",
+          "skewUs": 0.1
+        }
+      ]
+    }
+  },
+  "hal-stepper-a4988": {
+    "kind": "hal",
+    "description": "A4988 stepper demo: STEP = PA0 TIM2 pulses with a trapezoidal ramp in the update IRQ, DIR PB0, MS1-3 PB12-14, EN PB15; +1600 (1/8), -100 (full), -800 (1/8) steps, USART1 log",
+    "expect": "72 MHz; TIM2 PSC 71 (1 us counts), PWM mode 1 on PA0 (AF push-pull), CCR1 = 10: every timer period starts with a 10 us STEP pulse; ARR is rewritten in the update interrupt for the next period (trapezoid: linear frequency ramp over `ramp` steps, cruise, symmetric ramp down) and the last period has CCR1 = 0, so exactly N pulses leave. PB0 (DIR), PB12-14 (MS1-3), PB15 (EN, low) push-pull. USART1 PA9/PA10 115200 8N1: 'A4988 stepper demo\\r\\n', then after 300 ms: 'move +1600 steps 1/8 (1 rev)\\r\\n' (DIR=1, MS=110, 400 -> 3200 steps/s), 'done, position 1600/8 full steps\\r\\n'; 300 ms; 'move -100 steps full (1/2 rev)\\r\\n' (DIR=0, MS=000, 200 -> 400 steps/s), 'done, position 800/8 full steps\\r\\n'; 300 ms; 'move -800 steps 1/8 (1/2 rev)\\r\\n', 'done, position 0/8 full steps\\r\\n'; repeat. A NEMA 17 on the A4988 (VMOT 12 V, VDD 3.3 V, RST-SLP tied) turns +1, -1/2, -1/2 revolution.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA0 (STEP), PB0 (DIR), PB12-PB14 (MS1-3), PB15 (EN): A4988 carrier in the full circuit (motor position covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA9": "af-pp",
+        "PA10": "input-pullup",
+        "PB0": "output-pp",
+        "PB12": "output-pp",
+        "PB13": "output-pp",
+        "PB14": "output-pp",
+        "PB15": "output-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "A4988 stepper demo\r\n"
+      },
+      "signals": [],
+      "scenarios": []
+    }
+  },
+  "hal-stepper-uln2003": {
+    "kind": "hal",
+    "description": "28BYJ-48 on a ULN2003 board: IN1-IN4 = PB12-PB15, half-step sequence every 2 ms, 4096 half steps cw, 500 ms off, 4096 ccw, USART1 progress log",
+    "expect": "72 MHz; PB12-PB15 push-pull, written with one BSRR store per half step. USART1 PA9/PA10 115200 8N1: '28BYJ-48 half-step 1 rev each way\\r\\n'; PB15..PB12 start at 0001 (IN1), then every 2 ms (HAL_GetTick deadlines, no drift) the next half step of 1000, 1100, 0100, 0110, 0010, 0011, 0001, 1001 (IN1..IN4) ascending; 'cw 1024/4096\\r\\n' after 1024 half steps (2.048 s), 'cw 2048/4096\\r\\n', 'cw 3072/4096\\r\\n', 'cw 4096/4096\\r\\n' (one output revolution); all coils off for 500 ms; then descending with 'ccw 1024/4096\\r\\n' ... 'ccw 4096/4096\\r\\n'; off 500 ms; repeat. A 28BYJ-48 on the ULN2003 board (OUT1-4 = ORANGE, YELLOW, PINK, BLUE) turns one revolution clockwise and back.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB12-PB15: ULN2003 IN1-IN4 in the full circuit (motor position covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA9": "af-pp",
+        "PA10": "input-pullup",
+        "PB12": "output-pp",
+        "PB13": "output-pp",
+        "PB14": "output-pp",
+        "PB15": "output-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "28BYJ-48 half-step 1 rev each way\r\n"
+      },
+      "signals": [
+        {
+          "pin": "PB13",
+          "square": [
+            6,
+            10
+          ],
+          "tolUs": 30
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-systick-timing": {
+    "kind": "hal",
+    "description": "HAL timing probe: PB13 toggled in SysTick_Handler (500 Hz), PB14 toggled around HAL_Delay(100) (101 ms half period)",
+    "expect": "72 MHz, SysTick LOAD 71999 (1 tick = 72000 HCLK cycles = 1.000 ms). PB13 push-pull toggles in every SysTick interrupt: 500 Hz, 1.000 ms high / 1.000 ms low (+-2 us). PB14 push-pull toggles, then HAL_Delay(100), which waits 100 + uwTickFreq = 101 ticks: edges exactly 101 ms apart (+-5 us; the first interval is 100-101 ms), 202 ms period = 4.950 Hz, each PB14 edge at most 10 us after a PB13 edge. No UART.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PB13, PB14: logic analyzer / scope probes (no load needed)"
+      ],
+      "pins": {
+        "PB13": "output-pp",
+        "PB14": "output-pp"
+      },
+      "signals": [
+        {
+          "pin": "PB13",
+          "square": [
+            1,
+            1
+          ],
+          "tolUs": 2,
+          "always": true
+        },
+        {
+          "pin": "PB14",
+          "square": [
+            101,
+            101
+          ],
+          "tolUs": 5,
+          "always": true
+        },
+        {
+          "pin": "PB14",
+          "edgesAfter": "PB13",
+          "maxLagUs": 10,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-tb6612": {
+    "kind": "hal",
+    "description": "TB6612FNG DC motor demo: PWMA = PA0 TIM2 1 kHz, AIN1/AIN2/STBY = PB0/PB1/PB12; cw 25-100 %, short brake, ccw 50/100 %, stop, standby, 400 ms each, USART1 log",
+    "expect": "72 MHz; TIM2 PSC 71, ARR 999: 1 kHz PWM on PA0 (AF push-pull), CCR1 = 10 x duty (preloaded); PB0 (AIN1), PB1 (AIN2), PB12 (STBY) push-pull, written with one BSRR store per phase. USART1 PA9/PA10 115200 8N1: 'TB6612 DC motor demo\\r\\n' then 'cw 25%\\r\\n'; every 400 ms (HAL_GetTick deadlines, no drift) the next phase: cw 25% / 50% / 75% / 100% (AIN1=1 AIN2=0 STBY=1), short brake (AIN1=AIN2=1, duty 100), ccw 50% / 100% (AIN1=0 AIN2=1), stop (AIN1=AIN2=0), standby (STBY=0, duty 0), then again (3.6 s per cycle). The motor speed follows duty x VM almost linearly (PWM low = short brake).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA0, PB0, PB1, PB12: TB6612FNG PWMA / AIN1 / AIN2 / STBY in the full circuit (motor covered by tests/devices/motors-firmware.test.ts); unconnected on this bench",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "af-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup",
+        "PB0": "output-pp",
+        "PB1": "output-pp",
+        "PB12": "output-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "TB6612 DC motor demo\r\ncw 25%\r\n"
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^(cw (25|50|75|100)%|short brake|ccw (50|100)%|stop|standby)\\r\\n$",
+          "firstAt": [
+            397,
+            403
+          ],
+          "everyMs": 400,
+          "tolUs": 100
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-tft-st7735": {
+    "kind": "hal",
+    "description": "ST7735S 1.8\" 128x160 TFT on SPI1 (PA5 SCK, PA7 MOSI, 9 MHz) with PA4 CS, PB0 DC, PB1 RES, PB10 BL: black-tab init, eight colour bars and text, frame counter every 500 ms",
+    "expect": "72 MHz. SPI1 master transmit-only, mode 0, MSB first, 8-bit, prescaler 8: SCK 9 MHz on PA5, MOSI PA7 (AF push-pull). GPIO push-pull: PA4 = CS (idle high), PB0 = DC, PB1 = RES, PB10 = BL. USART1 PA9/PA10 115200 8N1. Prints 'ST7735 TFT demo\\r\\n'; RES low 10 ms, high 120 ms; SWRESET + 150 ms, SLPOUT + 120 ms, FRMCTR1-3 (01 2C 2D), INVCTR 07, PWCTR1-5, VMCTR1 0E, INVOFF, MADCTL C0h, COLMOD 05h, CASET 0..127, RASET 0..159, GMCTRP1 / GMCTRN1, NORON + 10 ms, DISPON + 100 ms, BL high; prints 'ST7735 ready\\r\\n'. Each command / parameter group is one CS-low window, DC low for the command byte. Picture (RGB565 big-endian after RAMWR in CASET/RASET windows): rows 0..99 = eight 16 px bars left to right FFFF, FFE0, 07FF, 07E0, F81F, F800, 001F, 0000; rows 100..159 black with 'ST7735 128x160' at (4,108) white; prints 'colour bars drawn\\r\\n' (about 41 KB of SPI data, 40 ms). Every 500 ms (deadline based) 'frame N' (N = 1, 2, ...) is redrawn at (4,124) in yellow on black, 6x8 cells of a 5x7 font; every 2nd time 'frame N\\r\\n' on USART1.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5, PA7, PA4, PB0, PB1, PB10: unconnected on this bench (TFT SCL / SDA / CS / DC / RES / BL in the full circuit; the picture is covered by tests/devices/displays-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA4": "output-pp",
+        "PB0": "output-pp",
+        "PB1": "output-pp",
+        "PB10": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "ST7735 TFT demo\r\nST7735 ready\r\ncolour bars drawn\r\n"
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^frame \\d*[02468]\r\n$",
+          "firstAt": [
+            1060,
+            1064
+          ],
+          "everyMs": 1000,
+          "tolUs": 1000
+        }
+      ]
+    }
+  },
+  "hal-tim-capture": {
+    "kind": "hal",
+    "description": "HAL PWM input: TIM3 CH1 PA6 generates 2 kHz/30 %, 5 kHz/50 %, 1.25 kHz/75 % (1 s each); TIM2 CH1 PA0 measures it (jumper PA6 -> PA0), prints 'f=<Hz> d=<permille>'",
+    "expect": "72 MHz; USART1 PA9 115200 8N1. Bench: a jumper from PA6 to PA0. First TX: 'PWM input: TIM3 CH1 PA6 -> TIM2 CH1 PA0\\r\\n'. TIM3 CH1 (PA6, PWM mode 1, PSC 0) outputs 2000 Hz 30 % (ARR 35999, CCR1 10800) for the first second after start, then 5000 Hz 50 % (14399 / 7200), then 1250 Hz 75 % (57599 / 43200), repeating every 3 s; ARR and CCR1 are preloaded so each change applies at an update event. TIM2 (PSC 0) in PWM input mode: IC1 = TI1FP1 rising -> CCR1, IC2 = TI1FP2 falling -> CCR2, slave reset on TI1FP1; period = CCR1 + 1 and high time = CCR2 + 1 counts (the capture latches the counter before the reset, RM0008 Figure 113); URS = 1, so only a real overflow (no rising edge for 65536 counts) raises the update interrupt, which clears the measurement. Every 250 ms (first 125 ms after start, never at a switch) it prints 'f=<72 MHz / period> d=<1000 x high / period>' rounded: 'f=2000 d=300' (4 lines), 'f=5000 d=500' (4 lines), 'f=1250 d=750' (4 lines), repeating. Without the jumper PA0 sees no edge and every line is 'f=0 d=0'.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA6 -> PA0: jumper wire",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "input-floating",
+        "PA6": "af-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "PWM input: TIM3 CH1 PA6 -> TIM2 CH1 PA0\r\n"
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^f=(?:2000 d=300|5000 d=500|1250 d=750)\\r\\n$",
+          "firstAt": [
+            126,
+            132
+          ],
+          "everyMs": 250,
+          "tolUs": 20
+        },
+        {
+          "pin": "PA0",
+          "sameAs": "PA6",
+          "skewUs": 0.1
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "generator steps 2 kHz / 5 kHz / 1.25 kHz",
+          "durationMs": 2140,
+          "expect": [
+            {
+              "at": [
+                126,
+                132
+              ],
+              "uart": "f=2000 d=300\r\n"
+            },
+            {
+              "at": [
+                376,
+                382
+              ],
+              "uart": "f=2000 d=300\r\n"
+            },
+            {
+              "at": [
+                626,
+                632
+              ],
+              "uart": "f=2000 d=300\r\n"
+            },
+            {
+              "at": [
+                876,
+                882
+              ],
+              "uart": "f=2000 d=300\r\n"
+            },
+            {
+              "at": [
+                1126,
+                1132
+              ],
+              "uart": "f=5000 d=500\r\n"
+            },
+            {
+              "at": [
+                1376,
+                1382
+              ],
+              "uart": "f=5000 d=500\r\n"
+            },
+            {
+              "at": [
+                1626,
+                1632
+              ],
+              "uart": "f=5000 d=500\r\n"
+            },
+            {
+              "at": [
+                1876,
+                1882
+              ],
+              "uart": "f=5000 d=500\r\n"
+            },
+            {
+              "at": [
+                2126,
+                2132
+              ],
+              "uart": "f=1250 d=750\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-tim-encoder": {
+    "kind": "hal",
+    "description": "HAL quadrature encoder: TIM4 encoder mode 3 on PB6 (A) / PB7 (B) with pull-ups and input filter, prints 'enc=<n>' on every change",
+    "expect": "72 MHz; USART1 PA9 115200 8N1. TIM4 in encoder mode 3 (SMS = 011): every edge of A (PB6) and of B (PB7) counts, up when A leads B, down when B leads A (RM0008 Table 87: 4 counts per quadrature cycle); inputs PB6/PB7 with internal pull-ups, IC1F = IC2F = 15 (an edge must hold 256 timer clocks = 3.6 us, shorter pulses are ignored); ARR 65535. Boot: 'enc=0\\r\\n'. The main loop polls CNT as a signed 16-bit position and prints 'enc=<position>\\r\\n' for every change; it sleeps in __WFI() between SysTick interrupts, so a change is reported within 1 ms (first byte 0.09-1.2 ms after the edge). From rest (A = B = 1): A low, B low, A high, B high -> enc=1, 2, 3, 4; B low, A low, B high, A high -> enc=-1, -2, -3, -4.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PB6, PB7: push-button to GND (encoder contacts A and B, common to GND)"
+      ],
+      "pins": {
+        "PB6": "input-pullup",
+        "PB7": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "enc=0\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      },
+      "signals": [],
+      "scenarios": [
+        {
+          "name": "one detent forward (A leads B) counts up four times",
+          "durationMs": 50,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 20,
+              "pin": "PB7",
+              "level": 0
+            },
+            {
+              "at": 30,
+              "pin": "PB6",
+              "level": "open"
+            },
+            {
+              "at": 40,
+              "pin": "PB7",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                10.08,
+                11.2
+              ],
+              "uart": "enc=1\r\n"
+            },
+            {
+              "at": [
+                20.08,
+                21.2
+              ],
+              "uart": "enc=2\r\n"
+            },
+            {
+              "at": [
+                30.08,
+                31.2
+              ],
+              "uart": "enc=3\r\n"
+            },
+            {
+              "at": [
+                40.08,
+                41.2
+              ],
+              "uart": "enc=4\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "one detent backward (B leads A) counts down four times",
+          "durationMs": 50,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB7",
+              "level": 0
+            },
+            {
+              "at": 20,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 30,
+              "pin": "PB7",
+              "level": "open"
+            },
+            {
+              "at": 40,
+              "pin": "PB6",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                10.08,
+                11.2
+              ],
+              "uart": "enc=-1\r\n"
+            },
+            {
+              "at": [
+                20.08,
+                21.2
+              ],
+              "uart": "enc=-2\r\n"
+            },
+            {
+              "at": [
+                30.08,
+                31.2
+              ],
+              "uart": "enc=-3\r\n"
+            },
+            {
+              "at": [
+                40.08,
+                41.2
+              ],
+              "uart": "enc=-4\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "a 2 us contact bounce is filtered out",
+          "durationMs": 30,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 10.002,
+              "pin": "PB6",
+              "level": "open"
+            }
+          ],
+          "expect": [],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-tim-irq": {
+    "kind": "hal",
+    "description": "HAL TIM4 update interrupt as a 1 kHz time base: PB12 toggled every 1 ms, PC13 heartbeat 1 Hz",
+    "expect": "72 MHz; TIM4 PSC 71, ARR 999 on TIMXCLK1 = 72 MHz: an update event every 72000 cycles = 1.000 ms (UIF cleared before HAL_TIM_Base_Start_IT, so the first interrupt comes one period after the start). Each TIM4 interrupt (IRQ 30, HAL_TIM_PeriodElapsedCallback) toggles PB12 push-pull: 500 Hz, 1.000 ms high / 1.000 ms low, no drift (+-0.2 us interrupt-latency jitter). Every 500th interrupt also toggles PC13 (on-board LED, active low, starts off): 1 Hz, 500 ms on / 500 ms off, each PC13 edge less than 2 us after a PB12 edge. The CPU sleeps in __WFI(). No UART.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PB12: logic analyzer probe (no load needed)",
+        "PC13: on-board LED"
+      ],
+      "pins": {
+        "PB12": "output-pp",
+        "PC13": "output-pp"
+      },
+      "signals": [
+        {
+          "pin": "PB12",
+          "square": [
+            1,
+            1
+          ],
+          "tolUs": 0.2,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "square": [
+            500,
+            500
+          ],
+          "tolUs": 0.2,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "edgesAfter": "PB12",
+          "maxLagUs": 2,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-tim-pwm": {
+    "kind": "hal",
+    "description": "HAL PWM on three timers: TIM2 CH1 PA0 1 kHz 25 %, TIM3 CH1 PA6 20 kHz 50 %, TIM1 CH1 PA8 2 kHz 75 % (MOE via HAL_TIM_PWM_Start)",
+    "expect": "72 MHz; TIM2/TIM3 count TIMXCLK1 = 72 MHz (APB1 36 MHz x2), TIM1 TIMXCLK2 = 72 MHz. PWM mode 1, active high, every period starts with a rising edge at the update event. PA0 (TIM2 CH1, PSC 71, ARR 999, CCR1 250): 1 kHz, 250 us high / 750 us low. PA6 (TIM3 CH1, PSC 0, ARR 3599, CCR1 1800): 20 kHz, 25 us high / 25 us low. PA8 (TIM1 CH1, PSC 71, ARR 499, CCR1 375): 2 kHz, 375 us high / 125 us low - only because HAL_TIM_PWM_Start sets TIM1_BDTR.MOE. Edges are exact multiples of the 13.9 ns timer clock (no jitter, no drift); the three outputs are independent (each timer is started separately). The CPU sleeps in __WFI(). No UART.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PA0, PA6, PA8: logic analyzer probes (no load needed)"
+      ],
+      "pins": {
+        "PA0": "af-pp",
+        "PA6": "af-pp",
+        "PA8": "af-pp"
+      },
+      "signals": [
+        {
+          "pin": "PA0",
+          "square": [
+            0.25,
+            0.75
+          ],
+          "tolUs": 0.02,
+          "always": true
+        },
+        {
+          "pin": "PA6",
+          "square": [
+            0.025,
+            0.025
+          ],
+          "tolUs": 0.02,
+          "always": true
+        },
+        {
+          "pin": "PA8",
+          "square": [
+            0.375,
+            0.125
+          ],
+          "tolUs": 0.02,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "hal-tm1637": {
+    "kind": "hal",
+    "description": "TM1637 4-digit display bit-banged on PB6 CLK / PB7 DIO (open drain, module pull-ups): 0000-9999 counter every 100 ms with a 1 Hz colon, ACK checked per byte",
+    "expect": "72 MHz. PB6 = CLK, PB7 = DIO, GPIO open-drain outputs released high (module 10 kOhm pull-ups; 5 V tolerant pins), about 4 us per half clock. USART1 PA9/PA10 115200 8N1. Prints 'TM1637 counter demo\\r\\n', waits 10 ms, sends the first frame: START 40h STOP, START C0h 3F BF 3F 3F STOP ('00:00'), START 8Ch STOP; bytes LSB first, DIO changed while CLK is low, the 9th clock reads the ACK (DIO low). Any missing ACK -> 'TM1637: no ACK (check CLK/DIO wiring and power)\\r\\n' and stop; otherwise 'TM1637 ready\\r\\n'. Then every 100 ms (deadline based) count = 1, 2, ... (mod 10000) as 4 digits with leading zeros (a..g = bit 0..6: 3F 06 5B 4F 66 6D 7D 07 7F 6F), colon (bit 7 of digit 2) on while count mod 10 < 5; at every count divisible by 10 'count N\\r\\n' on USART1 right after the frame.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 10k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no TM1637 on this bench: DIO stays high on the ACK clock (the counter is covered by tests/devices/displays-firmware.test.ts)"
+      ],
+      "pins": {
+        "PB6": "output-od",
+        "PB7": "output-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "TM1637 counter demo\r\nTM1637: no ACK (check CLK/DIO wiring and power)\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "hal-traffic-light": {
+    "kind": "hal",
+    "description": "HAL traffic light: PA3 green 3 s -> PA2 yellow 1 s -> PA1 red 3 s; PB0 pedestrian button (EXTI) cuts green to 1 s; state on USART1",
+    "expect": "72 MHz. PA1 red / PA2 yellow / PA3 green push-pull, active high, exactly one high at any time (each change is one BSRR write). Cycle from boot: GREEN 3000 ms -> YELLOW 1000 ms -> RED 3000 ms (7000 ms period, +-20 us, no drift). USART1 PA9/PA10 115200 8N1: 'light=GREEN\\r\\n' at boot and on every change 'light=<GREEN|YELLOW|RED>\\r\\n' starting right after the LEDs switch. PB0 input pull-up + EXTI falling, accepted 19-20 ms after its last falling edge if still low: accepted during GREEN it ends green at max(green start + 1000 ms, now) and that yellow prints 'light=YELLOW (walk)\\r\\n'; presses during YELLOW/RED are ignored.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA1: red LED + 330 ohm to GND",
+        "PA2: yellow LED + 330 ohm to GND",
+        "PA3: green LED + 330 ohm to GND",
+        "PB0: push-button to GND, no external resistor",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA1": "output-pp",
+        "PA2": "output-pp",
+        "PA3": "output-pp",
+        "PB0": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "light=GREEN\r\n"
+      },
+      "idle": {
+        "PB0": 1
+      },
+      "signals": [
+        {
+          "pins": [
+            "PA3",
+            "PA2",
+            "PA1"
+          ],
+          "oneHot": true,
+          "always": true
+        },
+        {
+          "pin": "PA3",
+          "square": [
+            3000,
+            4000
+          ],
+          "tolUs": 20,
+          "firstEdge": 0,
+          "firstEdgeAt": [
+            2998.85,
+            2999.95
+          ]
+        },
+        {
+          "pin": "PA2",
+          "square": [
+            1000,
+            6000
+          ],
+          "tolUs": 20,
+          "firstEdge": 1,
+          "firstEdgeAt": [
+            2998.85,
+            2999.95
+          ]
+        },
+        {
+          "pin": "PA1",
+          "square": [
+            3000,
+            4000
+          ],
+          "tolUs": 20,
+          "firstEdge": 1,
+          "firstEdgeAt": [
+            3998.85,
+            3999.95
+          ]
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "one full cycle",
+          "durationMs": 7100,
+          "drive": [],
+          "expect": [
+            {
+              "id": "y",
+              "at": [
+                2998.85,
+                2999.95
+              ],
+              "pin": "PA2",
+              "edge": 1
+            },
+            {
+              "from": "y",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA3",
+              "edge": 0
+            },
+            {
+              "from": "y",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=YELLOW\r\n"
+            },
+            {
+              "id": "r",
+              "from": "y",
+              "at": [
+                999.98,
+                1000.02
+              ],
+              "pin": "PA1",
+              "edge": 1
+            },
+            {
+              "from": "r",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA2",
+              "edge": 0
+            },
+            {
+              "from": "r",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=RED\r\n"
+            },
+            {
+              "id": "g",
+              "from": "r",
+              "at": [
+                2999.98,
+                3000.02
+              ],
+              "pin": "PA3",
+              "edge": 1
+            },
+            {
+              "from": "g",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA1",
+              "edge": 0
+            },
+            {
+              "from": "g",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=GREEN\r\n"
+            }
+          ],
+          "quiet": [
+            "PA1",
+            "PA2",
+            "PA3",
+            "USART1"
+          ]
+        },
+        {
+          "name": "walk request early in green: green cut to 1 s in total",
+          "durationMs": 5100,
+          "drive": [
+            {
+              "at": 100,
+              "pin": "PB0",
+              "level": 0
+            },
+            {
+              "at": 300,
+              "pin": "PB0",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "y",
+              "at": [
+                998.85,
+                999.95
+              ],
+              "pin": "PA2",
+              "edge": 1
+            },
+            {
+              "from": "y",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA3",
+              "edge": 0
+            },
+            {
+              "from": "y",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=YELLOW (walk)\r\n"
+            },
+            {
+              "id": "r",
+              "from": "y",
+              "at": [
+                999.98,
+                1000.02
+              ],
+              "pin": "PA1",
+              "edge": 1
+            },
+            {
+              "from": "r",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA2",
+              "edge": 0
+            },
+            {
+              "from": "r",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=RED\r\n"
+            },
+            {
+              "id": "g",
+              "from": "r",
+              "at": [
+                2999.98,
+                3000.02
+              ],
+              "pin": "PA3",
+              "edge": 1
+            },
+            {
+              "from": "g",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA1",
+              "edge": 0
+            },
+            {
+              "from": "g",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=GREEN\r\n"
+            }
+          ],
+          "quiet": [
+            "PA1",
+            "PA2",
+            "PA3",
+            "USART1"
+          ]
+        },
+        {
+          "name": "walk request after 1 s of green: yellow at once",
+          "durationMs": 2600,
+          "drive": [
+            {
+              "at": 1500,
+              "pin": "PB0",
+              "level": 0
+            },
+            {
+              "at": 1700,
+              "pin": "PB0",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "y",
+              "at": [
+                1519,
+                1520.02
+              ],
+              "pin": "PA2",
+              "edge": 1
+            },
+            {
+              "from": "y",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA3",
+              "edge": 0
+            },
+            {
+              "from": "y",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=YELLOW (walk)\r\n"
+            },
+            {
+              "id": "r",
+              "from": "y",
+              "at": [
+                999.98,
+                1000.02
+              ],
+              "pin": "PA1",
+              "edge": 1
+            },
+            {
+              "from": "r",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA2",
+              "edge": 0
+            },
+            {
+              "from": "r",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=RED\r\n"
+            }
+          ],
+          "quiet": [
+            "PA1",
+            "PA2",
+            "PA3",
+            "USART1"
+          ]
+        },
+        {
+          "name": "a press during red is ignored",
+          "durationMs": 7100,
+          "drive": [
+            {
+              "at": 5000,
+              "pin": "PB0",
+              "level": 0
+            },
+            {
+              "at": 5200,
+              "pin": "PB0",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "y",
+              "at": [
+                2998.85,
+                2999.95
+              ],
+              "pin": "PA2",
+              "edge": 1
+            },
+            {
+              "from": "y",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA3",
+              "edge": 0
+            },
+            {
+              "from": "y",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=YELLOW\r\n"
+            },
+            {
+              "id": "r",
+              "from": "y",
+              "at": [
+                999.98,
+                1000.02
+              ],
+              "pin": "PA1",
+              "edge": 1
+            },
+            {
+              "from": "r",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA2",
+              "edge": 0
+            },
+            {
+              "from": "r",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=RED\r\n"
+            },
+            {
+              "id": "g",
+              "from": "r",
+              "at": [
+                2999.98,
+                3000.02
+              ],
+              "pin": "PA3",
+              "edge": 1
+            },
+            {
+              "from": "g",
+              "at": [
+                0,
+                0.001
+              ],
+              "pin": "PA1",
+              "edge": 0
+            },
+            {
+              "from": "g",
+              "at": [
+                0.08,
+                0.15
+              ],
+              "uart": "light=GREEN\r\n"
+            }
+          ],
+          "quiet": [
+            "PA1",
+            "PA2",
+            "PA3",
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-uart-dma": {
+    "kind": "hal",
+    "description": "HAL USART1 with DMA: TX by DMA1 channel 4, RX by DMA1 channel 5 into a circular 32-byte ring with IDLE detection (HAL_UARTEx_ReceiveToIdle_DMA); every received chunk is echoed as '<idle|ht|tc> <n>: <bytes>'",
+    "expect": "72 MHz, USART1 PA9/PA10 115200 8N1 (BRR 0x271). TX: HAL_UART_Transmit_DMA on DMA1 channel 4 (memory to peripheral, bytes, normal); the next line is formatted only after the previous transmission completed (TC interrupt). RX: DMA1 channel 5 (peripheral to memory, bytes, circular) into a 32-byte ring via HAL_UARTEx_ReceiveToIdle_DMA; reception events are the DMA half transfer (ring position 16), transfer complete (position 32, wrap) and USART IDLE (line idle one frame after a byte). First TX 'uart-dma ready\\r\\n'. Each event echoes the bytes received since the previous event as '<idle|ht|tc> <n>: <bytes>\\r\\n' (n = byte count), its first byte about 60 us + one frame after the event; lines follow each other with ~50 us gaps. From a fresh start: 'hello' -> 'idle 5: hello'; a 40-byte burst -> 'ht 16: <bytes 1-16>', 'tc 16: <bytes 17-32>', 'idle 8: <bytes 33-40>'. The ring position carries over between bursts.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "uart-dma ready\r\n"
+      },
+      "signals": [],
+      "scenarios": [
+        {
+          "name": "a short burst ends with an IDLE event",
+          "durationMs": 30,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "hello"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                10.6,
+                10.8
+              ],
+              "uart": "idle 5: hello\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "40 bytes: half transfer, transfer complete (wrap), then IDLE",
+          "durationMs": 30,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "0123456789abcdefghijklmnopqrstuvwxyzABCD"
+            }
+          ],
+          "expect": [
+            {
+              "id": "ht",
+              "at": [
+                11.45,
+                11.65
+              ],
+              "uart": "ht 16: 0123456789abcdef\r\n"
+            },
+            {
+              "id": "tc",
+              "from": "ht",
+              "at": [
+                2.17,
+                2.3
+              ],
+              "uart": "tc 16: ghijklmnopqrstuv\r\n"
+            },
+            {
+              "from": "tc",
+              "at": [
+                2.17,
+                2.3
+              ],
+              "uart": "idle 8: wxyzABCD\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-uart-hello": {
+    "kind": "hal",
+    "description": "HAL USART1 115200 8N1: hello banner, 'tick N' every 1000 ms, interrupt-driven RX line echo",
+    "expect": "72 MHz, USART1 PA9/PA10 115200 8N1 (BRR 0x271, exact). First TX: 'Hello from STM32F103!\\r\\n'. Then 'tick N\\r\\n', N = 1, 2, ..., first bytes exactly 1000 ms apart (+-20 us; tick 1 starts 999-1000 ms after the banner) unless an echo is still being sent (no drift). RX via HAL_UART_Receive_IT, one byte at a time: CR or LF ends a line; a non-empty line is answered 'echo: <line>\\r\\n' starting < 0.5 ms after its terminator (later only while another line is being sent). Empty lines are ignored (CRLF echoes once), lines keep their first 63 bytes, up to 4 lines queue, bytes with framing/noise/parity errors are dropped.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "Hello from STM32F103!\r\n"
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "lines": "tick {n}\r\n",
+          "nFrom": 1,
+          "firstAt": [
+            998.95,
+            1000.05
+          ],
+          "everyMs": 1000,
+          "tolUs": 20
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "CR-terminated line",
+          "durationMs": 50,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "abc\r"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                10.25,
+                10.7
+              ],
+              "uart": "echo: abc\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "CRLF echoes once, LF alone also terminates",
+          "durationMs": 80,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "hello\r\n"
+            },
+            {
+              "at": 40,
+              "uart": "USART1",
+              "text": "x\n"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                10.4,
+                10.9
+              ],
+              "uart": "echo: hello\r\n"
+            },
+            {
+              "at": [
+                40.08,
+                40.5
+              ],
+              "uart": "echo: x\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "two lines back to back are both echoed in order",
+          "durationMs": 50,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "one\rtwo\r"
+            }
+          ],
+          "expect": [
+            {
+              "id": "e1",
+              "at": [
+                10.25,
+                10.7
+              ],
+              "uart": "echo: one\r\n"
+            },
+            {
+              "from": "e1",
+              "at": [
+                0.9,
+                1.3
+              ],
+              "uart": "echo: two\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "empty lines are ignored",
+          "durationMs": 50,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "\r\n\r\n\n\r"
+            }
+          ],
+          "expect": [],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "a long line keeps its first 63 bytes",
+          "durationMs": 50,
+          "drive": [
+            {
+              "at": 10,
+              "uart": "USART1",
+              "text": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/=!?\r"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                16.1,
+                16.7
+              ],
+              "uart": "echo: 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "hal-w25q": {
+    "kind": "hal",
+    "description": "HAL SPI1 (9 MHz, mode 0, CS PA4) + W25Q32 NOR flash: JEDEC ID, 4 KiB sector erase with BUSY polling, 64-byte page program, read back with 03h and 0Bh, 'w25q ok' on USART1",
+    "expect": "72 MHz. SPI1 master mode 0, MSB first, 8-bit, SCK 72 MHz / 8 = 9 MHz on PA5, MISO PA6 (input pull-up), MOSI PA7; PA4 = CS (push-pull, high when idle). W25Q32 at 3.3 V with WP and HOLD tied high. USART1 PA9/PA10 115200 8N1 report. After reset: 'W25Q32 test (SPI1 9 MHz mode 0, CS PA4)\r\n'; 9Fh JEDEC ID: anything but EF 40 16 prints 'no W25Q32: JEDEC ID xx xx xx\r\n' and the core sleeps (no chip: MISO pulled up, 'FF FF FF'). Else 'JEDEC ID EF 40 16', 'SR1 0x00', 'before: <16 bytes at 0x001000>' (FF on an erased part), 06h + 20h 0x001000 with 05h polled every millisecond: 'sector erase: busy T ms' (T about 45, the typical tSE), 06h + 02h 64 bytes (i*3+1): 'page program 64 bytes: busy for N status reads', read back with 03h and with 0Bh: 'read back ok', 'w25q ok' (or 'mismatch at 0xAAAAAA: wrote WW read RR' and 'w25q FAILED').",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "W25Q32: not placed on this bench (the checks runner cannot place it; the erase / program / read-back sequence is covered by tests/devices/comm-firmware.test.ts)",
+        "PA4, PA5, PA6, PA7: unconnected (SPI1 + CS)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA4": "output-pp",
+        "PA5": "af-pp",
+        "PA6": "input-pullup",
+        "PA7": "af-pp",
+        "PA9": "af-pp"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "W25Q32 test (SPI1 9 MHz mode 0, CS PA4)\r\nno W25Q32: JEDEC ID FF FF FF\r\n"
+      },
+      "idle": {
+        "PA4": 1
+      }
+    }
+  },
+  "hal-ws2812": {
+    "kind": "hal",
+    "description": "8 WS2812B LEDs on SPI1 MOSI (PA7) at 2.25 MHz with DMA: 3 SPI bits per WS bit (100 = 0, 110 = 1), an 8-colour palette rotating every 100 ms",
+    "expect": "72 MHz. SPI1 master transmit-only, mode 0, MSB first, 8-bit, prescaler 32: SCK 2.25 MHz on PA5 (unused), MOSI PA7 (AF push-pull) -> strip DIN; SPI1_TX on DMA1 channel 3 (memory -> peripheral, byte, memory increment, normal mode, high priority, transfer-complete interrupt). USART1 PA9/PA10 115200 8N1. Prints 'WS2812 demo (SPI1 + DMA, 2.25 MHz)\\r\\n'. From the next HAL tick, every 100 ms (deadline based) frame s = 0, 1, 2, ...: LED i = palette[(i + s) mod 8] with palette 400000, 401800, 404000, 004000, 004040, 000040, 200040, 303030 (0xRRGGBB); each colour byte in G, R, B order, MSB first, becomes 24 SPI bits (WS 1 = 110, 0 = 100: high 889 / 444 ns, period 1.33 us), 9 bytes per LED, 72 bytes per frame (256 us, back to back by DMA); MOSI stays low between frames (> 280 us reset). HAL_SPI_TxCpltCallback ends the wait (WFI). Every 10th frame 'frame N\\r\\n' on USART1 after the frame. The strip needs VIH >= 0.7 x VDD: power it from 4.5 V with this 3.3 V MCU.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA7: unconnected on this bench (WS2812B DIN in the full circuit; the LED colours are covered by tests/devices/displays-firmware.test.ts)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "WS2812 demo (SPI1 + DMA, 2.25 MHz)\r\nframe 0\r\n"
+      }
+    }
+  },
+  "lab-acceptance": {
+    "kind": "hal",
+    "description": "First-release demo: PA5 LED 2 Hz / 5 Hz / on / off cycled by a debounced PB12 button, PC13 heartbeat, mode report on USART1 115200",
+    "expect": "72 MHz. USART1 PA9/PA10 115200 8N1 boot output: 'boot ok\\r\\n' then 'mode=0 blink 2 Hz\\r\\n'. PA5 push-pull: mode 0 = 250 ms high / 250 ms low (2 Hz), mode 1 = 100/100 ms (5 Hz), mode 2 = high, mode 3 = low; entering a mode sets PA5 high (low for mode 3) in that tick. PC13 push-pull (on-board LED, active low): low 50 ms at the start of every 1000 ms, unaffected by the button. PB12 input pull-up + EXTI falling, 30 ms debounce: a press is accepted 29-30 ms after its last falling edge if PB12 is still low and advances 0 -> 1 -> 2 -> 3 -> 0, printing 'mode=<n> <blink 2 Hz|blink 5 Hz|solid on|off>\\r\\n'. Release bounce and pulses shorter than 29 ms never count. All LED timing runs in SysTick: every PA5/PC13 edge is on a 1 ms tick (+-10 us), never delayed by UART output.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5: LED + 330 ohm to GND",
+        "PC13: Blue Pill on-board LED (active low)",
+        "PB12: push-button to GND, no external resistor",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "output-pp",
+        "PC13": "output-pp",
+        "PB12": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "boot ok\r\nmode=0 blink 2 Hz\r\n"
+      },
+      "idle": {
+        "PB12": 1
+      },
+      "signals": [
+        {
+          "pin": "PA5",
+          "square": [
+            250,
+            250
+          ],
+          "tolUs": 10,
+          "firstEdge": 1,
+          "firstEdgeAt": [
+            0.6,
+            1.8
+          ]
+        },
+        {
+          "pin": "PC13",
+          "square": [
+            950,
+            50
+          ],
+          "tolUs": 10,
+          "firstEdge": 0,
+          "firstEdgeAt": [
+            0.6,
+            1.8
+          ],
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "the button cycles through all four modes",
+          "durationMs": 5000,
+          "drive": [
+            {
+              "at": 1000,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1200,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 2000,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 2200,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 3000,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 3200,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 4000,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 4200,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "id": "m1",
+              "at": [
+                1029.05,
+                1030.2
+              ],
+              "uart": "mode=1 blink 5 Hz\r\n"
+            },
+            {
+              "from": "m1",
+              "at": [
+                1,
+                450
+              ],
+              "pin": "PA5",
+              "every": 100
+            },
+            {
+              "id": "m2",
+              "at": [
+                2029.05,
+                2030.2
+              ],
+              "uart": "mode=2 solid on\r\n"
+            },
+            {
+              "from": "m2",
+              "at": [
+                0,
+                900
+              ],
+              "pin": "PA5",
+              "level": 1
+            },
+            {
+              "id": "m3",
+              "at": [
+                3029.05,
+                3030.2
+              ],
+              "uart": "mode=3 off\r\n"
+            },
+            {
+              "from": "m3",
+              "at": [
+                0,
+                900
+              ],
+              "pin": "PA5",
+              "level": 0
+            },
+            {
+              "id": "m0",
+              "at": [
+                4029.05,
+                4030.2
+              ],
+              "uart": "mode=0 blink 2 Hz\r\n"
+            },
+            {
+              "from": "m0",
+              "at": [
+                1,
+                900
+              ],
+              "pin": "PA5",
+              "every": 250
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "bouncy press counts once; release bounce and a 20 ms glitch are ignored",
+          "durationMs": 2200,
+          "drive": [
+            {
+              "at": 1000,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1000.4,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 1000.8,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1001.2,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 1001.5,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1300,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 1300.3,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1300.7,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 1301,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 1301.3,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 2000,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 2020,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                1030.5,
+                1031.7
+              ],
+              "uart": "mode=1 blink 5 Hz\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-a2-oled": {
+    "kind": "hal",
+    "description": "Lesson a2: SSD1306 128x64 OLED on I2C1 (PB6 SCL / PB7 SDA, 400 kHz) — 1 KiB frame buffer redrawn and sent every 200 ms; PB12 tied to GND at reset leaves out the charge-pump command 8Dh 14h (the panel ACKs everything but stays dark)",
+    "expect": "72 MHz. I2C1 PB6/PB7 AF open drain, 400 kHz fast mode (DUTY 2, CCR 30); the OLED module has its own 4.7 kOhm pull-ups and 3.3 V regulator. USART1 PA9/PA10 115200 8N1; PB12 input with pull-up (experiment jumper). Prints 'SSD1306 lesson a2 (I2C1 400 kHz, PB6 SCL / PB7 SDA)\\r\\n', waits 100 ms, probes 0x3C with HAL_I2C_IsDeviceReady (2 trials): HAL_BUSY -> 'I2C bus busy: SDA/SCL stuck low (pull-ups?)\\r\\n' and stops; no ACK -> 'SSD1306 not found at 0x3C (no ACK)\\r\\n' and stops. Otherwise the init sequence in ONE transfer with control byte 00h: AEh, D5h 80h, A8h 3Fh, D3h 00h, 40h, 8Dh 14h (left out when PB12 is low at reset), 20h 00h, A1h, C8h, DAh 12h, 81h CFh, D9h F1h, DBh 40h, A4h, A6h, 2Eh, AFh -> 'SSD1306 at 0x3C ready (charge pump on)\\r\\n' or '... ready (charge pump OFF: 8Dh 14h left out)\\r\\n'. Every 200 ms (deadline based) frame N = 1, 2, ...: the 1024-byte frame buffer (8 pages x 128 columns, bit 0 = top row of a page) is cleared and redrawn — border (0,0)-(127,63), 'STM32 + SSD1306' at (8,6), 'frame N' at (8,20) in a 5x7 font (6 px advance), bar outline (8,40)-(73,49) filled from x = 9 by N mod 64 px, circle r = 12 at (104,44) — then window 21h 0..127 / 22h 0..7 and control byte 40h + 1024 data bytes (about 23 ms on the bus). Frame 1 prints 'frame 1: 1024 B in <us> us, <P> px lit\\r\\n' (transfer time from DWT->CYCCNT), every 5th frame 'frame N: <P> px lit\\r\\n' (P = set bits of the frame buffer). A failed transfer prints 'I2C error <HAL error code>\\r\\n' and stops.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: 4.7k ohm pull-up to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "no OLED on this bench: the probe of 0x3C is not acknowledged (the frame buffer on the real panel is covered by tests/lessons/advanced.test.ts)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PB12": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "SSD1306 lesson a2 (I2C1 400 kHz, PB6 SCL / PB7 SDA)\r\nSSD1306 not found at 0x3C (no ACK)\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "lesson-a3-uart-dma": {
+    "kind": "hal",
+    "description": "Lesson a3: USART1 reception by circular DMA (DMA1 ch5, 32 B ring) + IDLE line detection; USART2 TX (PA2, DMA1 ch7) plays the external device (wire PA2 -> PA10); every message is reported with its HT/TC/IDLE events, interrupt count and ISR time; PB0 is high while a reception interrupt runs. PB12 low = DMA normal mode never re-armed, PB13 low = RXNE interrupt per byte",
+    "expect": "72 MHz. USART1 PA9 (TX, AF push-pull) / PA10 (RX, input pull-up) 115200 8N1; USART2 PA2 TX only 115200 8N1 (the simulated external device, wired PA2 -> PA10 on the breadboard); PB0 push-pull output, high while the CPU is inside USART1_IRQHandler or DMA1_Channel5_IRQHandler; PB12 / PB13 inputs with pull-up read once at reset (experiment jumpers). Boot: 'UART DMA lesson a3: USART2 TX (PA2) -> USART1 RX (PA10), 115200 8N1\\r\\n' then 'RX: DMA1 ch5 circular, 32 B ring + IDLE line detection\\r\\n' ('PB12 low: RX DMA in NORMAL mode, not re-armed after the first message\\r\\n' or 'PB13 low: RX by interrupt, RXNE for every byte + IDLE\\r\\n' with a jumper). USART1 RX is started with HAL_UARTEx_ReceiveToIdle_DMA on a 32-byte ring (DMA1 channel 5, circular, peripheral to memory): reception events are the DMA half transfer (ring position 16), transfer complete (32 = wrap) and the USART IDLE line (one frame after the last byte). USART2 sends, by DMA1 channel 7, one message every 200 ms (the first 100 ms after boot) in turn: 'hello' (5 B), 'T=23.5C H=45% P=1013hPa' (23 B), '0123456789abcdefghijklmnopqrstuvwxyzABCD' (40 B). The main loop sleeps in WFI; at IDLE the ISR hands the assembled message to it, which prints 'msg #<n>: <len> B [<events>] irq=<k> isr=<us> us: <text>\\r\\n' (events in order, k = USART1 + DMA1 ch5 interrupts the message caused, isr = DWT cycles spent in those two handlers / 72). From a fresh start: msg #1 5 B [idle] irq=1, msg #2 23 B [ht idle] irq=2, msg #3 40 B [tc ht tc idle] irq=4 (the ring position carries over: 5, 28, 4 ...). PB13 low (RXNE + IDLE interrupts): irq = bytes + 1 (6, 24, 41) and several times the ISR time. PB12 low (DMA normal mode, not re-armed at IDLE): only msg #1 arrives, every later byte is lost.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA2 -> PA10: jumper wire",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PB0: unconnected (reception-interrupt activity output)",
+        "PB12: open (the DMA-normal-mode experiment jumper to GND is not placed)",
+        "PB13: open (the RXNE-interrupt experiment jumper to GND is not placed)"
+      ],
+      "pins": {
+        "PA2": "af-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup",
+        "PB0": "output-pp",
+        "PB12": "input-pullup",
+        "PB13": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "UART DMA lesson a3: USART2 TX (PA2) -> USART1 RX (PA10), 115200 8N1\r\nRX: DMA1 ch5 circular, 32 B ring + IDLE line detection\r\n"
+      },
+      "idle": {
+        "PB12": 1,
+        "PB13": 1
+      },
+      "signals": [
+        {
+          "uart": "USART1",
+          "match": "^msg #\\d+: (?:5 B \\[(?:(?:ht|tc) )*idle\\] irq=[1-3] isr=\\d+\\.\\d us: hello|23 B \\[(?:(?:ht|tc) )*idle\\] irq=[1-4] isr=\\d+\\.\\d us: T=23\\.5C H=45% P=1013hPa|40 B \\[(?:(?:ht|tc) )+idle\\] irq=[3-5] isr=\\d+\\.\\d us: 0123456789abcdefghijklmnopqrstuvwxyzABCD)\\r\\n$",
+          "firstAt": [
+            100,
+            120
+          ],
+          "everyMs": 200,
+          "tolUs": 8000,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "lesson-a4-freertos": {
+    "kind": "hal",
+    "description": "Lesson a4: FreeRTOS V11.1.0 (GCC/ARM_CM3 port, clang) — tasks fast (prio 3, 100 ms) and blink (prio 2, 250 ms, PA5 LED) send to a queue, a logger task (prio 1) prints every message and 1 s statistics; PB12 EXTI -> xQueueSendFromISR",
+    "expect": "72 MHz, FreeRTOS-Kernel V11.1.0 (port GCC/ARM_CM3, heap_4 8 KiB, tick 1 kHz on SysTick shared with HAL_IncTick; SVC starts the first task, PendSV switches context, SysTick/PendSV at priority 15, configMAX_SYSCALL_INTERRUPT_PRIORITY 5). USART1 PA9/PA10 115200 8N1, written only by the logger task. Boot: 'FreeRTOS V11.1.0 on STM32F103C8, 72 MHz, tick 1000 Hz\\r\\n', 'tasks: fast prio 3 every 100 ms, blink prio 2 every 250 ms, logger prio 1; queue 8 x 8 B\\r\\n', 'heap free 5192 B, starting the scheduler\\r\\n' (the pending SysTick left over from the BASEPRI-masked boot is cleared, so tick 0 = scheduler start, about 16.7 ms after the first byte). Task fast (vTaskDelayUntil 100 ms) sends {seq, tick}; task blink (vTaskDelayUntil 250 ms) toggles PA5 (LED on at 250 ms, 2 Hz square wave) and sends {seq, level, tick}; the logger (lowest priority, blocked on the 8-entry queue) prints '[<tick %6u>] fast  #<n>' about 0.1 ms after each tick 100*n, '[<tick>] blink #<n> LED on|off' 0.19 ms (odd n) or 1.94 ms (even n, after the fast line of the same tick) after the PA5 edge, and after every 4th blink line '[<tick>] stats: <S> context switches, idle <I>%, queue peak <P>/8, stack free fast <a> blink <b> logger <c> words' (S = changes of the running task in the last second, 38 without button presses; I = idle task share of DWT->CYCCNT from the kernel run-time statistics, about 96-97 %). PB12 (pull-up, EXTI falling, NVIC priority 6): a falling edge at least 50 ms after the previously accepted one sends {seq, tick} by xQueueSendFromISR + portYIELD_FROM_ISR -> '[<tick>] button #<n> (EXTI ISR -> queue)' about 0.2 ms later. Experiments read at reset: PB13 tied to GND creates task hog (prio 4) that busy-loops from 1000 ms on — every other task starves, the output stops after the 900 ms line and PA5 stops toggling; PB14 tied to GND gives EXTI15_10 NVIC priority 2 (above the syscall limit) — the first press ends in 'configASSERT failed: port.c:805' (vPortValidateInterruptPriority) and the core stops with interrupts disabled.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5: red LED + 220 ohm to GND",
+        "PB12: push-button to GND",
+        "PB13: open (the hog-task experiment jumper to GND is not placed)",
+        "PB14: open (the bad-interrupt-priority experiment jumper to GND is not placed)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "output-pp",
+        "PB12": "input-pullup",
+        "PB13": "input-pullup",
+        "PB14": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "FreeRTOS V11.1.0 on STM32F103C8, 72 MHz, tick 1000 Hz\r\ntasks: fast prio 3 every 100 ms, blink prio 2 every 250 ms, logger prio 1; queue 8 x 8 B\r\nheap free 5192 B, starting the scheduler\r\n"
+      },
+      "idle": {
+        "PB12": 1
+      },
+      "signals": [
+        {
+          "pin": "PA5",
+          "square": [
+            250,
+            250
+          ],
+          "tolUs": 30,
+          "firstEdge": 1,
+          "firstEdgeAt": [
+            266.4,
+            267
+          ],
+          "always": true
+        },
+        {
+          "uart": "USART1",
+          "match": "^\\[ +\\d+\\] fast  #\\d+\\r\\n$",
+          "firstAt": [
+            116.6,
+            117.2
+          ],
+          "everyMs": 100,
+          "tolUs": 100,
+          "always": true
+        },
+        {
+          "uart": "USART1",
+          "match": "^\\[ +\\d+\\] blink #\\d+ LED (?:on|off)\\r\\n$",
+          "firstAt": [
+            266.6,
+            267.2
+          ],
+          "everyMs": 250,
+          "tolUs": 2000,
+          "afterEdgeOf": "PA5",
+          "lagMs": [
+            0.1,
+            2.2
+          ],
+          "always": true
+        },
+        {
+          "uart": "USART1",
+          "match": "^\\[ +\\d+\\] stats: (?:3[0-9]|4[0-6]) context switches, idle 9[0-9]\\.\\d%, queue peak [1-3]/8, stack free fast \\d+ blink \\d+ logger \\d+ words\\r\\n$",
+          "firstAt": [
+            1021,
+            1022.5
+          ],
+          "everyMs": 1000,
+          "tolUs": 300
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "a button press: EXTI ISR -> xQueueSendFromISR -> the logger prints it",
+          "durationMs": 400,
+          "drive": [
+            {
+              "at": 150.2,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 250.2,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                150.25,
+                150.6
+              ],
+              "uart": "[   133] button #1 (EXTI ISR -> queue)\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "contact bounce inside the 50 ms lock-out counts once",
+          "durationMs": 400,
+          "drive": [
+            {
+              "at": 150.2,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 150.5,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 151,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 151.3,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 151.6,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 250.2,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                150.25,
+                150.6
+              ],
+              "uart": "[   133] button #1 (EXTI ISR -> queue)\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-a6-encoder": {
+    "kind": "hal",
+    "description": "Lesson a6: KY-040 rotary encoder on TIM4 encoder mode 3 (PB6 CLK / PB7 DT, input filter 15), 4 counts per detent, 'pos=<n>' at every new detent, debounced push switch on PB12; PB13 low at reset also prints every raw count",
+    "expect": "72 MHz. TIM4 encoder mode 3 (TI12: every edge of CLK and DT counts, up while CLK leads DT), IC1F = IC2F = 15 (an edge must hold 256 timer clocks = 3.6 us; shorter glitches are ignored), ARR 65535. PB6 / PB7 floating inputs (the KY-040 has 10 kOhm pull-ups), PB12 input with pull-up (SW, the module has no pull-up), PB13 input with pull-up read once at reset (experiment jumper). USART1 PA9/PA10 115200 8N1. Boot: 'KY-040 lesson a6: TIM4 encoder CLK PB6 / DT PB7, filter 15, SW PB12\\r\\n' ('PB13 low: raw TIM4 count on every edge (4 per detent)\\r\\n' with the jumper) then 'pos=0\\r\\n'. The main loop wakes every SysTick (WFI) and prints 'pos=<CNT/4>\\r\\n' whenever the signed 16-bit count is a multiple of 4 and differs from the last report (one detent clockwise: CLK falls, DT falls, CLK rises, DT rises -> 'pos=1'; counter-clockwise -> 'pos=-1'; half a detent and back counts +2 -2 and prints nothing); with the PB13 jumper also 'cnt=<count>\\r\\n' for every change of the count. PB12 low for 20 ms prints 'SW pressed\\r\\n', back high for 20 ms 'SW released\\r\\n' (contact bounce restarts the 20 ms).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)",
+        "PB6, PB7: 10k ohm pull-up to 3V3",
+        "PB12: push-button to GND",
+        "PB13: open (the raw-count experiment jumper to GND is not placed)"
+      ],
+      "pins": {
+        "PB6": "input-floating",
+        "PB7": "input-floating",
+        "PB12": "input-pullup",
+        "PB13": "input-pullup",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "KY-040 lesson a6: TIM4 encoder CLK PB6 / DT PB7, filter 15, SW PB12\r\npos=0\r\n"
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1,
+        "PB12": 1
+      },
+      "signals": [],
+      "scenarios": [
+        {
+          "name": "one detent clockwise (CLK leads DT) reports pos=1",
+          "durationMs": 60,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 20,
+              "pin": "PB7",
+              "level": 0
+            },
+            {
+              "at": 30,
+              "pin": "PB6",
+              "level": "open"
+            },
+            {
+              "at": 40,
+              "pin": "PB7",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                40,
+                42
+              ],
+              "uart": "pos=1\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "one detent counter-clockwise (DT leads CLK) reports pos=-1",
+          "durationMs": 60,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB7",
+              "level": 0
+            },
+            {
+              "at": 20,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 30,
+              "pin": "PB7",
+              "level": "open"
+            },
+            {
+              "at": 40,
+              "pin": "PB6",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                40,
+                42
+              ],
+              "uart": "pos=-1\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "half a detent and back counts +2 -2: no report",
+          "durationMs": 60,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 20,
+              "pin": "PB7",
+              "level": 0
+            },
+            {
+              "at": 30,
+              "pin": "PB7",
+              "level": "open"
+            },
+            {
+              "at": 40,
+              "pin": "PB6",
+              "level": "open"
+            }
+          ],
+          "expect": [],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "a 2 us glitch on CLK is shorter than the input filter: no count",
+          "durationMs": 30,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB6",
+              "level": 0
+            },
+            {
+              "at": 10.002,
+              "pin": "PB6",
+              "level": "open"
+            }
+          ],
+          "expect": [],
+          "quiet": [
+            "USART1"
+          ]
+        },
+        {
+          "name": "a bouncing press counts once, 19-20 ms after the last edge (1 ms tick); the release too",
+          "durationMs": 160,
+          "drive": [
+            {
+              "at": 10,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 10.3,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 10.6,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 10.9,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 11.2,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 100,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                30.2,
+                32.4
+              ],
+              "uart": "SW pressed\r\n"
+            },
+            {
+              "at": [
+                119,
+                121.4
+              ],
+              "uart": "SW released\r\n"
+            }
+          ],
+          "quiet": [
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-a7-i2c-multi": {
+    "kind": "hal",
+    "description": "Lesson a7: three I2C devices on one bus (I2C1 PB6/PB7, 100 kHz) — AT24C02 (0x50, no pull-ups), MPU-6050 on a GY-521 (0x68) and BME280 on a GY-BME280 (0x76) whose module pull-ups serve the whole bus; scan every second, set up each device, print its readings; a busy bus (no pull-up) is reported and retried",
+    "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA) AF open drain, 100 kHz; USART1 PA9/PA10 115200 8N1. Boot: 'I2C1 multi-device bus, lesson a7 (PB6 SCL / PB7 SDA, 100 kHz)\\r\\n', 10 ms sensor start-up, then once per second: (1) scan 0x08-0x77 with HAL_I2C_IsDeviceReady (1 trial, about 115 us per NACKed probe). HAL_BUSY (SDA/SCL never read high: no pull-up on the bus, e.g. the AT24C02 alone, or an unpowered module holding the lines low) prints 'bus busy: SDA/SCL stuck low (no pull-up on the bus?)\\r\\n' once, resets I2C1 (HAL_I2C_DeInit + HAL_I2C_Init) and scans again a second later, so the bus recovers without a reset once it is fixed. (2) When the set of answering addresses differs from the last one reported: 'scan: 0x50 0x68 0x76 (3 devices)\\r\\n' (every answering address) and the three devices are set up in turn: AT24C02 8 bytes at 0x20 read, their complement written as one page, ACK polling through the 5 ms write cycle, read back -> 'AT24C02 @0x50: page write 8 B, ready after P polls, read back ok\\r\\n' (P about 45); MPU-6050 WHO_AM_I then PWR_MGMT_1 = 0 (it powers up asleep), CONFIG 1, SMPLRT_DIV 0 (1 kHz), +-250 dps, +-2 g -> 'MPU-6050 @0x68: WHO_AM_I=0x68, awake\\r\\n'; BME280 chip id 0x60 and the trimming parameters -> 'BME280 @0x76: id=0x60, calibration read\\r\\n'. A device without ACK prints '<name> @0x<addr>: no ACK\\r\\n' ('MPU-6050 @0x68: no ACK (0x69 answers: AD0 is high)\\r\\n' when 0x69 answers instead); then 'all 3 devices ok\\r\\n' or '<n> of 3 devices ok\\r\\n'. (3) Every cycle the working sensors are read (BME280 forced conversion with oversampling x1, status polled every 1 ms; MPU-6050 6-byte accelerometer burst) and printed as 'read: ax=<raw> ay=<raw> az=<raw> | T=<C> C P=<hPa> hPa H=<%> %\\r\\n' (raw = g x 16384; P and H truncated to 0.01; flat GY-521 and a GY-BME280 at 25 C / 1013.25 hPa / 50 %RH: 'read: ax=0 ay=0 az=16384 | T=25.00 C P=1013.24 hPa H=49.99 %').",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: AT24C02 (A2-A0, WP to GND) + 4.7k pull-ups to 3V3",
+        "MPU-6050 module: not placed on this bench (the three-device bus with the GY-521 and GY-BME280 pull-ups is covered by tests/lessons/advanced.test.ts)",
+        "BME280 module: not placed on this bench",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^I2C1 multi-device bus, lesson a7 \\(PB6 SCL / PB7 SDA, 100 kHz\\)\\r\\nscan: 0x50 \\(1 device\\)\\r\\nAT24C02 @0x50: page write 8 B, ready after (?:3[5-9]|4[0-9]|50) polls, read back ok\\r\\nMPU-6050 @0x68: no ACK\\r\\nBME280 @0x76: no ACK\\r\\n1 of 3 devices ok\\r\\n$"
+        }
+      },
+      "signals": [],
+      "scenarios": []
+    }
+  },
+  "lesson-a8-nobusy": {
+    "kind": "hal",
+    "description": "Lesson a8 mistake: hal-w25q without the BUSY polling — the page program is sent during the 45 ms sector erase and the read back follows at once: the flash ignores the program, the page reads FF, 'w25q FAILED'",
+    "expect": "Same as hal-w25q (72 MHz, SPI1 mode 0 at 9 MHz on PA5 SCK / PA6 MISO / PA7 MOSI, PA4 = CS, USART1 PA9 115200 8N1) without the two BUSY waits: 'W25Q32 test (SPI1 9 MHz mode 0, CS PA4)\\r\\n', 'JEDEC ID EF 40 16\\r\\n', 'SR1 0x00\\r\\n', 'before: <16 bytes at 0x001000>\\r\\n', then 06h + 20h 001000h and at once 'sector erase: sent, BUSY not polled\\r\\n', 06h + 02h with 64 bytes (i * 3 + 1) while the erase is still running (tSE 45 ms) -> 'page program 64 bytes: sent, BUSY not polled\\r\\n', and the 03h read back right after it: a W25Q32 ignores every instruction except 05h (read status) while BUSY, so the program is lost and the page reads FF: 'mismatch at 0x001000: wrote 01 read FF\\r\\n', 'w25q FAILED\\r\\n'. Without a W25Q32 on the bus: 'no W25Q32: JEDEC ID FF FF FF\\r\\n'."
+  },
+  "lesson-b3-pull": {
+    "kind": "hal",
+    "description": "Lesson b3 (pull-up / pull-down): PA0 and PA1 floating inputs (external pull resistors), PC13 LED = PA0, both levels reported every 100 ms on USART1",
+    "expect": "72 MHz. PA0 and PA1 are floating inputs (GPIO_NOPULL): the lesson circuit gives PA0 an external 10 kohm pull-up to 3V3 + push-button to GND and PA1 an external 10 kohm pull-down to GND + push-button to 3V3. PC13 (on-board LED, active low) push-pull follows PA0 within 2.5 ms (LED on while the PA0 button is pressed). USART1 PA9/PA10 115200 8N1: 'PA0=x PA1=y\\r\\n' (x, y = 0/1) right after init, then every 100 ms on a SysTick wake-up (+-20 us between lines; the first periodic line 99.8-100.05 ms after the boot line, which is not tick-aligned). Released buttons with the pull resistors: PA0=1 PA1=0. Without the external resistors the inputs float (undefined levels).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA0: 10k ohm pull-up to 3V3",
+        "PA1: 10k ohm pull-down to GND",
+        "PC13: on-board LED (active low)",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA0": "input-floating",
+        "PA1": "input-floating",
+        "PC13": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "PA0=1 PA1=0\r\n"
+      },
+      "idle": {
+        "PA0": 1,
+        "PA1": 0,
+        "PC13": 1
+      },
+      "signals": [
+        {
+          "pin": "PC13",
+          "sameAs": "PA0",
+          "skewUs": 2500,
+          "always": true
+        },
+        {
+          "uart": "USART1",
+          "match": "^PA0=[01] PA1=[01]\r\n$",
+          "firstAt": [
+            99.8,
+            100.05
+          ],
+          "everyMs": 100,
+          "tolUs": 20,
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "PA0 button pressed (to GND) overrides the pull-up",
+          "durationMs": 260,
+          "drive": [
+            {
+              "at": 50,
+              "pin": "PA0",
+              "level": 0
+            },
+            {
+              "at": 150,
+              "pin": "PA0",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                50,
+                52.5
+              ],
+              "pin": "PC13",
+              "edge": 0
+            },
+            {
+              "at": [
+                99.8,
+                100.05
+              ],
+              "uart": "PA0=0 PA1=0\r\n"
+            },
+            {
+              "at": [
+                150,
+                152.5
+              ],
+              "pin": "PC13",
+              "edge": 1
+            },
+            {
+              "at": [
+                199.8,
+                200.05
+              ],
+              "uart": "PA0=1 PA1=0\r\n"
+            }
+          ],
+          "quiet": [
+            "PC13"
+          ]
+        },
+        {
+          "name": "PA1 button pressed (to 3V3) overrides the pull-down",
+          "durationMs": 260,
+          "drive": [
+            {
+              "at": 50,
+              "pin": "PA1",
+              "level": 1
+            },
+            {
+              "at": 150,
+              "pin": "PA1",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                99.8,
+                100.05
+              ],
+              "uart": "PA0=1 PA1=1\r\n"
+            },
+            {
+              "at": [
+                199.8,
+                200.05
+              ],
+              "uart": "PA0=1 PA1=0\r\n"
+            }
+          ],
+          "quiet": [
+            "PC13"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-i1-noclk": {
+    "kind": "hal",
+    "description": "Lesson i1 mistake: hal-blink with __HAL_RCC_GPIOA_CLK_ENABLE() forgotten - PA5 never becomes an output, only PC13 blinks",
+    "expect": "72 MHz, like hal-blink, but RCC_APB2ENR.IOPAEN is never set: every GPIOA register access is ignored (gated clock, reads 0; the simulator logs it), so PA5 stays in its reset state (input floating) and an LED on PA5 stays dark. GPIOC is clocked: PC13 (on-board LED, active low) is a push-pull square wave, 501 ms high / 501 ms low (HAL_Delay(500) waits 501 ticks).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PA5: LED + 330 ohm to GND",
+        "PC13: on-board LED"
+      ],
+      "pins": {
+        "PA5": "input-floating",
+        "PC13": "output-pp"
+      },
+      "signals": [
+        {
+          "pin": "PC13",
+          "square": [
+            501,
+            501
+          ],
+          "tolUs": 20,
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "PA5 is never driven while PC13 keeps blinking",
+          "durationMs": 1200,
+          "drive": [],
+          "expect": [
+            {
+              "at": [
+                0,
+                1200
+              ],
+              "pin": "PC13",
+              "every": 501
+            }
+          ],
+          "quiet": [
+            "PA5"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-i1-od": {
+    "kind": "hal",
+    "description": "Lesson i1: hal-blink with PA5 as an OPEN-DRAIN output (GPIO_MODE_OUTPUT_OD) - sinks only, needs a pull-up or an LED from 3V3",
+    "expect": "72 MHz, PA5 open-drain output (starts sinking: ODR 0) and PC13 push-pull (starts high, on-board LED off), both toggled every 501 ms (HAL_Delay(500) waits 501 ticks), PA5 first. While ODR5 = 1 the pin is released (high impedance): with a pull-up to 3V3 PA5 reads high, with only an LED + resistor to GND it stays near 0 V and the LED never lights; an LED + resistor from 3V3 into PA5 lights while PA5 sinks. With a 10 kOhm pull-up PA5 is a 501 ms / 501 ms square wave and PC13 = !PA5 (a few us apart: two separate toggles).",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PA5: 10k ohm pull-up to 3V3",
+        "PC13: on-board LED"
+      ],
+      "pins": {
+        "PA5": "output-od",
+        "PC13": "output-pp"
+      },
+      "signals": [
+        {
+          "pin": "PA5",
+          "square": [
+            501,
+            501
+          ],
+          "tolUs": 20,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "square": [
+            501,
+            501
+          ],
+          "tolUs": 20,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "invertOf": "PA5",
+          "skewUs": 10,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "lesson-i2-nonvic": {
+    "kind": "hal",
+    "description": "Lesson i2 mistake: hal-button-exti without HAL_NVIC_EnableIRQ(EXTI15_10_IRQn) - the EXTI line is pending but the interrupt never runs",
+    "expect": "72 MHz, like hal-button-exti (PB12 input pull-up + EXTI12 falling, PA5 push-pull low, USART1 PA9/PA10 115200 8N1) except that EXTI15_10_IRQn is never enabled in the NVIC: a press sets EXTI_PR.PR12 but EXTI15_10_IRQHandler never runs, so no press is ever accepted - PA5 stays low and USART1 stays silent however often PB12 is pulled low.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PB12: push-button to GND, no external resistor",
+        "PA5: LED + 330 ohm to GND",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB12": "input-pullup",
+        "PA5": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": ""
+      },
+      "idle": {
+        "PB12": 1,
+        "PA5": 0
+      },
+      "scenarios": [
+        {
+          "name": "two clean presses are never seen",
+          "durationMs": 400,
+          "drive": [
+            {
+              "at": 0,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 100,
+              "pin": "PB12",
+              "level": "open"
+            },
+            {
+              "at": 200,
+              "pin": "PB12",
+              "level": 0
+            },
+            {
+              "at": 300,
+              "pin": "PB12",
+              "level": "open"
+            }
+          ],
+          "expect": [
+            {
+              "at": [
+                0,
+                400
+              ],
+              "pin": "PA5",
+              "level": 0
+            }
+          ],
+          "quiet": [
+            "PA5",
+            "USART1"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-i3-offby1": {
+    "kind": "hal",
+    "description": "Lesson i3 mistake: hal-tim-irq with PSC 72 / ARR 1000 (the '- 1' forgotten) - PB12 492.66 Hz instead of 500 Hz",
+    "expect": "72 MHz; TIM4 PSC 72, ARR 1000 on TIMXCLK1 = 72 MHz: an update every 73 x 1001 = 73073 timer clocks = 1014.903 us (985.31 Hz) instead of 1.000 ms. Each TIM4 interrupt toggles PB12 push-pull: 1.014903 ms high / 1.014903 ms low = 492.66 Hz (-1.47 %). Every 500th interrupt toggles PC13 (on-board LED, active low, starts off): 507.451 ms on / 507.451 ms off. The CPU sleeps in __WFI(). No UART.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PB12: logic analyzer probe (no load needed)",
+        "PC13: on-board LED"
+      ],
+      "pins": {
+        "PB12": "output-pp",
+        "PC13": "output-pp"
+      },
+      "signals": [
+        {
+          "pin": "PB12",
+          "square": [
+            1.014903,
+            1.014903
+          ],
+          "tolUs": 0.3,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "square": [
+            507.4514,
+            507.4514
+          ],
+          "tolUs": 0.5,
+          "always": true
+        },
+        {
+          "pin": "PC13",
+          "edgesAfter": "PB12",
+          "maxLagUs": 2,
+          "always": true
+        }
+      ],
+      "scenarios": []
+    }
+  },
+  "lesson-i4-nomoe": {
+    "kind": "hal",
+    "description": "Lesson i4 mistake: hal-tim-pwm with TIM1 started by CC1E + CEN only (BDTR.MOE never set) - PA0 and PA6 PWM work, PA8 stays silent",
+    "expect": "72 MHz; TIM2 CH1 PA0 1 kHz 25 % (250 us high / 750 us low) and TIM3 CH1 PA6 20 kHz 50 % (25 us / 25 us) exactly as in hal-tim-pwm. TIM1 is configured identically to hal-tim-pwm (PSC 71, ARR 499, CCR1 375, PWM mode 1) and its counter runs, but it is started with TIM1->CCER |= CC1E and TIM1->CR1 |= CEN only: BDTR.MOE stays 0, so the advanced timer's outputs stay disabled (RM0008 §14.4.18) and PA8 (AF push-pull) shows no PWM at all; the simulator logs a hint that TIM1 counts with an enabled channel but MOE = 0.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "settle",
+      "settleMs": 150,
+      "circuit": [
+        "PA0, PA6, PA8: logic analyzer probes (no load needed)"
+      ],
+      "pins": {
+        "PA0": "af-pp",
+        "PA6": "af-pp",
+        "PA8": "af-pp"
+      },
+      "signals": [
+        {
+          "pin": "PA0",
+          "square": [
+            0.25,
+            0.75
+          ],
+          "tolUs": 0.02,
+          "always": true
+        },
+        {
+          "pin": "PA6",
+          "square": [
+            0.025,
+            0.025
+          ],
+          "tolUs": 0.02,
+          "always": true
+        }
+      ],
+      "scenarios": [
+        {
+          "name": "TIM1 CH1 on PA8 never toggles without MOE",
+          "durationMs": 50,
+          "drive": [],
+          "expect": [],
+          "quiet": [
+            "PA8"
+          ]
+        }
+      ]
+    }
+  },
+  "lesson-i7-i2c": {
+    "kind": "hal",
+    "description": "Lesson i7: I2C1 bus scan (PB6 SCL / PB7 SDA, 100 kHz) then an AT24C02 (0x50) page write of the inverted old contents with ACK polling and a verified read-back; report on USART1",
+    "expect": "72 MHz. I2C1 PB6 (SCL) / PB7 (SDA) AF open-drain, 100 kHz (FREQ 36, CCR 180, TRISE 37); AT24C02 at 0x50 (A2-A0, WP at GND) with 4.7 kOhm pull-ups; USART1 PA9/PA10 115200 8N1. Once after reset: 'I2C1 scan 0x08-0x77\\r\\n', HAL_I2C_IsDeviceReady (1 trial, 2 ms) on 0x08..0x77 with 'found 0xNN\\r\\n' per acknowledging device, then 'scan done N\\r\\n'. Without pull-ups the bus never reads idle: 'bus busy at 0x08: SDA/SCL stuck low (pull-ups?)\\r\\nscan done 0\\r\\n' and stop; no device at 0x50: 'eeprom not found at 0x50\\r\\n' and stop. Else 'before: ' + the 8 bytes at 0x10 in hex (FF on an erased part; the EEPROM is non-volatile, so a second run sees 00 = the complement written by the first) + '\\r\\n'; the complement of those bytes is written as one page, ACK polling counts the NACKed probes during the 5 ms write cycle: 'wrote 8 bytes at 0x10, ready after P polls\\r\\n' (P about 45, 0 when WP is high and the write is ignored); the page is read back and compared: 'read 8 bytes ok\\r\\neeprom ok\\r\\n', or 'mismatch at 0xAA: wrote 0xWW read 0xRR\\r\\neeprom write failed\\r\\n'. A HAL failure prints '<step> error: HAL status S, ErrorCode 0xE\\r\\n'. Then WFI.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PB6, PB7: AT24C02 (A2-A0, WP to GND) + 4.7k pull-ups to 3V3",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PB6": "af-od",
+        "PB7": "af-od",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": {
+          "match": "^I2C1 scan 0x08-0x77\\r\\nfound 0x50\\r\\nscan done 1\\r\\nbefore: (?:(?:FF ){7}FF|(?:00 ){7}00)\\r\\nwrote 8 bytes at 0x10, ready after (?:3[5-9]|4[0-9]|50) polls\\r\\nread 8 bytes ok\\r\\neeprom ok\\r\\n$"
+        }
+      },
+      "idle": {
+        "PB6": 1,
+        "PB7": 1
+      }
+    }
+  },
+  "lesson-i8-lsb": {
+    "kind": "hal",
+    "description": "Lesson i8 mistake: hal-spi-595 with SPI_FIRSTBIT_LSB - the 74HC595 chaser runs backwards (QH ... QA)",
+    "expect": "72 MHz. SPI1 master mode 0, LSB FIRST (the only difference from hal-spi-595), 8-bit, SCK 72 MHz / 16 = 4.5 MHz on PA5, MOSI PA7 (AF push-pull); PA4 = 74HC595 RCLK (push-pull, low after init). 74HC595: SER = PA7, SRCLK = PA5, RCLK = PA4, SRCLR high, OE low, QA..QH -> LED + resistor to GND. USART1 PA9/PA10 115200 8N1 sends '74HC595 chaser 10 Hz\r\n' once. Then on the next HAL tick and every 100 ms after it (deadline based, no drift): RCLK low, one byte 1 << step clocked out (8 SCK pulses, 111 ns half period), RCLK high (rising edge = latch), step = 0..7 cyclically: because the bit sent first ends in QH, QH, QG, ... QA light one at a time for 100 ms each (800 ms cycle) - the chaser runs backwards. PA4 is high except for a pulse of about 5 us around each transfer.",
+    "checks": {
+      "hclkHz": 72000000,
+      "t0": "uart:USART1",
+      "settleMs": 150,
+      "circuit": [
+        "PA5, PA7, PA4: 74HC595 (SRCLK, SER, RCLK; SRCLR to 3V3, OE to GND), QA-QH: LED + 220 ohm to GND",
+        "USART1: virtual terminal on PA9 (TX) / PA10 (RX)"
+      ],
+      "pins": {
+        "PA5": "af-pp",
+        "PA7": "af-pp",
+        "PA4": "output-pp",
+        "PA9": "af-pp",
+        "PA10": "input-pullup"
+      },
+      "uart": {
+        "USART1": {
+          "tx": "PA9",
+          "rx": "PA10",
+          "baud": 115200,
+          "dataBits": 8,
+          "parity": "none",
+          "stopBits": 1
+        }
+      },
+      "boot": {
+        "USART1": "74HC595 chaser 10 Hz\r\n"
+      },
+      "signals": [
+        {
+          "pin": "PA4",
+          "square": [
+            99.9951,
+            0.0049
+          ],
+          "tolUs": 20,
+          "firstEdge": 1,
+          "firstEdgeAt": [
+            1.8,
+            3
+          ]
+        },
+        {
+          "pin": "PA5",
+          "edgesAfter": "PA4",
+          "maxLagUs": 4500
+        },
+        {
+          "pin": "PA7",
+          "edgesAfter": "PA4",
+          "maxLagUs": 4500
+        }
+      ]
+    }
+  },
+  "soc-clock": {
+    "kind": "hal",
+    "description": "Clock switching HSI 8 MHz → PLL 72 MHz → HSI: prints SystemCoreClock over USART1 and pulses PA5 for HAL_Delay(10) in each phase",
+    "expect": "USART1 prints clk=8000000, clk=72000000, clk=8000000, done (BRR 0x45 / 0x271 / 0x45); the PA5 pulse is ~11 ms in every phase"
+  },
+  "soc-exti": {
+    "kind": "hal",
+    "description": "HAL EXTI: falling edge on PB12 (pull-up) → HAL_GPIO_EXTI_Callback toggles PA5; WFI between interrupts",
+    "expect": "every falling edge on PB12 toggles PA5 a few microseconds later; rising edges do nothing"
+  },
+  "soc-iwdg": {
+    "kind": "hal",
+    "description": "IWDG reset: boots counted in BKP_DR1, reset flags printed over USART1, two watchdog resets then done",
+    "expect": "USART1 prints boot 1 (POR PIN), starving, boot 2 (IWDG PIN), starving, boot 3 (IWDG PIN), done; each IWDG reset 100 ms after the last refresh"
+  },
+  "soc-uart": {
+    "kind": "hal",
+    "description": "HAL USART1 115200 8N1 @ 72 MHz: prints hello, then echoes received bytes (HAL_UART_Receive)",
+    "expect": "USART1 sends \"hello\\r\\n\" on PA9 (bit time 625 PCLK2 cycles = 8.68 us), then echoes every received byte and toggles PC13 per byte"
+  }
+}

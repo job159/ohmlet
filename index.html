@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <!-- zh-TW is the default UI language; src/main.tsx retitles per language -->
+    <title>ohmlet — 3D 麵包板模擬器</title>
+    <meta name="description" content="3D 麵包板電路模擬器——用觸控或 AI 組裝、接線並執行電路，還能執行真正的 STM32 韌體。" />
+    <meta name="theme-color" content="#15171c" />
+    <!-- iOS install polish -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="麵包板" />
+    <link rel="manifest" href="/ohmlet/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/ohmlet/icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/ohmlet/apple-touch-icon.png" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #15171c;
+        color: #e6e6e6;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-text-size-adjust: 100%;
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
+    <script type="module" crossorigin src="/ohmlet/assets/index-G0pXPQFZ.js"></script>
+    <link rel="stylesheet" crossorigin href="/ohmlet/assets/index-D5pfCJ6f.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
