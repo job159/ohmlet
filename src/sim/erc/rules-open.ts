@@ -205,7 +205,9 @@ export function checkOpenLeads(c: Circuit, out: ErcFinding[]): void {
           level: live ? 'risk' : 'info',
           key: `${id}:${pin}`,
           message: `${id}’s ${word} (${ref}) goes to ${railWords(floating)}, but no supply feeds that rail${fix.source ? ` (${fix.source})` : ''}, ${back}. ${fix.text}`,
-          short: `${id} ${word.replace(/ \(banded end\)$/, '')} not connected`,
+          // the lead IS wired — to a rail nothing feeds (persona fix: the pill said 「陰極沒接」 beside the card's
+          // 「陰極接的電源軌沒有電」; now 「LED1 陰極的電源軌沒接電」 — the card never repeats a title verbatim)
+          short: `${id} ${word.replace(/ \(banded end\)$/, '')} on an unfed rail`,
           componentIds: [id],
           nets: [part.nets[i]],
           holes: [ref, ...railHoleRefs(c, floating)],

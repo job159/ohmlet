@@ -150,7 +150,7 @@ export const LESSON: Lesson = {
       id: 'firmware',
       title: '載入 hal-adc-pot，打開終端機',
       body:
-        '按下方的「載入 hal-adc-pot 到 U1」，再按「▶ 執行模擬」（或空白鍵）；打開儀器的「UART 終端機」，選 U1 的 **USART1**（115200 8N1）：每 100 ms 一行 `adc=… mv=…`。\n\n' +
+        '按下方的「載入 hal-adc-pot 到 U1」，載入後模擬會自動執行；打開儀器的「UART 終端機」，選 U1 的 **USART1**（115200 8N1）：每 100 ms 一行 `adc=… mv=…`。\n\n' +
         '旋鈕現在在 50 %：約 `adc=2048 mv=1650`。',
       highlight: { components: ['U1'] },
       check: { kind: 'firmware-loaded', component: 'U1', project: 'hal-adc-pot', label: 'U1 已載入 hal-adc-pot' },

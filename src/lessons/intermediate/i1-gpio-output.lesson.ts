@@ -79,7 +79,7 @@ export const LESSON: Lesson = {
     {
       symptom: 'LED1 不閃，檢查顯示「U1 已載入 hal-blink 韌體」沒有通過。',
       cause: 'U1 還沒有載入韌體，或載入的不是 hal-blink（例如還停在錯誤示範的韌體）。沒有程式時，GPIO 停在重置後的浮接輸入，什麼都不會動。',
-      fix: '按「步驟」第 3 步的「載入 hal-blink 到 U1」（或「接線」裡 hal-blink 旁的「載入到 U1」），再按上方的「▶ 執行模擬」。',
+      fix: '按「步驟」第 3 步的「載入 hal-blink 到 U1」（或「接線」裡 hal-blink 旁的「載入到 U1」），載入後模擬會自動執行。',
       match: { checks: [0] },
     },
     {
@@ -182,7 +182,7 @@ export const LESSON: Lesson = {
       id: 'run',
       title: '執行並觀察兩顆 LED',
       body:
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，看 LED1 與板載綠色 LED（PC13，在 USB 接頭旁）一起亮、一起滅。\n\n' +
+        '模擬會自動執行，看 LED1 與板載綠色 LED（PC13，在 USB 接頭旁）一起亮、一起滅。\n\n' +
         '它們的腳位準位剛好相反：PA5 = 1 點亮 LED1，PC13 = 0 才點亮板載 LED（低電位點亮）。在屬性面板查看腳位模式：PA5、PC13 都顯示 **推挽**（推挽輸出）。',
       // the step compares LED1 with the board's own PC13 LED: the camera keeps the board in view (LS-12)
       highlight: { components: ['LED1', 'U1'], watch: ['U1'] },

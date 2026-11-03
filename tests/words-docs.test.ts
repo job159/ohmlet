@@ -127,7 +127,8 @@ describe('§8, §15, §18, §22', () => {
   })
 
   it('§22 quotes the 音效 switch’s own description', () => {
-    const desc = t('A chime when a lesson passes or a circuit works, a pop when a part burns, quiet clicks while building')
+    const desc = t('A chime when a lesson passes or a circuit works, a pop when a part burns, and the mechanical sounds of plugging in parts, wires, buttons, switches and relays')
+    expect(desc).toBe('課程通過或電路正常運作時的提示音、元件燒毀的爆裂聲，以及插拔元件、接線、按鈕、開關與繼電器的機械聲')
     expect(section(22)).toContain(`**${t('Sound')}**開關（「${desc}」`)
   })
 })

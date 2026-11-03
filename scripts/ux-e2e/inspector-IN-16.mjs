@@ -10,6 +10,7 @@
  *    「開機時 U2 SRCLK 短暫浮接（MCU 重置期間腳位為高阻抗），之後已被 PA5 驅動。」
  *  - opening button-exti: a neutral pill (no amber 「U1 PB12 輸入浮接」) and
  *    one row under 「執行後確認」; after ▶ it moves to 已由即時讀數排除
+ * Boots with `autorun=0`: the replay drives run / pause itself (round 5 auto-run off).
  * Exit code 1 on any failed check.
  */
 import { createRequire } from 'node:module'
@@ -59,7 +60,9 @@ async function open({ lang = 'zh-TW', workspace = true, phone = false, layout = 
   )
   // a loaded machine (several dev servers + browsers) takes 35-110 s to the load event of a
   // fresh profile's ~1000 dev modules (release triage, measured): wait for the page, not 30 s
-  await page.goto(URL, { timeout: 180000 })
+  // autorun=0 (round 5): this replay runs / pauses the simulation itself (store startSim /
+  // stopSim) and reads the states in between; auto-run would start or resume it on its own
+  await page.goto(`${URL}${URL.includes('?') ? '&' : '?'}autorun=0`, { timeout: 180000 })
   await page.waitForSelector('canvas', { timeout: 90000 })
   await sleep(2000)
   return { ctx, page, errors }

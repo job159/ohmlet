@@ -15,6 +15,11 @@
 .dmg-banner-body {
   color: var(--label);
 }
+/* 〔換新〕 (replace-part.ts): under the body, start-aligned like a row action */
+.dmg-banner-actions {
+  display: flex;
+  margin-top: 4px;
+}
 .prs-burned.dmg-banner.is-warn {
   background: linear-gradient(180deg, rgba(255, 159, 10, 0.2), rgba(255, 149, 0, 0.1));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),

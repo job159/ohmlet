@@ -36,6 +36,7 @@ import { CHANNEL_COLORS } from './colors'
 import { TRACE_COLORS, shortestPulse } from './scope-engine'
 import { useScopeSettings } from './scope-settings'
 import { usartLineOnNet } from './signal-readout'
+import { useAutoRunWaiting } from '../../chrome/auto-run'
 import './instruments.css'
 
 /** Frame and mark a part, and select it (the inspector shows it). */
@@ -56,6 +57,8 @@ export function MeasureView({ active = true }: { active?: boolean }) {
   const layout = useStore((s) => s.layout)
   const telemetry = useStore((s) => (active ? s.telemetry : null))
   const running = useStore((s) => s.running)
+  // auto-run is about to start the board (the boot's firmware restore, a load): a reading is coming
+  const startComing = useAutoRunWaiting()
   const channels = useLab((s) => s.logicChannels)
   const meters = useMemo(() => layout.components.filter((c) => isMeterPart(getEntry(c.type))), [layout])
   const sources = useMemo(() => layout.components.filter((c) => isWaveformSourcePart(getEntry(c.type))), [layout])
@@ -104,7 +107,7 @@ export function MeasureView({ active = true }: { active?: boolean }) {
                   ? running
                     ? r.sub
                     : t('{what} · paused (last reading)', { what: r.sub })
-                  : running
+                  : running || startComing
                     ? t('Waiting for the first reading…')
                     : t('Shown once you press “▶ Run simulation” above')}
             </span>
@@ -169,6 +172,7 @@ interface ProbeReading {
 function ProbeRows({ probes, active }: { probes: ComponentInstance[]; active: boolean }) {
   const running = useStore((s) => s.running)
   const started = useStore((s) => s.simTime > 0)
+  const startComing = useAutoRunWaiting()
   const queryScope = useLab((s) => s.queryScope)
   const tdiv = useScopeSettings((s) => s.tdiv)
   const [readings, setReadings] = useState<ReadonlyMap<number, ProbeReading>>(() => new Map())
@@ -265,7 +269,7 @@ function ProbeRows({ probes, active }: { probes: ComponentInstance[]; active: bo
                 ? running
                   ? t('Over the scope’s window (last {span})', { span: fmtSpan(r.span) })
                   : t('{what} · paused (last reading)', { what: t('Over the scope’s window (last {span})', { span: fmtSpan(r.span) }) })
-                : started
+                : started || startComing
                   ? t('Waiting for the first reading…')
                   : t('Shown once you press “▶ Run simulation” above')}
             </span>

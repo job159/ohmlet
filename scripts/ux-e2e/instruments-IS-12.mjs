@@ -10,8 +10,8 @@
  *      SRCLK at e39, driven by PA5 SCK) after 0.1 s of simulated time is
  *      true, and the net never reads as a PWM (SPI bursts are not periodic).
  *
- * The examples are opened from the library's 範例 tab and run with
- * ▶ 執行模擬; H4 is read through the dev server's own module instance (it is
+ * The examples are opened from the library's 範例 tab and run by
+ * themselves (auto-run); H4 is read through the dev server's own module instance (it is
  * the helper the hover chip / pin rows / problems call).
  *
  *   UX_E2E_URL=http://localhost:5325/ node scripts/ux-e2e/instruments-IS-12.mjs
@@ -111,7 +111,9 @@ async function openAndRun(page, title, seconds) {
     return (st.layout.components ?? []).some((c) => c.id === 'U1') && !!st.firmware?.U1
   }, null, { timeout: 120000 })
   await page.waitForTimeout(800)
-  await page.getByRole('button', { name: /執行模擬/ }).first().click()
+  // auto-run (round 5): the opened example simulates by itself once its firmware is bound —
+  // nothing to press (a click on 執行模擬 / the capsule would PAUSE it now)
+  await page.waitForFunction(() => window.__e2e.state().running === true, null, { timeout: 60000 })
   await waitSim(page, seconds)
 }
 

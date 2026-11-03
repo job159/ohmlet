@@ -14,11 +14,21 @@
  *      「繼續執行」 → runOrResume)
  *   3b. a session runs (or is paused) with parts kept pressed (blue,
  *      latch.ts): 「SW1 保持按下中」 + 「放開」 — a state, never above a problem
- *   4. nothing has run yet on a non-empty board (neutral): 「電路已就緒（空白鍵）」
+ *   3c. the learner paused it while auto-run is on (blue, round 5
+ *      auto-run.ts): 「模擬已暫停——改動接線或元件就會自動繼續」 + 「繼續執行」
+ *      (turning a knob or pressing a button is using the circuit: it keeps
+ *      the pause, so the line names what does resume it)
+ *   4. nothing has run yet on a non-empty board (neutral; with auto-run only
+ *      after a reset of a paused run or a failed start — never while
+ *      auto-run is about to start it, autoRunWaiting): 「電路已就緒（空白鍵）」
  *      + 「執行模擬」 (touch screens: 「電路已就緒」, no key — the button
  *      carries the verb once, release QA SH-F10); not while a lesson coach
  *      is guiding — the coach card owns "the next step", two voices would
  *      disagree
+ *   4b. phones only (the desktop has the 「電路說明」 card, ExplainCard): the
+ *      explanation's line 1 (explain.ts — tone 'explain', neutral dot, no
+ *      action, no ›; a tap shows both lines as a toast) — the lowest tier,
+ *      never while a coach guides
  *   5. otherwise hidden.
  * The fix is the problem's own action (「載入韌體…」, 「繼續執行」) or, for a
  * finding that points at parts / holes, 「在電路板上標示」. The body (and the
@@ -41,13 +51,14 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { useStore } from '../../state/store'
+import { simStopReason, useStore } from '../../state/store'
 import { getEntry } from '../../model/catalog'
 import type { CircuitLayout } from '../../model/types'
 import {
   ChevronRightIcon,
   pressProps,
   sheetCoverHeight,
+  showToast,
   subscribeSheetCover,
   tick,
   useIsDesktop,
@@ -61,7 +72,13 @@ import { computeGeometry, useWorkspaceActive } from '../workspace/state'
 import { isWorkspaceShowing, useLegacyChrome } from './legacy'
 import { TONE_COLOR, runOrResume, stateColor, useMcuIdIn, useSimPhase, type SimPhase, type ToneState } from './run-control'
 import { latchedIn, latchedSummaryOf, releaseLatched, useLatchHolds } from '../embedded/latch'
+import { autoRunEnabled, useAutoRunWaiting } from './auto-run'
+import { explainForPill } from './explain'
+import { useExplanation } from './useExplanation'
 import './StatusPill.css'
+
+/** the 'explain' line's tap shows both lines this long */
+const EXPLAIN_TOAST_MS = 4000
 
 /** Matches the exit transition (--lg-dur-control 200 ms) with a little slack. */
 const UNMOUNT_DELAY_MS = 240
@@ -76,8 +93,12 @@ function releaseFocus(e: MouseEvent<HTMLElement>): void {
   if (e.detail > 0) e.currentTarget.blur()
 }
 
-/** 'latched': parts kept pressed (保持按下) while a session runs — a state, not a problem */
-export type PillTone = 'error' | 'warning' | 'neutral' | 'latched'
+/**
+ * 'latched': parts kept pressed (保持按下) while a session runs — a state, not a problem;
+ * 'paused': the learner's own pause while auto-run is on (auto-run.ts);
+ * 'explain': the phone's 「電路說明」 line (explain.ts), when nothing above speaks
+ */
+export type PillTone = 'error' | 'warning' | 'neutral' | 'latched' | 'paused' | 'explain'
 
 export interface PillAction {
   label: string
@@ -98,6 +119,8 @@ export interface PillModel {
   action: PillAction | null
   /** the body opens the problems list (false for the neutral "ready" line) */
   opensProblems: boolean
+  /** the 'explain' line's both lines (a tap shows them) */
+  detail?: string
 }
 
 export interface PillInput {
@@ -122,6 +145,24 @@ export interface PillInput {
    * and nothing above speaks, 「SW1 保持按下中」 + 「放開」 (default none)
    */
   latched?: readonly string[]
+  /**
+   * the pause is the learner's own (simStopReason 'user') and auto-run is
+   * on, so changing the circuit resumes it — only then may the pill say so
+   * (default false: a pause says nothing, as before auto-run)
+   */
+  userPaused?: boolean
+  /**
+   * auto-run is about to start this board (the app's boot waits for the
+   * firmware restore, a lesson / project load holds the gate —
+   * autoRunWaiting): the ready line would contradict the run a moment later,
+   * so it is held back (default false)
+   */
+  autoStarting?: boolean
+  /**
+   * phones: the 「電路說明」 line (explainForPill — null on desktop, in the
+   * classic chrome, for an empty board) — the lowest tier (default none)
+   */
+  explain?: { text: string; detail: string } | null
 }
 
 /** The board state an MCU state row is about (its H5 fact), else null. */
@@ -178,6 +219,9 @@ export function statusPillModel({
   touch = false,
   settled = true,
   latched = [],
+  userPaused = false,
+  autoStarting = false,
+  explain = null,
 }: PillInput): PillModel | null {
   const top = pillProblem(problems)
   if (top) {
@@ -219,10 +263,22 @@ export function statusPillModel({
       opensProblems: false,
     }
   }
+  // the learner's own pause (auto-run, round 5): running is the normal state, so say why it
+  // stands still and how it goes on — 〔繼續執行〕, or editing parts / wires (a knob or a button keeps it)
+  if (phase === 'paused' && userPaused) {
+    return {
+      tone: 'paused',
+      dot: stateColor('paused'),
+      text: t('Simulation paused — editing parts or wires resumes it|autosim'),
+      more: 0,
+      action: { label: t('Resume running'), run: () => runOrResume() },
+      opensProblems: false,
+    }
+  }
   // a lesson coach already says what to do next — one voice for "next step";
   // never before the list speaks for this very circuit (a board just placed
   // is not "ready" 600 ms before its own problems arrive — COH-18)
-  if (phase === 'idle' && !boardEmpty && !guided && settled) {
+  if (phase === 'idle' && !boardEmpty && !guided && settled && !autoStarting) {
     // findings only the run can confirm (H5 pendingRuntime, IN-16): say how
     // many — the panel's 「執行後確認」 group counts the same rows — and the
     // body opens the list (N7)
@@ -246,6 +302,11 @@ export function statusPillModel({
       action: { label: t('Run simulation'), run: () => useStore.getState().startSim() },
       opensProblems: pending > 0,
     }
+  }
+  // phones: what the circuit is doing (「電路說明」) when nothing above speaks — the
+  // coach card owns the words while it guides
+  if (explain && !guided) {
+    return { tone: 'explain', dot: stateColor('idle'), text: explain.text, detail: explain.detail, more: 0, action: null, opensProblems: false }
   }
   return null
 }
@@ -363,6 +424,7 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
   const workspacePrefs = useLab((s) => s.workspace)
   const touch = !useMediaQuery('(pointer: fine)')
   const held = useLatchHolds((s) => s.held)
+  const autoStarting = useAutoRunWaiting()
   useLang()
 
   // phones: a sheet at a tall detent slides over the pill's spot (event-driven)
@@ -377,6 +439,8 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
   const problemsLayout = useProblems((s) => s.layout)
   const firmware = useLab((s) => s.firmware)
   const settled = problemsSettled(problemsLayout, layout, firmware)
+  // phones: the 「電路說明」 line is the lowest tier (the watcher runs only here, ≤ 2 Hz)
+  const explanation = useExplanation(!legacy && !isDesktop && !hidden)
   const model = legacy
     ? null
     : statusPillModel({
@@ -389,6 +453,10 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
         touch,
         settled,
         latched: latchedIn(layout, held),
+        // the stop reason changes only together with the run phase (store.stopSim / resetSim / a start)
+        userPaused: phase === 'paused' && simStopReason() === 'user' && autoRunEnabled(),
+        autoStarting,
+        explain: explainForPill(explanation?.explanation ?? null, { desktop: isDesktop, legacy }),
       })
   const phoneCoach = !isDesktop && (coachId != null || coachRect != null)
   const wanted = !legacy && !hidden && model != null && !phoneCoach && !underSheet
@@ -464,10 +532,25 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
       // the 3D hover chip keeps clear of it (scene CHIP_AVOID_SELECTOR) — while it shows
       data-scene-avoid={visible ? '' : undefined}
       role="status"
-      aria-live="polite"
+      // the 「電路說明」 line refreshes its numbers: never read out on every change
+      aria-live={shown.tone === 'explain' ? 'off' : 'polite'}
       aria-hidden={!visible}
     >
-      {shown.opensProblems ? (
+      {shown.tone === 'explain' ? (
+        <button
+          type="button"
+          className="app-pill-body is-explain lg-pressable"
+          {...pressProps}
+          onClick={(e) => {
+            releaseFocus(e)
+            tick()
+            showToast(shown.detail ?? shown.text, { duration: EXPLAIN_TOAST_MS })
+          }}
+        >
+          <span className="app-pill-dot" aria-hidden="true" />
+          <span className="app-pill-text">{shown.text}</span>
+        </button>
+      ) : shown.opensProblems ? (
         <button
           type="button"
           className="app-pill-body lg-pressable"
@@ -478,6 +561,21 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
           <span className="app-pill-dot" aria-hidden="true" />
           <span className="app-pill-text">{shown.text}</span>
           {more && <span className="app-pill-more">{more}</span>}
+        </button>
+      ) : shown.tone === 'paused' ? (
+        // the learner's pause: a narrow phone cuts the line before 「就會自動繼續」 — a tap shows it whole (persona fix)
+        <button
+          type="button"
+          className="app-pill-body is-paused-body lg-pressable"
+          {...pressProps}
+          onClick={(e) => {
+            releaseFocus(e)
+            tick()
+            showToast(shown.text, { duration: EXPLAIN_TOAST_MS })
+          }}
+        >
+          <span className="app-pill-dot" aria-hidden="true" />
+          <span className="app-pill-text">{shown.text}</span>
         </button>
       ) : (
         <span className="app-pill-body is-static">
@@ -510,6 +608,12 @@ export function StatusPill({ hidden = false, onOpenMore }: StatusPillProps) {
         >
           <ChevronRightIcon size={16} />
         </button>
+      )}
+      {/* the 「電路說明」 line: screen readers hear its subject / state changes (≤ 1 per 2 s), never the 2 Hz numbers */}
+      {shown.tone === 'explain' && (
+        <span className="app-pill-live" aria-live="polite">
+          {explanation?.announce ?? ''}
+        </span>
       )}
     </div>,
     document.body,

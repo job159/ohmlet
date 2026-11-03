@@ -177,7 +177,7 @@ export const LESSON: Lesson = {
       id: 'firmware',
       title: '載入 hal-tim-pwm 韌體',
       body:
-        '按下方的「載入 hal-tim-pwm 到 U1」，再按「▶ 執行模擬」（或空白鍵）：LED1（75 %）明顯比 LED2（25 %）亮。\n\n' +
+        '按下方的「載入 hal-tim-pwm 到 U1」，載入後模擬會自動執行：LED1（75 %）明顯比 LED2（25 %）亮。\n\n' +
         '韌體對三個計時器各呼叫一次 `HAL_TIM_PWM_Start()`；之後 CPU 只執行 `__WFI()`，PWM 完全由硬體產生，不佔用任何 CPU 時間。',
       highlight: { components: ['U1', 'LED1', 'LED2'] },
       check: { kind: 'firmware-loaded', component: 'U1', project: 'hal-tim-pwm', label: 'U1 已載入 hal-tim-pwm' },

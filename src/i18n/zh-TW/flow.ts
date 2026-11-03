@@ -13,7 +13,6 @@ const dict: Record<string, string> = {
   'Faster, denser dots = more current; direction = from + to −': '光點越快越密＝電流越大，方向＝由正到負',
   'Show current: {legend}': '顯示電流：{legend}',
   'Current flow hidden': '已關閉電流顯示',
-  'Current flow on — run the simulation to see it': '已開啟電流顯示——執行模擬時就會看到電流流動',
   'While the simulation runs, moving dots show the current: {legend}': '模擬執行時，用流動的光點顯示電流：{legend}',
   // the chip's short label on a phone (☑ 電流)
   'Current|flow-chip': '電流',

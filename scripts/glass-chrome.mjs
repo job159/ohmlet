@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
 const PORT = 4181
-const URL = `http://localhost:${PORT}/`
+// autorun=0: these shots / budgets predate auto-run (round 5) and stay comparable — the seeded circuits are shot stopped, as before
+const URL = `http://localhost:${PORT}/?autorun=0`
 
 const MAX_FILTERS = 4
 const MAX_LENSES = 3
@@ -206,7 +207,7 @@ async function main() {
       },
       [layout],
     )
-    await fpage.goto(`${URL}?lens=off`)
+    await fpage.goto(`${URL}&lens=off`)
     await fpage.waitForSelector('canvas')
     await settle(fpage, 1800)
     const fallbackArmed = await fpage.evaluate(() =>

@@ -14,7 +14,9 @@
  *      listed, although the other LED is lit);
  *   B. resistor overload on 12 V — 150 Ω (3.8× its ¼ W rating: hot, smoking,
  *      keeps conducting) and 10 Ω (14.4 W: glows, then burns OPEN — its
- *      current stops); the Problems row 「R2 燒斷了」 with the fix;
+ *      current stops); the Problems row 「R2 燒斷了」 with the fix and
+ *      〔換新〕; 〔換新〕 puts a new R2 in at once (it conducts again — no edit,
+ *      no reset) and, the overload still there, it burns open again;
  *   C. the dc-motor-l298n example: the motor turns (rpm), circuit-ok cue;
  *   D. the blink example: the 「電路正常運作 ✓」 toast once (no repeat on the
  *      same revision), naming what is true when it plays;
@@ -160,6 +162,9 @@ async function open({ width, height, lang = 'zh-TW', workspace = true, phone = f
   const api = {
     page,
     errors,
+    /** each block is one tab: close it before the next opens (integrator, round 5 final — with every
+     *  earlier block's WebGL scene still rendering, the 4th / 5th page stalled for seconds, once for good) */
+    close: () => ctx.close(),
     shot: async (name) => {
       if (!SHOTS) return
       mkdirSync(SHOTS, { recursive: true })
@@ -317,11 +322,22 @@ if (ONLY.includes('desktop')) {
   await a.shot('B2-overload-burned')
   const probsB = await a.problems()
   const rowB = probsB.find((p) => p.fact === 'burned:R2')
-  check(!!rowB && /燒斷/.test(rowB.title) && /重置模擬/.test(rowB.detail), 'B: Problems 「R2 燒斷了」 with cause + fix', rowB ? `${rowB.title} — ${rowB.detail}` : '')
+  // round 5: the fix, and how it comes back — 〔換新〕, or by itself once the circuit or a value is fixed
+  check(!!rowB && /燒斷/.test(rowB.title) && /再按〔換新〕/.test(rowB.detail) && /自動換新/.test(rowB.detail), 'B: Problems 「R2 燒斷了」 with cause + fix + 〔換新〕', rowB ? `${rowB.title} — ${rowB.detail}` : '')
+  // round 5 — 〔換新〕: a new R2 at once, in place (no edit, no reset, its 10 Ω kept) — it conducts again
+  check(await a.mod('/src/ui/embedded/replace-part.ts', 'return m.replaceDamagedWithFeedback(a)', 'R2'), 'B: 〔換新〕 replaces R2')
+  const tReplaced = await a.simTime()
+  await sleep(300)
+  r2 = await a.comp('R2')
+  check(r2?.damage?.kind !== 'burned' && Math.abs(r2?.current ?? 0) > 0.5, 'B: 〔換新〕 → a new R2 conducts again (≈ 1.2 A) — no edit, no reset', `${r2?.damage?.kind} ${r2?.current}`)
   await a.until(5, 30_000)
   r1 = await a.comp('R1')
   check(r1?.damage?.kind === 'overheating' && Math.abs(r1?.current ?? 0) > 0.07, 'B: 150 Ω (3.8× its rating) overheats, smoking, still conducting', `${r1?.heat} ${r1?.current}`)
   await a.shot('B3-overload-150-smoking')
+  // the 10 Ω overload is still there: the new R2 heats up and burns open again (≈ 1.9 s) — honest, never a fake fix
+  await a.until(tReplaced + 2.6, 30_000)
+  r2 = await a.comp('R2')
+  check(r2?.damage?.kind === 'burned', 'B: the overload still there → the new R2 burned open again', r2?.damage?.kind)
   await a.stop()
 
   // ---- G. a pin beyond its absolute maximum: marker + honest wording ----
@@ -400,6 +416,7 @@ if (ONLY.includes('desktop')) {
   await a.shot('F1-free-ok')
   await a.stop()
   check(a.errors.length === 0, 'desktop: no page errors', a.errors.join(' | '))
+  await a.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -419,6 +436,7 @@ if (ONLY.includes('phone')) {
   check(!!box && box.x >= 0 && box.x + box.width <= 390, 'phone: the 「完成！」 badge fits the screen', JSON.stringify(box))
   await a.shot('P2-b1-pass')
   check(a.errors.length === 0, 'phone: no page errors', a.errors.join(' | '))
+  await a.close()
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +449,7 @@ if (ONLY.includes('reduced')) {
   await a.until(0.6)
   check((await a.fx()).animators === 0, 'reduced motion: no flicker animator (static over-drive look)')
   await a.stop()
+  await a.close()
 }
 if (ONLY.includes('classic')) {
   const a = await open({ width: 1440, height: 900, lang: 'en', workspace: false })
@@ -446,6 +465,7 @@ if (ONLY.includes('classic')) {
   await frameAbove(a, ['LED1'], 14)
   await a.shot('X1-classic-led')
   check(a.errors.length === 0, 'classic: no page errors', a.errors.join(' | '))
+  await a.close()
 }
 
 await browser.close()

@@ -180,7 +180,8 @@ describe('QA IN-F2 a floating MCU pin folds under its cause', () => {
     expect(fw.folded?.head).toBe('連帶影響（先解決：U1 還沒有韌體）')
     expect(fw.folded?.items).toEqual(['U1 PA5 浮接輸入'])
     // what is left: two rows — the open LED cathode and the board's missing firmware
-    expect(rows.map((p) => p.title).sort()).toEqual(['LED1 陰極沒接', 'U1 還沒有韌體'])
+    // the cathode IS wired — to a rail nothing feeds (persona fix: was 「LED1 陰極沒接」)
+    expect(rows.map((p) => p.title).sort()).toEqual(['LED1 陰極的電源軌沒接電', 'U1 還沒有韌體'])
   })
 
   it('a firmware that leaves PA5 an input: 「LED1 接在 PA5，但 PA5 不是輸出」 with the float folded as 「另 1 個相關」', () => {

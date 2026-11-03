@@ -26,6 +26,13 @@
  * the instrument tray and the More panel (Save project → a real download,
  * Open project… → a real file chooser).
  *
+ * The page boots with `&autorun`: the harness flag `?shotrig` would turn the
+ * product's auto-run off (round 5 — 「改了就自動模擬，不用按執行」), and this
+ * walkthrough proves the REAL flow. The circuit simulates from the moment the
+ * Blue Pill is placed (step 2); step 6 checks that it runs without a Run
+ * press; pause / resume / reset still go through the capsule (steps 8, 11),
+ * and a paused simulation that is reset stays paused until the capsule runs it.
+ *
  * Every step asserts the REAL state behind the pixels through the read-only
  * `?e2e` hooks (src/dev/e2e-hooks.ts): the app and lab stores, the firmware
  * binding and its SHA-256, MCU state / PC / cycle counter from the simulation
@@ -406,7 +413,8 @@ async function runOnce(browser, runIndex, shotDir) {
     const t0 = Date.now()
     // a cold dev-server page on a busy machine can take far longer than 30 s
     // to load and run its modules; how long it took goes into the report
-    await page.goto(`${URL}?e2e&shotrig`, { timeout: BOOT_MS })
+    // &autorun: the product's auto-run stays on under the camera rig (the real flow)
+    await page.goto(`${URL}?e2e&shotrig&autorun`, { timeout: BOOT_MS })
     await page.waitForFunction(() => !!window.__e2e && !!window.__shotRig, null, { timeout: BOOT_MS })
     await page.evaluate(() => window.__e2e.ready())
     env.bootMs.push(Date.now() - t0)
@@ -462,8 +470,9 @@ async function runOnce(browser, runIndex, shotDir) {
 
   /** shared between steps */
   const ids = {}
-  /** wall time of the Run click (step 6): step 7 reports how long the first running frame took */
-  let runClickedAt = null
+  /** script / page clock at the firmware load (step 5): step 7 reports how long the board took to run it — nothing is pressed (auto-run) */
+  let fwLoadedAt = null
+  let fwLoadedWall = null
   let savedProject = null
   let layoutBeforeSave = null
 
@@ -611,6 +620,8 @@ async function runOnce(browser, runIndex, shotDir) {
     const pick = page.getByRole('button', { name: '選擇檔案…' })
     await pick.waitFor({ state: 'visible' })
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), pick.click()])
+    fwLoadedWall = await page.evaluate(() => window.__e2e.now())
+    fwLoadedAt = Date.now()
     await chooser.setFiles(FIRMWARE)
     const s = await until(page, async (p) => {
       const st = await state(p)
@@ -626,14 +637,17 @@ async function runOnce(browser, runIndex, shotDir) {
   })
 
   // ---------------------------------------------------------------- 6
-  await step(6, '按下執行', async (rec) => {
-    const run = page.locator('.emb-run-ctl').getByRole('button', { name: '執行模擬' })
-    runClickedAt = Date.now()
-    await run.click()
-    await until(page, async (p) => ((await state(p)).running ? true : null), '模擬進入執行狀態')
+  await step(6, '執行：模擬自動開始（不必按執行）', async (rec) => {
+    // auto-run (round 5): the circuit has simulated since the Blue Pill was placed (step 2) and the
+    // firmware load power-on-reset the board — nothing is pressed; the run controls say it runs
+    const s = await until(page, async (p) => {
+      const st = await state(p)
+      return st.running ? st : null
+    }, '模擬自動進入執行狀態（沒有按任何執行）')
+    expect(s.firmware[ids.mcu]?.sha256 === FIRMWARE_SHA, '執行中的開發板應綁定剛載入的韌體')
     await page.locator('.emb-run-ctl').getByRole('button', { name: '暫停模擬' }).waitFor({ state: 'visible' })
     await page.locator('.lg-capsule-hit[aria-label="暫停模擬"]').waitFor({ state: 'visible' })
-    say(rec, '按屬性面板「執行」區塊的「執行」按鈕 → 應用程式狀態 running = true，狀態膠囊顯示「執行中」，按鈕變為「暫停」。')
+    say(rec, '沒有按任何「執行」：放上 Blue Pill 時模擬就自動開始，載入韌體後開發板通電重置並立即執行 → 應用程式狀態 running = true，狀態膠囊顯示「執行中」（點一下可暫停），屬性面板「執行」區塊的按鈕為「暫停」。')
   })
 
   // ---------------------------------------------------------------- 7
@@ -642,10 +656,13 @@ async function runOnce(browser, runIndex, shotDir) {
     // be loading its modules, which takes as long as the machine needs (the
     // measured delay goes into the report) — the step proves THAT it starts
     await until(page, async (p) => ((await state(p)).mcus[ids.mcu]?.state === 'running' ? true : null), 'MCU 狀態變為 running', START_MS)
-    // from the Run click to the first frame with the MCU running
-    const firstRunning = await page.evaluate((id) => window.__e2e.frames().find((f) => f.running && f.mcus.some((m) => m.id === id && m.state === 'running'))?.wall ?? null, ids.mcu)
+    // from the firmware load (auto-run: nothing pressed) to the first frame with the MCU running it
+    const firstRunning = await page.evaluate(
+      ([id, w]) => window.__e2e.frames(w ?? undefined).find((f) => f.running && f.mcus.some((m) => m.id === id && m.state === 'running'))?.wall ?? null,
+      [ids.mcu, fwLoadedWall],
+    )
     const nowW = await page.evaluate(() => window.__e2e.now())
-    env.startMs = runClickedAt === null ? null : Math.max(0, Date.now() - runClickedAt - (firstRunning === null ? 0 : nowW - firstRunning))
+    env.startMs = fwLoadedAt === null ? null : Math.max(0, Date.now() - fwLoadedAt - (firstRunning === null ? 0 : nowW - firstRunning))
     await page.locator('.emb-state', { hasText: '執行中' }).first().waitFor({ state: 'visible' })
     const t0 = await page.evaluate(() => window.__e2e.now())
     const sim0 = await simNow(page)
@@ -672,7 +689,7 @@ async function runOnce(browser, runIndex, shotDir) {
     say(rec, `狀態徽章顯示「執行中」；模擬畫格中 ${ids.mcu} 的 state = running、韌體 = ${info.firmware}。`)
     say(rec, `模擬時間前進 ${fmt(dSim)} s 期間，週期計數 ${cyc0.toLocaleString('en-US')} → ${cyc1.toLocaleString('en-US')}（+${(cyc1 - cyc0).toLocaleString('en-US')}），≈ ${fmt((cyc1 - cyc0) / dSim / 1e6, 1)} M 週期 / 模擬秒。`)
     say(rec, `PC 在 ${pcs.size} 個不同位址間移動（例：${[...pcs].slice(0, 4).map(hex).join('、')}），全部位於快閃記憶體。`)
-    say(rec, `核心時脈 ${info.hclkHz / 1e6} MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 ${fmt(info.realtime * 100, 0)} %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 ${fmt(wallFor1s, 1)} s，按下執行後 ${fmt(env.startMs / 1000, 1)} s 出現第一個執行中的畫格）。`)
+    say(rec, `核心時脈 ${info.hclkHz / 1e6} MHz（韌體 SystemClock_Config：HSE 8 MHz × PLL9）；即時比 ${fmt(info.realtime * 100, 0)} %（模擬速度 / 實際時間；這 1 s 模擬時間用了實際 ${fmt(wallFor1s, 1)} s，載入韌體後 ${fmt(env.startMs / 1000, 1)} s 出現第一個執行中的畫格——不必按執行）。`)
     await shot(rec, '07-running', '執行中：狀態徽章、PC、週期數、核心時脈與即時比')
   })
 
@@ -1008,17 +1025,19 @@ async function runOnce(browser, runIndex, shotDir) {
       throw new StepError(`開啟後的電路應與儲存前完全相同：${diffs.slice(0, 4).join('；')}`)
     }
     say(rec, `「更多 → 開啟專案…」經檔案選擇器選取剛下載的檔案 → ${s.layout.components.length} 個元件、${s.layout.wires.length} 條導線與儲存前完全相同；${ids.mcu} 的韌體 ${s.firmware[ids.mcu].name} 已重新綁定（SHA-256 一致）。`)
-    // run again: the restored firmware boots and blinks
-    await page.locator('.lg-capsule-hit[aria-label="執行模擬"]').click()
+    // auto-run: the opened project runs by itself (once its firmware is bound) — nothing to press;
+    // the capsule says it runs (its tap would pause it)
+    await until(page, async (p) => ((await state(p)).running ? true : null), '開啟的專案自動開始模擬', START_MS)
+    await page.locator('.lg-capsule-hit[aria-label="暫停模擬"]').waitFor({ state: 'visible' })
     // a freshly loaded page: its simulation worker may still be starting (START_MS before the clock first moves)
-    await untilSim(page, async () => ((await uartText()).includes('boot ok\r\nmode=0 blink 2 Hz') ? true : null), '在開啟的專案執行後輸出「boot ok」', 1.0, { startMs: START_MS })
+    await untilSim(page, async () => ((await uartText()).includes('boot ok\r\nmode=0 blink 2 Hz') ? true : null), '開啟的專案自動執行後輸出「boot ok」', 1.0, { startMs: START_MS })
     const t0 = await page.evaluate(() => window.__e2e.now())
     await waitSim(page, await simNow(page), 1.6)
     const hp = halfPeriods(await page.evaluate((w) => window.__e2e.frames(w), t0), ids.led)
     expect(Math.abs(median(hp.halves) - 0.25) < 0.04, `開啟的專案執行後 LED 應以 2 Hz 閃爍（半週期 ${fmt(median(hp.halves))} s）`)
-    say(rec, `執行開啟的專案：MCU 執行中，終端機輸出「boot ok」「mode=0 blink 2 Hz」，LED 半週期 ${fmt(median(hp.halves))} s（2 Hz）。`)
+    say(rec, `開啟的專案自動執行（不必按執行）：MCU 執行中，終端機輸出「boot ok」「mode=0 blink 2 Hz」，LED 半週期 ${fmt(median(hp.halves))} s（2 Hz）。`)
     await page.locator('.ws-tray-tabs').getByText('UART 終端機', { exact: true }).click().catch(() => {})
-    await shot(rec, '12-reopened-running', '開啟儲存的專案後再次執行：韌體仍綁定、LED 閃爍、終端機輸出', { cam: CAM_OVERVIEW, settle: 500 })
+    await shot(rec, '12-reopened-running', '開啟儲存的專案後自動執行：韌體仍綁定、LED 閃爍、終端機輸出', { cam: CAM_OVERVIEW, settle: 500 })
   })
 
   run.ids = ids
@@ -1074,7 +1093,7 @@ function writeReport(runs, meta) {
   )
   lines.push('')
   lines.push(`- 產生時間：${meta.date}`)
-  lines.push(`- 受測網址：${meta.url}（${process.env.E2E_SERVER_NOTE ? `${process.env.E2E_SERVER_NOTE}；` : ''}自動化掛鉤 \`?e2e\` 只讀取狀態，不改變任何行為；\`?shotrig\` 只用來把滑鼠點擊對準 3D 孔位）`)
+  lines.push(`- 受測網址：${meta.url}（${process.env.E2E_SERVER_NOTE ? `${process.env.E2E_SERVER_NOTE}；` : ''}自動化掛鉤 \`?e2e\` 只讀取狀態，不改變任何行為；\`?shotrig\` 只用來把滑鼠點擊對準 3D 孔位，\`&autorun\` 讓產品的自動模擬在它底下照常運作）`)
   lines.push(`- 韌體：\`firmware/dist/lab-acceptance.elf\`（SHA-256 \`${FIRMWARE_SHA}\`），以 clang + ST HAL v1.1.9 建置，原始碼在 \`firmware/projects/lab-acceptance/\``)
   lines.push(`- 總結：**${allPass ? `全部通過（${runs.length} 次連續執行皆通過）` : '有步驟失敗'}**`)
   lines.push('')
@@ -1100,7 +1119,7 @@ function writeReport(runs, meta) {
   lines.push(`| 模擬即時比：中位數（最低 – 最高） | ${runs.map((r) => fmtRtRange(r.env)).join(' | ')} |`)
   lines.push(`| CPU 校準：單執行緒整數迴圈（百萬次 / s，越大表示電腦越空閒） | ${runs.map((r) => fmtCal(r.env)).join(' | ')} |`)
   lines.push(`| 頁面載入（含重新整理） | ${runs.map((r) => (r.env?.bootMs ?? []).map((ms) => `${fmt(ms / 1000, 1)} s`).join(' / ') || '—').join(' | ')} |`)
-  lines.push(`| 按下執行到第一個執行中畫格 | ${runs.map((r) => (r.env?.startMs == null ? '—' : `${fmt(r.env.startMs / 1000, 1)} s`)).join(' | ')} |`)
+  lines.push(`| 載入韌體到第一個執行中畫格（自動執行，不必按執行） | ${runs.map((r) => (r.env?.startMs == null ? '—' : `${fmt(r.env.startMs / 1000, 1)} s`)).join(' | ')} |`)
   lines.push('')
   lines.push(
     '即時比若隨 CPU 校準一起下降，是這台電腦當時忙碌（例如同時有其他瀏覽器在跑 3D 場景），不是模擬器在上一次執行後留下了東西：每一次執行都是全新的瀏覽器環境，關閉後不留下任何程序。',

@@ -42,6 +42,7 @@
  *
  *   wireRoleColors(layout)   Map<wireId, colour name> (names wires.ts maps to PVC tones)
  *   wireRoleOf(layout, id)   { role, color, reason } — 「紅色：電源正極（5 V 網路）」
+ *   roleColorOfNewWire(layout, from, to)   the colour a new wire is stored with
  *   wireRoleLegend()         「紅＝電源正　黑＝地　其他顏色＝訊號」
  *
  * Pure and cached per layout identity (the scene's wire sync, the inspector
@@ -513,6 +514,16 @@ export function wireRoleOf(layout: CircuitLayout, wireId: string): RoleInfo {
   }
   if (!f) return { role: 'signal', color, reason: roleReason(color, 'signal', null) }
   return { role: f.role, color, reason: roleReason(color, f.role, f) }
+}
+
+/**
+ * The role colour a wire from → to would take once added to `layout` — the
+ * colour a new wire is stored with in the product chrome (the wire mode's
+ * second click, a drag-to-wire drop): the colour the scene then draws it in.
+ */
+export function roleColorOfNewWire(layout: CircuitLayout, from: string, to: string): string {
+  const probe = { id: '__new_wire__', from, to }
+  return wireRoleOf({ ...layout, wires: [...layout.wires, probe] }, probe.id).color
 }
 
 /** The wire's meaning after the colour name: 「電源正極（5 V 網路）」 (no colour). */

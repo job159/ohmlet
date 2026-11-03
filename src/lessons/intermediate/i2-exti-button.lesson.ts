@@ -212,7 +212,7 @@ export const LESSON: Lesson = {
       id: 'pullup',
       title: '確認內部上拉',
       body:
-        '按上方的「▶ 執行模擬」（或空白鍵），把游標停在 PB12 上看電壓（或用萬用電表量；手機：點一下 PB12）：放開時約 **3.3 V**。\n\n' +
+        '模擬會自動執行，把游標停在 PB12 上看電壓（或用萬用電表量；手機：點一下 PB12）：放開時約 **3.3 V**。\n\n' +
         '在屬性面板看 PB12 的腳位模式：**上拉**（上拉輸入）。按住按鈕時變成 0 V——上拉電阻只流過 3.3 V ÷ 40 kΩ ≈ 83 µA。',
       highlight: { holes: [PB12], components: ['SW1'] },
       check: { kind: 'measure', at: pb12, quantity: 'voltage', min: 3.0, max: 3.4, seconds: 0.3, fresh: true, label: 'PB12 ≈ 3.3 V' },

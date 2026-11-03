@@ -175,7 +175,7 @@ export const LESSON: Lesson = {
       id: 'who-am-i',
       title: '執行：讀 WHO_AM_I 並喚醒晶片',
       body: doc(
-        '按上方的「▶ 執行模擬」（或空白鍵），打開儀器的「UART 終端機」，看到 `WHO_AM_I=0x68` → `awake: +-2 g, +-250 dps, 100 Hz`。',
+        '模擬會自動執行，打開儀器的「UART 終端機」，看到 `WHO_AM_I=0x68` → `awake: +-2 g, +-250 dps, 100 Hz`。',
         '韌體會先用 `HAL_I2C_Mem_Read` 讀暫存器 0x75，晶片回 0x68，再寫 PWR_MGMT_1 = 0x00 讓它離開睡眠。接著每 100 ms 會出現一行 `ax=0 ay=0 az=16384 …`：平放時只有 Z 軸感受到 1 g = 16384 LSB。按下方的「把 PB6、PB7 加到邏輯分析儀」，可以觀察一次 14 位元組的連續讀取。',
       ),
       highlight: { components: ['U1', 'IMU1'] },

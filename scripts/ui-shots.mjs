@@ -15,10 +15,16 @@
  *     Scope sheet's Lab segments (Logic / UART / Log)
  * plus 3× close-ups of the scene's pin hover labels (U1 · A5 · c20 …),
  * and prints a live backdrop-filter audit per desktop view (the ≤4 / ≤3
- * budget of DESIGN.md §1 must hold with the workspace on).
+ * budget of DESIGN.md §1 must hold with the workspace on) and a keyboard
+ * isolation check (keys typed in the tray never reach the board's
+ * shortcuts; a leak sets exit code 1).
  *
  * Needs a running dev server (UI_URL, default http://localhost:5173/).
  * Same browser approach as scripts/visual-regression.mjs (VR_CHANNEL).
+ * The UI language is pinned (UI_LANG, default zh-TW — the product's
+ * language); controls are found by their ENGLISH source names, resolved
+ * through the app's own t() (tr / partName), so the run works in either
+ * language.
  */
 import { mkdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -30,6 +36,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const URL = process.env.UI_URL ?? 'http://localhost:5173/'
 const CHANNEL = process.env.VR_CHANNEL ?? 'msedge'
 const OUT = process.env.UI_SHOTS_DIR ?? path.join(os.tmpdir(), 'ohmlet-ui-shots')
+const LANG = process.env.UI_LANG ?? 'zh-TW'
 const FIRMWARE = path.join(ROOT, 'firmware', 'dist', 'hal-uart-hello.elf')
 
 const LAYOUT = JSON.stringify({
@@ -72,16 +79,17 @@ async function boot(browser, ctxOpts) {
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text())
   })
-  await page.addInitScript((layout) => {
+  await page.addInitScript(([layout, lang]) => {
     if (sessionStorage.getItem('ui-shots-seeded')) return
     sessionStorage.setItem('ui-shots-seeded', '1')
     localStorage.clear()
+    localStorage.setItem('bb.lang', lang)
     localStorage.setItem('bb.onboarded', '1')
     localStorage.setItem('bb.layout', layout)
     localStorage.setItem('bb.renderMode', 'performance')
     for (const k of ['bb.hintShrink', 'bb.studioPhoneWarned']) localStorage.setItem(k, '1')
     localStorage.setItem('bb.workspace', JSON.stringify({ v: 1, enabled: true }))
-  }, LAYOUT)
+  }, [LAYOUT, LANG])
   await page.goto(`${URL}?shotrig`)
   await page.waitForSelector('canvas')
   await page.waitForTimeout(2500)
@@ -111,6 +119,36 @@ const store = (page, fn, arg) =>
     [fn, arg],
   )
 
+/**
+ * A module of the app by the EXACT URL it loaded (see `store`), in the page.
+ * `tr`: an English UI source in the page's language (the app's own t() —
+ * zh-TW by default, so 'Examples' is 「範例」; with a `context`, tc() —
+ * 'Hex' in the UART terminal is 「十六進位」). `partName`: a part's name
+ * as the library shows it (partLabel).
+ */
+const appImport = `(p) => import(
+  performance.getEntriesByType('resource').map((e) => e.name).find((n) => new URL(n).pathname === p) ?? p
+)`
+const tr = (page, src, vars = {}, context = null) =>
+  page.evaluate(
+    async ([load, s, v, ctx]) => {
+      // eslint-disable-next-line no-new-func
+      const imp = new Function(`return ${load}`)()
+      return ctx ? (await imp('/src/ui/format.ts')).tc(s, ctx, v) : (await imp('/src/i18n/index.ts')).t(s, v)
+    },
+    [appImport, src, vars, context],
+  )
+const partName = (page, type) =>
+  page.evaluate(
+    async ([load, ty]) => {
+      // eslint-disable-next-line no-new-func
+      const imp = new Function(`return ${load}`)()
+      const [{ partLabel }, { getEntry }] = await Promise.all([imp('/src/i18n/parts.ts'), imp('/src/model/catalog.ts')])
+      return partLabel(getEntry(ty))
+    },
+    [appImport, type],
+  )
+
 async function shot(page, name) {
   const file = path.join(OUT, `${name}.png`)
   await page.screenshot({ path: file })
@@ -124,22 +162,28 @@ async function desktop(browser, w, h) {
   await shot(page, `${tag}-1-idle`)
 
   // library: Blue Pill spec card, a search, then the Examples / Lessons tabs
+  // (the Blue Pill card is listed twice — 常用元件 and 微控制器: take the first)
   const left = page.locator('.ws-left')
-  await left.getByRole('button', { name: /Show STM32F103C8T6 Blue Pill details/ }).click()
+  const bluePill = await partName(page, 'stm32_bluepill')
+  const showDetails = await tr(page, 'Show {part} details', { part: bluePill })
+  await left.getByRole('button', { name: showDetails, exact: true }).first().click()
   await page.waitForTimeout(300)
   await shot(page, `${tag}-1b-library-details`)
-  await left.getByRole('button', { name: /Hide STM32F103C8T6 Blue Pill details/ }).click()
-  await left.getByRole('searchbox', { name: 'Search the component library' }).fill('i2c')
+  const hideDetails = await tr(page, 'Hide {part} details', { part: bluePill })
+  await left.getByRole('button', { name: hideDetails, exact: true }).first().click()
+  const search = left.getByRole('searchbox', { name: await tr(page, 'Search the component library') })
+  await search.fill('i2c')
   await page.waitForTimeout(200)
   await shot(page, `${tag}-1c-library-search`)
-  await left.getByRole('searchbox', { name: 'Search the component library' }).fill('')
-  await left.getByRole('radio', { name: 'Examples' }).click()
+  await search.fill('')
+  const leftTab = async (name) => left.getByRole('radio', { name: await tr(page, name), exact: true }).click()
+  await leftTab('Examples')
   await page.waitForTimeout(250)
   await shot(page, `${tag}-1d-examples`)
-  await left.getByRole('radio', { name: 'Lessons' }).click()
+  await leftTab('Lessons')
   await page.waitForTimeout(250)
   await shot(page, `${tag}-1e-lessons`)
-  await left.getByRole('radio', { name: 'Library' }).click()
+  await leftTab('Library')
 
   await store(page, "st.select('U1')")
   await page.waitForTimeout(500)
@@ -160,20 +204,22 @@ async function desktop(browser, w, h) {
     await page.waitForTimeout(700)
     await shot(page, `${tag}-2c-firmware-loaded-toast`)
     await page.waitForTimeout(500)
-    await page.locator('.ws-right').getByRole('button', { name: 'Run simulation' }).click()
+    await page.locator('.ws-right').getByRole('button', { name: await tr(page, 'Run simulation') }).click()
     await page.waitForTimeout(3500)
     await shot(page, `${tag}-3-firmware-running`)
   }
   console.log(tag, 'audit running', JSON.stringify(await page.evaluate(auditFilters)))
 
-  const tab = (name) => page.locator('.ws-tray').getByRole('radio', { name }).click()
-  await tab('UART Terminal')
+  // tray tabs by their short names (Tray.tsx tc(…, 'tray-tab'): 「UART 終端機」 / 'UART')
+  const tab = async (short) =>
+    page.locator('.ws-tray').getByRole('radio', { name: await tr(page, short, {}, 'tray-tab'), exact: true }).click()
+  await tab('UART')
   await page.waitForTimeout(600)
   await shot(page, `${tag}-4-tray-uart`)
 
-  await tab('Logic Analyzer')
+  await tab('Logic')
   await page.waitForTimeout(300)
-  const add = page.locator('.ws-tray select[aria-label="Add channel"]')
+  const add = page.locator(`.ws-tray select[aria-label="${await tr(page, 'Add channel')}"]`)
   for (const v of ['mcu|U1|PA9', 'mcu|U1|PA10', 'mcu|U1|PA5']) {
     if ((await add.locator(`option[value="${v}"]`).count()) > 0) await add.selectOption(v)
   }
@@ -189,7 +235,8 @@ async function desktop(browser, w, h) {
     await page.waitForTimeout(250)
   }
   await store(page, 'st.stopSim()')
-  for (let i = 0; i < 7; i++) await page.locator('.ws-tray').getByRole('button', { name: 'Zoom out' }).click()
+  const zoomOut = await tr(page, 'Zoom out')
+  for (let i = 0; i < 7; i++) await page.locator('.ws-tray').getByRole('button', { name: zoomOut }).click()
   await page.waitForTimeout(700)
   const plot = page.locator('.ws-tray .emb-la-plot')
   // first column where the PA9 trace (channel row 0) leaves its HIGH line:
@@ -221,11 +268,11 @@ async function desktop(browser, w, h) {
   await page.waitForTimeout(400)
   await shot(page, `${tag}-5b-tray-logic-uart-burst`)
 
-  await tab('Oscilloscope')
+  await tab('Scope')
   await page.waitForTimeout(800)
   await shot(page, `${tag}-6-tray-scope`)
 
-  await tab('Simulation Log')
+  await tab('Log')
   await page.waitForTimeout(600)
   await shot(page, `${tag}-7-tray-log`)
 
@@ -238,38 +285,55 @@ async function desktop(browser, w, h) {
   await shot(page, `${tag}-8-pinout`)
 
   // collapsed panels leave slim handles
-  await page.locator('.ws-left').getByRole('button', { name: 'Hide library panel' }).click()
-  await page.locator('.ws-tray').getByRole('button', { name: 'Collapse instrument tray' }).click()
+  await page.locator('.ws-left').getByRole('button', { name: await tr(page, 'Hide library panel') }).click()
+  await page.locator('.ws-tray').getByRole('button', { name: await tr(page, 'Collapse instrument tray') }).click()
   await page.waitForTimeout(500)
   await shot(page, `${tag}-9-collapsed`)
 
   // keyboard isolation: typing in the terminal / pressing keys on panel
-  // controls must not reach App's global shortcuts (Space run, R rotate,
-  // Delete, arrow nudges)
+  // controls must not reach App's global shortcuts (Space run, rotate,
+  // Delete, arrow nudges, the part letters). A radio group clicked with the
+  // mouse keeps its focus (src/ui/kit/focus.ts — only plain buttons drop
+  // it, SH-9), so the next ArrowLeft picks its neighbour (十六進位 → 文字)
+  // instead of nudging the selected Blue Pill, and Delete / Shift+R (the
+  // product chrome's rotate; a plain R picks up a resistor wherever the
+  // focus is — part-keys.ts — so it is not pressed here) stay in the panel.
+  // A leak sets the exit code (the screenshots are still all taken).
   // (picking a tab on the collapsed bar re-opens the tray)
-  await page.locator('.ws-tray').getByRole('radio', { name: 'UART Terminal' }).click()
+  await tab('UART')
   await page.waitForTimeout(300)
-  const before = await store(page, 'return JSON.stringify([st.running, st.selection, st.layout.components.find((c) => c.id === "U1")])')
+  const snapshot = 'return JSON.stringify([st.running, st.mode.kind, st.selection, st.layout.components.find((c) => c.id === "U1")])'
+  const before = await store(page, snapshot)
   await page.locator('.ws-tray .emb-term-input').click()
   await page.keyboard.type(' r ')
   await page.keyboard.press('Delete')
   await page.keyboard.press('ArrowRight')
-  await page.locator('.ws-tray').getByRole('radio', { name: 'Hex' }).click()
+  await page.locator('.ws-tray').getByRole('radio', { name: await tr(page, 'Hex', {}, 'uart') }).click()
   await page.keyboard.press('ArrowLeft')
+  const textRadio = page.locator('.ws-tray').getByRole('radio', { name: await tr(page, 'Text', {}, 'uart'), exact: true })
+  const arrowPicked = (await textRadio.getAttribute('aria-checked')) === 'true'
   await page.keyboard.press('Delete')
-  await page.keyboard.press('r')
-  const after = await store(page, 'return JSON.stringify([st.running, st.selection, st.layout.components.find((c) => c.id === "U1")])')
-  console.log(tag, 'keyboard isolation', before === after ? 'OK (no run/select/move/rotate/delete leaked)' : `LEAK ${before} -> ${after}`)
+  await page.keyboard.press('Shift+R')
+  const after = await store(page, snapshot)
+  const isolated = before === after && arrowPicked
+  console.log(
+    tag,
+    'keyboard isolation',
+    isolated
+      ? 'OK (no run/mode/select/move/rotate/delete leaked; ArrowLeft picked the clicked radio group’s neighbour)'
+      : `LEAK ${before} -> ${after}${arrowPicked ? '' : ' (ArrowLeft did not reach the clicked radio group)'}`,
+  )
+  if (!isolated) process.exitCode = 1
 
   // a right-hand sheet panel over the workspace: the glass budget must hold
-  await page.locator('.lg-dock').getByText('More').click()
+  await page.locator('.lg-dock').getByText(await tr(page, 'More'), { exact: true }).click()
   await page.waitForTimeout(900)
   console.log(tag, 'audit More panel', JSON.stringify(await page.evaluate(auditFilters)))
   await page.locator('.lg-panel .lg-panel-content').evaluate((el) => {
     el.scrollTop = el.scrollHeight
   })
   // (ListRow buttons carry role=listitem — review defect B6 — so match by text)
-  await page.locator('.lg-panel').getByText('About ohmlet').click()
+  await page.locator('.lg-panel').getByText(await tr(page, 'About ohmlet'), { exact: true }).click()
   await page.waitForTimeout(300)
   await page.locator('.lg-panel .lg-panel-content').evaluate((el) => {
     el.scrollTop = el.scrollHeight
@@ -313,13 +377,14 @@ async function emptyWorkspace(browser, w, h) {
   const tag = `ws-${w}x${h}`
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
   const page = await ctx.newPage()
-  await page.addInitScript(() => {
+  await page.addInitScript((lang) => {
     localStorage.clear()
+    localStorage.setItem('bb.lang', lang)
     localStorage.setItem('bb.onboarded', '1')
     localStorage.setItem('bb.renderMode', 'performance')
     localStorage.setItem('bb.layout', JSON.stringify({ version: 1, components: [], wires: [] }))
     localStorage.setItem('bb.workspace', JSON.stringify({ v: 1, enabled: true }))
-  })
+  }, LANG)
   await page.goto(`${URL}?shotrig`)
   await page.waitForSelector('canvas')
   await page.waitForTimeout(2500)
@@ -370,11 +435,18 @@ async function phone(browser) {
 
   await store(page, 'st.select(null)')
   await page.waitForTimeout(700)
-  await page.locator('.lg-dock').getByRole('tab', { name: 'Scope' }).or(page.locator('.lg-dock').getByText('Scope')).first().tap()
+  // the dock's instruments tab: 「儀器」 (product chrome) — 'Scope' in the classic chrome
+  const dock = page.locator('.lg-dock')
+  const [instruments, scope] = [await tr(page, 'Instruments'), await tr(page, 'Scope')]
+  await dock
+    .getByText(instruments, { exact: true })
+    .or(dock.getByText(scope, { exact: true }))
+    .first()
+    .tap()
   await page.waitForTimeout(900)
   await shot(page, `${tag}-4-scope`)
   for (const seg of ['Logic', 'UART', 'Log']) {
-    await page.locator('.lg-sheet').getByRole('radio', { name: seg, exact: true }).tap()
+    await page.locator('.lg-sheet').getByRole('radio', { name: await tr(page, seg), exact: true }).tap()
     await page.waitForTimeout(700)
     await shot(page, `${tag}-5-lab-${seg.toLowerCase()}`)
   }

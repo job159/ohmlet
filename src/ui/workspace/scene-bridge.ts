@@ -63,13 +63,24 @@ import type {
 import type { CircuitLayout } from '../../model/types'
 import { BOARD_SIZES, boardConfigOf } from '../../model/types'
 import { getEntry } from '../../model/catalog'
-import { componentPinHoles, formatHole } from '../../model/breadboard'
+import { componentPinHoles, formatHole, parseHole } from '../../model/breadboard'
 import { useStore } from '../../state/store'
 import { t } from '../../i18n'
 import { showToast } from '../kit/toasts'
 import { isLegacyChrome } from '../chrome/legacy'
 import { growPaddleText, objectChipText } from './hole-chip'
 import { moveWireEndTo, wireEndAccepted } from './wire-ends'
+import {
+  drawWire,
+  wireDrawAccepted,
+  wireDrawHint,
+  wireDrawTooSmall,
+  wireDrawLanding,
+  wireDrawStart,
+  wireDrawStartText,
+  wireDrawStarted,
+  wireGripText,
+} from './wire-draw'
 
 /**
  * The scene methods the bridge drives (all optional). `setCallbacks` (merge)
@@ -156,9 +167,9 @@ function frameOpts(o: FrameTargetsOptions): FrameTargetsOptions | undefined {
 /**
  * App.tsx: the mounted scene (null on unmount — drops any pending problem
  * highlight). Also installs the workspace's scene providers — the "+"
- * grow paddle's hover chip (SC-8), the neutral part-body chip (SC-12) and
- * the wire end handles' re-route (SC-13, wire-ends.ts); the scene uses them
- * with docked chrome only.
+ * grow paddle's hover chip (SC-8), the neutral part-body chip (SC-12), the
+ * wire end handles' re-route (SC-13, wire-ends.ts) and drag-to-wire (round
+ * 5, wire-draw.ts); the scene uses them with docked chrome only.
  */
 export function registerScene(next: BridgeScene | null): void {
   if (next === scene) return
@@ -174,6 +185,21 @@ export function registerScene(next: BridgeScene | null): void {
       objectLabelText: objectChipText,
       onWireEndPreview: wireEndAccepted,
       onWireEndMove: moveWireEndTo,
+      wireDrawStart,
+      onWireDrawStarted: wireDrawStarted,
+      onWireDrawPreview: wireDrawAccepted,
+      onWireDraw: drawWire,
+    }),
+  )
+  // drag-to-wire polish (a leg lands on its strip's free hole, the chips'
+  // words, the one-time tip) — a second, additive install
+  call((s) =>
+    s.setCallbacks?.({
+      wireDrawLanding,
+      wireDrawStartText,
+      wireGripText,
+      onWireDrawHint: wireDrawHint,
+      onWireDrawTooSmall: wireDrawTooSmall,
     }),
   )
 }
@@ -360,14 +386,22 @@ function railIndexNear(col: number, railHoles: number): number {
  * holes (a selected wire: its ends; an off-board part: its body), else the
  * whole circuit (every part and wire), else — an empty board — the centre
  * third of the front board-row's length, rail to rail. Pure of its inputs.
+ * `board` (arming a part that goes INTO the board — persona fix): off-board
+ * instruments and the wires that reach them are left out, so a lone supply
+ * beside an empty board never takes the framing from the holes the part
+ * goes in (a circuit of only off-board parts frames as an empty board).
  */
-export function armFramingSpec(layout: CircuitLayout, selection: readonly string[]): HighlightSpec {
+export function armFramingSpec(layout: CircuitLayout, selection: readonly string[], opts: { board?: boolean } = {}): HighlightSpec {
   const config = boardConfigOf(layout)
+  const board = opts.board === true
+  const offBoard = (type: string): boolean => getEntry(type)?.placement === 'offboard'
+  const onBoardWire = (w: { from: string; to: string }): boolean => !!parseHole(w.from) && !!parseHole(w.to)
   const holes: string[] = []
   const components: string[] = []
   for (const id of selection) {
     const comp = layout.components.find((c) => c.id === id)
     if (comp) {
+      if (board && offBoard(comp.type)) continue
       const entry = getEntry(comp.type)
       const pins = entry ? componentPinHoles(comp, entry, config) : null
       const refs = (pins ?? []).flatMap((h) => (h ? [formatHole(h)] : []))
@@ -376,10 +410,13 @@ export function armFramingSpec(layout: CircuitLayout, selection: readonly string
       continue
     }
     const wire = layout.wires.find((w) => w.id === id)
-    if (wire) holes.push(wire.from, wire.to)
+    if (wire && (!board || onBoardWire(wire))) holes.push(wire.from, wire.to)
   }
   if (holes.length > 0 || components.length > 0) return { holes, components }
-  const all = [...layout.components.map((c) => c.id), ...layout.wires.map((w) => w.id)]
+  const all = [
+    ...layout.components.filter((c) => !board || !offBoard(c.type)).map((c) => c.id),
+    ...layout.wires.filter((w) => !board || onBoardWire(w)).map((w) => w.id),
+  ]
   if (all.length > 0) return { holes: [], components: all }
   const size = BOARD_SIZES[config.size]
   const cols = size.cols * config.count
@@ -437,6 +474,13 @@ function guidedArmFocus(): ArmFocus | null {
   return holes.length > 0 || components.length > 0 ? { ...f, spec: { holes, components } } : null
 }
 
+/** A place arming of a part that goes into the board (not an off-board instrument). */
+function placesOnBoard(mode: { kind: string; type?: string }): boolean {
+  if (mode.kind !== 'place' || typeof mode.type !== 'string') return false
+  const entry = getEntry(mode.type)
+  return !!entry && entry.placement !== 'offboard'
+}
+
 function frameArming(kind: 'place' | 'wire'): void {
   const st = useStore.getState()
   const s = scene
@@ -458,7 +502,7 @@ function frameArming(kind: 'place' | 'wire'): void {
         ...(guided.minElevationDeg !== undefined ? { minElevationDeg: guided.minElevationDeg } : {}),
         ...(cover > 0 ? { coverBottomPx: cover } : {}),
       })
-    : frameTargets(armFramingSpec(st.layout, st.selection), {
+    : frameTargets(armFramingSpec(st.layout, st.selection, { board: placesOnBoard(st.mode) }), {
         minSpanHoles: TOUCH_FRAME_MIN_SPAN,
         minPitchPx: TOUCH_PITCH_TARGET_PX,
         ...(cover > 0 ? { coverBottomPx: cover } : {}),

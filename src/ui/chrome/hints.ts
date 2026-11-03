@@ -13,7 +13,12 @@
  * A finger has no Esc key: on a coarse pointer the way out is the one the
  * screen offers — 「再點一次卡片可取消」 (the Parts card toggles placement),
  * 「點「完成」結束」 (wire strip), 「點空白處取消這條」 (a background tap drops
- * a started wire) — and the R-rotates aside is left out. When the lesson
+ * a started wire) — and the Shift+R-rotates aside is left out (the
+ * product chrome turns a package with Shift+R: a plain R picks up a
+ * resistor — part-keys.ts; the classic hints never named a key). (Round 5's
+ * drag-to-wire is taught by a one-time tip the first time the mouse rests
+ * on a free hole — wire-draw.ts wireDrawHint — not by a tail on the wire
+ * mode's hint: polish.) When the lesson
  * coach armed the placement (its 「拿一顆電阻」 turns into 「放置中」), the
  * way out is that button: 「再按一次「放置中」即可取消」 (UX fix SH-12, TR-19).
  *
@@ -48,7 +53,7 @@ import { endpointName, wireRefusalText } from '../workspace/hole-chip'
 import { isLegacyChrome } from './legacy'
 import type { WireStart } from './edit-feedback'
 
-/** Is the primary pointer a finger (no keyboard at hand for Esc / R)? */
+/** Is the primary pointer a finger (no keyboard at hand for Esc / Shift+R)? */
 export function coarsePointer(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     ? window.matchMedia('(pointer: coarse)').matches
@@ -174,6 +179,9 @@ function modeHint(mode: InteractionMode, touch: boolean, layout?: CircuitLayout)
           ? t('Wire from {from}: tap the second hole · tap empty space to cancel this one', p)
           : t('Wire from {from}: tap the second hole · Esc cancels this one', p)
       }
+      // (drag-to-wire, the way that needs no mode, is taught by a one-time
+      // tip where it happens — wire-draw.ts wireDrawHint — not by a tail
+      // here nobody reads in a 3 s toast: round 5 polish)
       return touch
         ? t('Wire mode: tap two holes or terminals in turn · tap “Done” to finish')
         : t('Wire mode: tap two holes or terminals in turn · Esc to finish')
@@ -195,7 +203,7 @@ function modeHint(mode: InteractionMode, touch: boolean, layout?: CircuitLayout)
           const p = { part, row: footprintRow(entry), pin: anchorPinName(entry) }
           return touch
             ? t('{part}: tap a hole in row {row} to drop it ({pin} lands on that hole) · tap the card again to cancel', p)
-            : t('{part}: tap a hole in row {row} to drop it ({pin} lands on that hole) · R rotates · Esc to cancel', p)
+            : t('{part}: tap a hole in row {row} to drop it ({pin} lands on that hole) · Shift+R rotates · Esc to cancel', p)
         }
         case 'probe':
           return touch

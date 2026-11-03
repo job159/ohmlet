@@ -57,10 +57,14 @@ use the bottom dock.
 
 1. The first-run tour ends with **Start lesson 1** or **See an example first: Blue Pill blinking LED**; an empty board offers the
    same choices.
-2. The run **capsule** at the top centre is the run control: click it (or press Space) to run, again to pause, long-press to reset.
-   While no board can run it says why ("Running · U1 has no power" in red, "Running · U1 has no firmware yet" in orange).
+2. The run **capsule** at the top centre is the run control. In the workspace (and in the Chinese interface) a circuit on the board
+   simulates by itself and re-simulates after every edit — no Run press: click the capsule (or press Space) to pause; editing parts
+   or wires, or **Resume running**, carries on; long-press to reset. The English phone layout (the classic chrome) keeps the manual
+   run: click the capsule (or press Space) to run, again to pause. While no board can run it says why ("Running · U1 has no power"
+   in red, "Running · U1 has no firmware yet" in orange).
 3. The **status pill** under it always says what is wrong or what to do next, with a one-click fix (e.g. "U1 has no firmware yet
-   → Load firmware…"; a ready circuit reads "Circuit ready (Space)" next to a Run simulation button).
+   → Load firmware…"). When you paused it reads "Simulation paused — editing parts or wires resumes it" next to **Resume running**;
+   a circuit that has not run yet (e.g. after a reset while paused) reads "Circuit ready (Space)" next to a Run simulation button.
 4. With nothing selected, the inspector shows **Problems**: rule-check findings, runtime issues and MCU states, graded
    error / risk / hint, each with its cause, its fix and "Show on the board".
 5. The **instrument tray** has UART Terminal, Logic Analyzer, Oscilloscope, Simulation Log and Readings. Right-click (long-press on
@@ -74,7 +78,7 @@ use the bottom dock.
 3. Place a "STM32F103C8T6 Blue Pill" board, power it, then drop the `.elf` onto the 3D view (or the board's firmware card), or use
    the board's Firmware tab → "Choose a file on this computer…". In Edge / Chrome a file chosen that way can be reloaded, and
    "Reload when the file changes" re-reads it once a second after you rebuild.
-4. Press ▶ Run simulation.
+4. In the workspace the simulation runs by itself once the firmware is loaded; in the classic chrome press ▶ Run simulation.
 
 ELF is preferred (addresses and symbols: the debugger names the functions of PC and LR). A raw `.bin` has no addresses: it loads at
 **0x08000000** by default, and any other address is flagged because the vector table must be there — no bootloader is simulated.

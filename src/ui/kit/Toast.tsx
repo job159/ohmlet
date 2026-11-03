@@ -33,10 +33,11 @@ const RELEASE_MS = 2400
 
 /**
  * Key names inside a toast line render as small keycaps (<kbd>): 「· Esc
- * 結束」, 「R 旋轉」. Whole tokens only; a lone R / F only right before the
- * action it names (「R 旋轉」, "R rotates") so part / pin names never match.
+ * 結束」, 「Shift+R 旋轉」 (product chrome), 「R 旋轉」 (classic). Whole tokens
+ * only; a lone R / F only right before the action it names (「R 旋轉」,
+ * "R rotates") so part / pin names never match.
  */
-const KEY_TOKEN = /(?<![\w+\-])(Esc|Enter|Space|Shift|Ctrl|Cmd|Delete|F10|F5|R(?= (?:旋轉|rotates)))(?![\w+\-])/g
+const KEY_TOKEN = /(?<![\w+\-])(Shift\+R(?= (?:旋轉|rotates))|Esc|Enter|Space|Shift|Ctrl|Cmd|Delete|F10|F5|R(?= (?:旋轉|rotates)))(?![\w+\-])/g
 
 /** Toast text with its key names as keycaps (plain string when there are none). */
 export function toastTextNodes(text: string): ReactNode {

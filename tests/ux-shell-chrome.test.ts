@@ -186,7 +186,8 @@ describe('SH-5 mode hints', () => {
     expect(hintForMode({ kind: 'place', type: 'resistor', pickedHoles: [] })).toMatch(/依序點 2 個孔位（第 1 腳 → 第 2 腳）· Esc 取消$/)
     expect(hintForMode({ kind: 'place', type: 'led', pickedHoles: ['a10'] })).toBe('第 2/2 腳：點「陰極（短腳）」的孔位 · Esc 取消')
     const bp = hintForMode({ kind: 'place', type: 'stm32_bluepill', pickedHoles: [] })!
-    expect(bp).toContain('點 h 列的孔位放下（PB12 對齊那個孔）· R 旋轉 · Esc 取消')
+    // round 5: R picks up a resistor (part-keys.ts) — the package turns with Shift+R
+    expect(bp).toContain('點 h 列的孔位放下（PB12 對齊那個孔）· Shift+R 旋轉 · Esc 取消')
     expect(bp).toMatch(/開發板：/) // no line break inside 開發板 is the toast CSS's job (keep-all)
     const all = [
       hintForMode({ kind: 'wire', from: null, color: 'red' }),
@@ -204,11 +205,11 @@ describe('SH-5 mode hints', () => {
     expect(hintForMode({ kind: 'wire', from: null, color: 'red' }, true)).toBe('導線模式：依序點兩個孔位或端子 · 點「完成」結束')
     expect(hintForMode({ kind: 'wire', from: 'a1', color: 'red' }, true)).toBe('從 a1 拉線：點第二個孔位 · 點空白處取消這條')
     expect(hintForMode({ kind: 'place', type: 'resistor', pickedHoles: [] }, true)).toBe(
-      '電阻：依序點 2 個孔位（第 1 腳 → 第 2 腳）· 再點一次卡片可取消',
+      '電阻：依序點 2 個孔位（第 1 腳 → 第 2 腳）· 再點一次卡片即可結束',
     )
-    expect(hintForMode({ kind: 'place', type: 'led', pickedHoles: ['a10'] }, true)).toBe('第 2/2 腳：點「陰極（短腳）」的孔位 · 再點一次卡片可取消')
+    expect(hintForMode({ kind: 'place', type: 'led', pickedHoles: ['a10'] }, true)).toBe('第 2/2 腳：點「陰極（短腳）」的孔位 · 再點一次卡片即可結束')
     expect(hintForMode({ kind: 'place', type: 'stm32_bluepill', pickedHoles: [] }, true)).toMatch(
-      /點 h 列的孔位放下（PB12 對齊那個孔）· 再點一次卡片可取消$/,
+      /點 h 列的孔位放下（PB12 對齊那個孔）· 再點一次卡片即可結束$/,
     )
     const all = [
       hintForMode({ kind: 'place', type: 'ne555', pickedHoles: [] }, true),
@@ -300,7 +301,8 @@ describe('SH-8 wire colour by convention', () => {
 describe('SH-7 keyboard', () => {
   it('the shortcuts list covers the spec’s keys', () => {
     const keys = SHORTCUT_GROUPS.flatMap((g) => g.rows.flatMap((r) => r.combos.map((c) => c.join('+'))))
-    for (const k of ['Space', 'F5', 'F10', 'Shift+F5', 'F', 'R', 'Delete', 'Arrows', 'Esc', 'Mod+Z', 'Mod+Y', 'Mod+S', '?']) {
+    // (round 5: rotate is Shift+R — a plain R picks up a resistor, part-keys.ts)
+    for (const k of ['Space', 'F5', 'F10', 'Shift+F5', 'F', 'Shift+R', 'Delete', 'Arrows', 'Esc', 'Mod+Z', 'Mod+Y', 'Mod+S', '?']) {
       expect(keys, k).toContain(k)
     }
   })
@@ -337,5 +339,8 @@ describe('toast keycaps', () => {
     expect(toastTextNodes('Rotate R2')).toBe('Rotate R2')
     const f = toastTextNodes('已停住 U1 核心——F10 單步、F5 繼續') as unknown[]
     expect((f as ReactElement[]).filter((n) => isValidElement(n)).length).toBe(2)
+    // the product chrome's rotate key (R picks up a resistor there — part-keys.ts)
+    const sr = toastTextNodes('點 h 列的孔位放下 · Shift+R 旋轉 · Esc 取消') as unknown[]
+    expect((sr as ReactElement[]).filter((n) => isValidElement(n)).map((n) => (n.props as { children: string }).children)).toEqual(['Shift+R', 'Esc'])
   })
 })

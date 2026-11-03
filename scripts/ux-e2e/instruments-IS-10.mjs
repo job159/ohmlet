@@ -3,7 +3,7 @@
  * labels an I²C pin as USART (docs/ux/UX_VERIFY.md V-07, finding E2-02).
  *
  * The audit task, through the real interface: open the example 「I²C 匯流排
- * 掃描」 from the library's 範例 tab, press ▶ 執行模擬, open the logic
+ * 掃描」 from the library's 範例 tab (it simulates by itself — auto-run), open the logic
  * analyzer and its 「＋通道…」 menu:
  *   - 使用中的腳位 lists PB6 / PB7 as I2C1_SCL / I2C1_SDA (or by mode only),
  *     never 「USART1_TX / RX」;
@@ -90,7 +90,7 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const examplePill = (page, title) =>
   page.getByRole('button', { name: new RegExp(`^開啟(範例：${esc(title)}|「${esc(title)}」)$`) }).first()
 
-/** Library → 範例 → 開啟 (開啟範例：title), then ▶ 執行模擬 and wait for `seconds` of simulated time. */
+/** Library → 範例 → 開啟 (開啟範例：title); it runs by itself (auto-run): wait for `seconds` of simulated time. */
 async function openAndRun(page, title, seconds) {
   await page.getByRole('radio', { name: '範例' }).click()
   await examplePill(page, title).click()
@@ -100,7 +100,9 @@ async function openAndRun(page, title, seconds) {
     return (st.layout.components ?? []).some((c) => c.id === 'U1') && !!st.firmware?.U1
   }, null, { timeout: 120000 })
   await page.waitForTimeout(800)
-  await page.getByRole('button', { name: /執行模擬/ }).first().click()
+  // auto-run (round 5): the opened example simulates by itself once its firmware is bound —
+  // nothing to press (a click on 執行模擬 / the capsule would PAUSE it now)
+  await page.waitForFunction(() => window.__e2e.state().running === true, null, { timeout: 60000 })
   await waitSim(page, seconds)
 }
 

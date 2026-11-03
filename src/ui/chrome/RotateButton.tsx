@@ -4,7 +4,9 @@
  * renders ONLY while a dip/footprint part is armed in place mode and calls
  * the store's `rotateArmed()` action.
  *
- * Touch-only chrome: desktop pointers have the R key, so the button hides
+ * Touch-only chrome: desktop pointers have the rotate key — Shift+R in the
+ * product chrome (a plain R picks up a resistor there, part-keys.ts; the
+ * tooltip reads it from the shortcuts table), R in the classic chrome — so the button hides
  * behind the hover media query (`@media (hover: hover) and (pointer: fine)`,
  * DESIGN.md §4 — hover affordances are progressive enhancement, and this is
  * the inverse: a touch affordance the desktop doesn't need). 44px hit,

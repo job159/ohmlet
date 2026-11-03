@@ -31,7 +31,7 @@ import { t, useLang } from '../../i18n'
 import { tMessage } from '../../i18n/messages'
 import { tc, tText } from './text'
 import { PROBLEMS_ANCHOR_ID, isBoardStateOf, mergeTitles, startProblemsWatcher, useProblems, type Problem, type ProblemLevel } from './problems'
-import { ProblemRow, isRuntimeProblem, levelName, runtimeHint, stateGroupName, stateRowColor } from './ProblemsList'
+import { ProblemRow, ReplaceAllButton, isRuntimeProblem, levelName, runtimeHint, stateGroupName, stateRowColor, useReplaceAllIds } from './ProblemsList'
 
 /** One headline for headlines that differ in a single word (problems.ts folds with it). */
 export { mergeTitles }
@@ -131,7 +131,18 @@ export function ErcPanel({ boardState }: { boardState?: string } = {}) {
   const live = useProblems((s) => s.live)
   const ercError = useProblems((s) => s.ercError)
   const layout = useStore((s) => s.layout)
-  return <ProblemsPanelView problems={problems} resolved={resolved} live={live} ercError={ercError} layout={layout} boardState={boardState} />
+  const replaceIds = useReplaceAllIds()
+  return (
+    <ProblemsPanelView
+      problems={problems}
+      resolved={resolved}
+      live={live}
+      ercError={ercError}
+      layout={layout}
+      boardState={boardState}
+      replaceIds={replaceIds}
+    />
+  )
 }
 
 /** Rows of one cause that a caller did not fold yet (same ErcFinding.group): the first carries the rest. */
@@ -166,12 +177,15 @@ export function ProblemsPanelView({
   ercError = null,
   layout,
   boardState,
+  replaceIds = [],
 }: {
   problems: readonly Problem[]
   resolved?: readonly Problem[]
   live: boolean
   ercError?: string | null
   layout?: CircuitLayout
+  /** the destroyed parts 〔全部換新〕 in the header replaces (useReplaceAllIds: two or more, product chrome; else none) */
+  replaceIds?: readonly string[]
   /**
    * the selected MCU board whose 執行狀態 card above already explains its
    * board-state facts (H5 blockerKindOf — QA IN-F3): those rows are left out here
@@ -210,6 +224,8 @@ export function ProblemsPanelView({
               </span>
             )}
             <span className="erc-head-spacer" />
+            {/* 〔全部換新〕 while two or more parts read destroyed (product chrome; nothing otherwise) */}
+            <ReplaceAllButton ids={replaceIds} />
             <button
               type="button"
               ref={setInfoAnchor}

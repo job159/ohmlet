@@ -197,6 +197,24 @@ describe('rule 8 — ground reference and unpowered parts', () => {
     expect(ofRule(runErc(grounded), 'ground-reference')).toEqual([])
   })
 
+  it('a circuit driven only by a function generator is not "unpowered" (the LED it feeds really lights)', () => {
+    const fg = { id: 'FG1', type: 'function_generator' }
+    const r = part('R1', 'resistor', ['a40', 'a45'], { resistance: 330 })
+    const d = part('D1', 'led', ['b45', 'b50'])
+    const l = valid(layout([fg, r, d], [w('FG1:out', 'c40'), w('FG1:gnd', 'c50')]))
+    const f = ofRule(runErc(l), 'unpowered')
+    expect(f, summary(f)).toEqual([])
+    // a chip still needs a real supply, but the card must not say 「什麼都不會動」
+    const chip = valid(layout([fg, r, d, INV], [w('FG1:out', 'c40'), w('FG1:gnd', 'c50')]))
+    const g = ofRule(runErc(chip), 'unpowered').filter((x) => x.id === 'unpowered:no-source')
+    expect(g, summary(g)).toHaveLength(1)
+    expect(g[0].componentIds).toEqual(['U2'])
+    expect(g[0].fact).toBeUndefined()
+    // an unwired generator drives nothing: the LED is still unpowered
+    const idle = valid(layout([fg, r, d]))
+    expect(ofRule(runErc(idle), 'unpowered').map((x) => x.id)).toEqual(['unpowered:no-source'])
+  })
+
   it('a function generator whose gnd is not tied to the circuit is a risk', () => {
     const fg = { id: 'FG1', type: 'function_generator' }
     const r = part('R1', 'resistor', ['a40', 'top-4'], { resistance: 1000 })

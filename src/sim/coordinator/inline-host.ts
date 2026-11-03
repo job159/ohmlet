@@ -161,6 +161,11 @@ export class InlineSimHost implements SimHost {
     this.coordinator.setRuntimeParam(componentId, key, value)
   }
 
+  repairParts(ids: readonly string[] | null): void {
+    this.coordinator.repairParts(ids)
+    this.publish()
+  }
+
   uartSend(componentId: string, port: string, bytes: Uint8Array): void {
     this.coordinator.uartSend(componentId, port, bytes)
   }

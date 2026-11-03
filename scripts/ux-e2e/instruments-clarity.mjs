@@ -253,6 +253,12 @@ try {
     const { ctx, page, errors } = await boot(browser)
     await withModule(page, '/src/ui/workspace/examples.ts', `return await m.openExampleById('rc-lowpass')`)
     await page.waitForTimeout(1200)
+    // auto-run (round 5) starts the opened example at once: the scope's 「尚未執行」 is what a
+    // learner sees after pausing and resetting it (a paused simulation that is reset stays idle)
+    await page.waitForFunction(() => window.__e2e.state().running === true, null, { timeout: 60000 })
+    await stop(page)
+    await withModule(page, '/src/state/store.ts', 'm.useStore.getState().resetSim()')
+    await page.waitForTimeout(500)
     await showTab(page, 'scope')
     await page.waitForTimeout(1200)
     const before = await page.locator('.sco-meas').innerText().catch(() => '')

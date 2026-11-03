@@ -13,7 +13,11 @@
  *    a white-hot centre and a dark rim read on every wire colour and on the
  *    white board); |I| is encoded by SPEED and DENSITY only, on a perceptual
  *    LOG scale from 10 µA to 200 mA (0.5 mA and 20 mA look clearly
- *    different). The legend everywhere: 「光點越快越密＝電流越大，方向＝由正到負」;
+ *    different). Speed is geometric on that scale (a power of |I|: each
+ *    decade multiplies it by the same factor, 0.5 → 8 pitches/s, a typical
+ *    LED's 10 mA ≈ 3.5/s — calm enough to follow); density is linear in it
+ *    and sparse (one dot every 4.8 → 1.4 pitches). Screen time: the dots do
+ *    not follow 倍速. The legend everywhere: 「光點越快越密＝電流越大，方向＝由正到負」;
  *  - nothing below MIN_SHOWN_A (no current → no particles); unknown currents
  *    (a frame without wireCurrents) show nothing — never a guess;
  *  - a paused simulation (sim time stops advancing) freezes the particles;
@@ -37,12 +41,15 @@ export const MIN_SHOWN_A = 5e-6
 /** The perceptual scale's ends (A): u = 0 at 10 µA, u = 1 at 200 mA. */
 export const SCALE_LO_A = 1e-5
 export const SCALE_HI_A = 0.2
-/** Particle speed at u = 0 / u = 1 (hole pitches per second). */
-const SPEED_LO = 0.8
-const SPEED_HI = 12
-/** Distance between particles at u = 0 / u = 1 (pitches). */
-const GAP_LO = 2.4
-const GAP_HI = 0.7
+/**
+ * Particle speed at u = 0 / u = 1 (hole pitches per second); geometric in
+ * between (speedAt), so 2 → 10 → 20 mA each step up visibly.
+ */
+const SPEED_LO = 0.5
+const SPEED_HI = 8
+/** Distance between particles at u = 0 / u = 1 (pitches); linear in between (gapAt). */
+const GAP_LO = 4.8
+const GAP_HI = 1.4
 /** World size of a particle head (its halo included) — the same at every current. */
 const HEAD_SIZE = 0.44
 /** A head never shrinks below this many CSS px on screen (zoomed-out views). */
@@ -72,14 +79,24 @@ export function flowLevel(amps: number): number {
   return u < 0 ? 0 : u > 1 ? 1 : u
 }
 
+/** Particle speed (pitches / s) at scale position u — the one formula tick() and flowSpeed share. */
+function speedAt(u: number): number {
+  return SPEED_LO * (SPEED_HI / SPEED_LO) ** u
+}
+
+/** Distance between particles (pitches) at scale position u — shared by tick() and flowGap. */
+function gapAt(u: number): number {
+  return GAP_LO + (GAP_HI - GAP_LO) * u
+}
+
 /** Particle speed (pitches / s) for a current magnitude. */
 export function flowSpeed(amps: number): number {
-  return SPEED_LO + (SPEED_HI - SPEED_LO) * flowLevel(amps)
+  return speedAt(flowLevel(amps))
 }
 
 /** Distance between particles (pitches) for a current magnitude. */
 export function flowGap(amps: number): number {
-  return GAP_LO + (GAP_HI - GAP_LO) * flowLevel(amps)
+  return gapAt(flowLevel(amps))
 }
 
 /**
@@ -538,8 +555,8 @@ export class CurrentFlowLayer {
       active++
       const amps = p.shownA
       const u = flowLevel(amps)
-      const gap = GAP_LO + (GAP_HI - GAP_LO) * u
-      const speed = SPEED_LO + (SPEED_HI - SPEED_LO) * u
+      const gap = gapAt(u)
+      const speed = speedAt(u)
       p.phase += step * speed * p.dir
       if (p.phase > 1e6 || p.phase < -1e6) p.phase %= p.len // positions repeat every p.len: no jump
       const count = Math.min(MAX_PER_PATH, Math.max(1, Math.floor(p.len / gap)))

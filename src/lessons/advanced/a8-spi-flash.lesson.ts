@@ -169,7 +169,7 @@ export const LESSON: Lesson = {
       id: 'jedec',
       title: '執行：讀 JEDEC ID',
       body: doc(
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開「UART 終端機」：`JEDEC ID EF 40 16`、`SR1 0x00`、`before: FF FF …`。',
+        '模擬會自動執行，打開「UART 終端機」：`JEDEC ID EF 40 16`、`SR1 0x00`、`before: FF FF …`。',
         '韌體拉低 CS、送出 9Fh，再送 3 個位元組把 EF、40、16 換回來，最後拉高 CS。EF 是華邦電子，16 代表 2²² 位元組 = 4 MiB。新的快閃記憶體每個位元組都是 FF（已抹除）。',
       ),
       highlight: { components: ['FL1'] },

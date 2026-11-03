@@ -84,6 +84,7 @@ import { createSimHost } from '../sim/coordinator'
 import { generateCircuit } from '../llm/generate'
 import { LayoutHistory } from './history'
 import { migrateComponentIds, type IdRenames } from './project'
+import { planPaste, type PartClip, type PastePlan } from './clipboard'
 
 /**
  * Additive store actions of the UX fix wave (helper H8), declared on the
@@ -101,6 +102,21 @@ declare module './types' {
   interface AppState {
     moveWireEnd(id: string, end: 'from' | 'to', ref: EndpointRef, opts?: WireEndOptions): WireEditResult
     swapLeads(id: string): { ok: boolean }
+  }
+}
+
+/**
+ * Copy / paste (round 5 — Ctrl/⌘+C／V／X／D, src/ui/chrome/copy-paste.ts), in
+ * a block of its own so other additive actions never collide with it:
+ *  - pasteParts(clip, opts?): place a copy of `clip` with its settings
+ *    (state/clipboard.ts planPaste — on the hovered hole `opts.near` when the
+ *    copy fits there, else beside the source; never sharing a strip with the
+ *    circuit) as ONE undo step; the copy is selected and place / wire mode
+ *    ends. `{ ok: false }` ('empty' / 'no-room') changes nothing.
+ */
+declare module './types' {
+  interface AppState {
+    pasteParts(clip: PartClip, opts?: { near?: HoleRef | null }): PastePlan
   }
 }
 
@@ -1001,6 +1017,13 @@ let simActive = false
 let startPending = false
 /** the host paused itself on an MCU debugger halt while the user had it running */
 let debugHalted = false
+/**
+ * Why the simulation is not running (auto-run, src/ui/chrome/auto-run.ts):
+ * 'user' an explicit pause (every pause path goes through stopSim), kept by
+ * a reset of that pause; 'debugger' a halt froze the world; 'failed' the host
+ * failed; 'reset' the session ended otherwise; null = running / never run.
+ */
+let stopReason: SimStopReason = null
 
 let lastReactPushMs = Number.NEGATIVE_INFINITY
 
@@ -1183,6 +1206,7 @@ function failSession(message: string): void {
   startPending = false
   debugHalted = false
   simActive = false
+  stopReason = 'failed'
   useStore.setState({ running: false, issues: [{ level: 'error', message }] })
 }
 
@@ -1215,6 +1239,7 @@ function onHostFrame(f: SimFrame): void {
     // MCU resumes it (resumeAfterDebugHalt). The 'halted' check keeps a stale
     // paused frame of an earlier stop from being mistaken for one.
     debugHalted = true
+    stopReason = 'debugger'
     useStore.setState({ running: false })
   }
   const s = useStore.getState()
@@ -1271,6 +1296,14 @@ export function resumeAfterDebugHalt(): void {
   if (simActive && !useStore.getState().running) useStore.getState().startSim()
 }
 
+/** Why the simulation is stopped (see `stopReason`); null while it runs or before any run. */
+export type SimStopReason = 'user' | 'debugger' | 'failed' | 'reset' | null
+
+/** Why the simulation is not running — auto-run respects an explicit pause and never retries a failure. */
+export function simStopReason(): SimStopReason {
+  return stopReason
+}
+
 /**
  * While paused: advance exactly `seconds` of sim time, then the host
  * publishes a frame (single-stepping UI, deterministic tests). Starts a
@@ -1304,6 +1337,7 @@ export function __setSimHostFactoryForTests(factory: SimHostFactory | null): voi
   simActive = false
   startPending = false
   debugHalted = false
+  stopReason = null
 }
 
 /** TEST-ONLY: wall clock used by the 10 Hz React throttle (null = real clock). */
@@ -1806,6 +1840,21 @@ export const useStore = create<AppState>()((set, get) => {
       return { ok: false } // no other rotation fits — leave the part untouched
     },
 
+    pasteParts(clip, opts) {
+      const plan = planPaste(get().layout, clip, {
+        // the ids addComponent / addWire would give (R2, LED2, U2, W9)
+        allocId: (l, type) => nextFreeId(l, type === null ? 'W' : idPrefixFor(type)),
+        // an off-board copy follows addComponent's bench policy (UX QA IS-F15)
+        offboardPos: (l, entry) => (avoidOffboardLeads() ? clearOffboardSpot(l, entry) : null),
+        near: opts?.near ?? null,
+      })
+      if (!plan.ok) return plan
+      pushHistory(`paste:${[...plan.ids, ...plan.wireIds].join('+')}`) // ONE undo step (never coalesced)
+      commitLayout(plan.layout)
+      set({ selection: plan.selection, mode: { kind: 'select' } })
+      return plan
+    },
+
     // --- actions: instruments -------------------------------------------------
 
     setInstrumentPos(id, pos) {
@@ -1995,6 +2044,7 @@ export const useStore = create<AppState>()((set, get) => {
       if (!h) return // host construction failed; issue already posted
       if (!simActive) beginSession()
       debugHalted = false
+      stopReason = null
       // optimistic: the button flips at once; onHostError rolls it back
       startPending = true
       set({ running: true })
@@ -2006,6 +2056,7 @@ export const useStore = create<AppState>()((set, get) => {
     stopSim() {
       if (!get().running) return
       startPending = false
+      stopReason = 'user' // an explicit pause: auto-run leaves it until the circuit changes
       set({ running: false })
       publishNow() // leave the final state on screen (the paused frame follows)
       const h = host
@@ -2016,6 +2067,8 @@ export const useStore = create<AppState>()((set, get) => {
       startPending = false
       debugHalted = false
       simActive = false
+      // a reset of a paused simulation stays paused (at t = 0); any other ends the session
+      stopReason = stopReason === 'user' ? 'user' : 'reset'
       scopeBuf = []
       lastTelemetry = null
       lastIssues = []

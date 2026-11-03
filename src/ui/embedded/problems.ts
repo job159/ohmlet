@@ -85,6 +85,7 @@ import { activePinFunction, pinFunctionContext } from './instruments/pin-functio
 import { hasActivity } from './instruments/net-activity'
 import { POWER_UP_GRACE_S, faultExceptionName, faultHandlerDetail, frameFaultOf, lockupCauseOf, lockupCauseText } from './format'
 import { labBuffers, useLab } from './lab'
+import { replaceDamagedWithFeedback, replaceTargetOf } from './replace-part'
 
 export { ProblemsList, ProblemsView, type ProblemsListProps } from './ProblemsList'
 
@@ -1104,7 +1105,20 @@ export function deriveProblemsDetailed(input: ProblemsInput): { problems: Proble
   }
 
   // ---- actions the rows' facts call for
+  const legacy = isLegacyChrome()
   for (const p of rows) {
+    // 〔換新〕 (round 5, product chrome): a part its model destroyed — burned (an LED, a die, a resistor,
+    // a board's on-board LED → its board) or vented — is replaced by a new one in place, one click
+    const replace = legacy ? null : replaceTargetOf(p.fact)
+    if (replace) {
+      const renew: ProblemAction = { label: t('Replace|damaged'), run: () => void replaceDamagedWithFeedback(replace) }
+      // a vented electrolytic: turning it around fixes the cause AND brings a new one (an edit rebuilds)
+      const vented = p.fact?.startsWith('vented:') ? replace : null
+      if (!p.action && vented && canSwapLeads(layout, vented)) p.action = { label: t('Swap the leads'), run: () => swapLeadsWithFeedback(vented) }
+      if (!p.action) p.action = renew
+      else if (p.action.label !== renew.label && !p.extraActions?.some((a) => a.label === renew.label)) p.extraActions = [renew, ...(p.extraActions ?? [])]
+      continue
+    }
     if (p.action) continue
     const fact = p.fact ?? ''
     if (fact.startsWith('reversed:') && canSwapLeads(layout, fact.slice('reversed:'.length))) {

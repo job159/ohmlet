@@ -21,6 +21,12 @@
  * key-up cannot activate it a second time — 「重置 MCU」 then Space reset
  * twice, COH-03).
  *
+ * A kit phone sheet (儀器, 屬性, 更多, the library — `.lg-sheet`, aria-modal
+ * for screen readers) is NOT a modal here: it rests over the scene without
+ * owning the keys (blockingModalOpen, part-keys.ts). A radio / tab clicked
+ * inside one keeps its focus (src/ui/kit/focus.ts), and Space / F5 / F10
+ * still run, debug and drop that focus, as on the desktop panels.
+ *
  * Where the focus came from is tracked here (installFocusModality): the
  * browser's own :focus-visible is no help — Chromium turns a mouse-focused
  * button :focus-visible on the first key press, before any handler runs.
@@ -42,7 +48,7 @@ export interface KeyTargetInfo {
   widget: boolean
   /** the target got its focus from the keyboard (Tab, arrows, a key that opened it) */
   keyboardFocused: boolean
-  /** the target is inside an open aria-modal="true" dialog */
+  /** the target is inside an open BLOCKING modal dialog (aria-modal="true", not a kit phone sheet — BLOCKING_MODAL) */
   inModal: boolean
   /** key names claimed by `data-own-keys` on the target or an ancestor ("Space F5") */
   ownKeys: readonly string[]
@@ -203,6 +209,9 @@ const TEXT_ROLES = new Set(['textbox', 'combobox', 'searchbox'])
 /** <input> types that are controls, not text entry */
 const CONTROL_INPUTS = new Set(['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'color', 'file', 'image'])
 
+/** Composite widgets whose arrows move the focus inside them (roving focus). */
+const ROVING_GROUP = '[role="radiogroup"], [role="tablist"]'
+
 let lastInputWasKeyboard = false
 let keyboardFocusedEl: Element | null = null
 let lastPointerEl: Element | null = null
@@ -229,7 +238,17 @@ export function installFocusModality(): () => void {
       lastPointerAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
     }
     const onFocusIn = (e: FocusEvent) => {
-      keyboardFocusedEl = lastInputWasKeyboard && e.target instanceof Element ? e.target : null
+      const el = e.target instanceof Element ? e.target : null
+      const from = e.relatedTarget instanceof Element ? e.relatedTarget : null
+      // an arrow moving the focus inside a radio group / tab list (Segmented's
+      // roving focus) that a POINTER focused keeps it pointer-picked: the next
+      // Space still runs / pauses instead of pressing the segment (SH-9)
+      const group = el && typeof el.closest === 'function' ? el.closest(ROVING_GROUP) : null
+      if (group && from && from !== el && group.contains(from) && !focusedByKeyboard(from)) {
+        keyboardFocusedEl = null
+        return
+      }
+      keyboardFocusedEl = lastInputWasKeyboard && el ? el : null
     }
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('pointerdown', onPointer, true)
@@ -304,19 +323,24 @@ export function describeKeyTarget(target: EventTarget | null): KeyTargetInfo {
     textEntry: isTextEntry(el),
     widget,
     keyboardFocused: focusedByKeyboard(widget ? widgetEl : el),
-    inModal: el.closest('[aria-modal="true"]') != null,
+    // a phone sheet is not one: a segment clicked in it still lets Space / F5 run (SH-9)
+    inModal: el.closest(BLOCKING_MODAL) != null,
     ownKeys: own.split(/\s+/).filter(Boolean),
   }
 }
 
 /**
- * A blocking modal is open: an aria-modal dialog that is not a kit phone
- * sheet (those rest over the scene without blocking it — the canvas and
- * the run keys stay usable at the low detents).
+ * A blocking modal dialog: aria-modal, but not a kit phone sheet (those rest
+ * over the scene without blocking it — the canvas and the run keys stay
+ * usable at the low detents). One rule for the open-anywhere check and for
+ * a key's target (describeKeyTarget), like part-keys.ts.
  */
+export const BLOCKING_MODAL = '[aria-modal="true"]:not(.lg-sheet)'
+
+/** A blocking modal is open anywhere (BLOCKING_MODAL). */
 export function blockingModalOpen(): boolean {
   if (typeof document === 'undefined') return false
-  return document.querySelector('[aria-modal="true"]:not(.lg-sheet)') != null
+  return document.querySelector(BLOCKING_MODAL) != null
 }
 
 // ---------------------------------------------------------------------------

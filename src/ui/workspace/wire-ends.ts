@@ -7,6 +7,11 @@
  *   wireEndAccepted(id, end, ref)   would moving that end there be accepted? (preview tint)
  *   moveWireEndTo(id, end, ref)     the drop: store.moveWireEnd (ONE undo step, H8) + feedback
  *
+ * The re-route is confirmed with 〔復原〕 (round 5 polish — the same toast as
+ * a drag-drawn wire's: a mouse press on ANY wire's end now re-routes it, so
+ * an orbit that started there comes back in one tap); a refused drop plays
+ * the refusal sound (playMech 'refuse') with its 「這裡不能接」.
+ *
  * Feedback speaks the shared names (H2 endpointName): 「已改接導線 W8：U1 PA6
  * （a19）→ e40（R2 第 1 腳這一排）」, a refusal 「這裡不能接：a20 已經被導線 W3
  * 佔用」 (wireRefusalText). A wire that still wears its convention colour
@@ -17,8 +22,11 @@
 import type { CircuitLayout } from '../../model/types'
 import { useStore, wireRefusal, type WireEditResult } from '../../state/store'
 import { conventionWireColor } from '../chrome/wire-convention'
+import { undoableToast } from '../chrome/edit-feedback'
 import { showToast, tick } from '../kit'
 import { t } from '../../i18n'
+import { playMech } from '../fx/sound'
+import { isLegacyChrome } from '../chrome/legacy'
 import { endpointName, wireRefusalText } from './hole-chip'
 
 type End = 'from' | 'to'
@@ -67,6 +75,7 @@ export function moveWireEndTo(id: string, end: End, ref: string | null): void {
   const res: WireEditResult = st.moveWireEnd(id, end, ref, nextColor !== wire.color ? { color: nextColor } : undefined)
   if (!res.ok) {
     showToast(t('Can’t connect here: {reason}', { reason: wireRefusalText(res.refusal) }), { duration: 3600 })
+    if (!isLegacyChrome()) playMech('refuse') // a refused drop sounds like a new wire's (wire-draw.ts)
     return
   }
   if (!res.changed) return
@@ -74,8 +83,7 @@ export function moveWireEndTo(id: string, end: End, ref: string | null): void {
   const layout = useStore.getState().layout
   const moved = layout.wires.find((w) => w.id === id)
   if (!moved) return
-  showToast(
-    t('Re-routed wire {id}: {a} → {b}', { id, a: endpointName(layout, moved.from), b: endpointName(layout, moved.to) }),
-    { duration: 2800 },
-  )
+  // with 〔復原〕 like a new wire's 「已接上 …」 (polish): a drag that was meant
+  // to be an orbit and caught a wire's end comes back in one tap
+  undoableToast(t('Re-routed wire {id}: {a} → {b}', { id, a: endpointName(layout, moved.from), b: endpointName(layout, moved.to) }), layout)
 }

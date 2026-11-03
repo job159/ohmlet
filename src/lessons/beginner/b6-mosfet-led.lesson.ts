@@ -239,7 +239,7 @@ export const LESSON: Lesson = {
       id: 'b6-s4',
       title: '開關在 a：LED 不亮',
       body: doc(
-        '滑桿留在 **a**，按上方的「▶ 執行模擬」（或空白鍵）：LED1 不亮。點一下 Q1 看屬性面板：閘極約 0 V，汲極約 3.7 V。',
+        '滑桿留在 **a**，模擬會自動執行：LED1 不亮。點一下 Q1 看屬性面板：閘極約 0 V，汲極約 3.7 V。',
         '閘極的驅動斷開了，R3 把閘極拉到 0 V，V_GS = 0 V 低於臨界電壓，MOSFET 截止。幾乎沒有電流，所以 LED 兩端只剩約 1.3 V。',
       ),
       highlight: { components: ['SW1', 'Q1', 'LED1'] },

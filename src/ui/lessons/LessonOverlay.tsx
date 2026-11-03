@@ -9,7 +9,8 @@
  *    covers the circuit; otherwise (panel collapsed, phone, classic chrome)
  *    it floats as a compact Tier-S card (no backdrop-filter; the UndoPill
  *    over-scene recipe) below the status capsule, folds to its one-line
- *    header while the simulation runs (unfolds on pause or a step change) and
+ *    header while a run the learner started goes on — not one auto-run
+ *    started (round 5) — (unfolds on pause or a step change) and
  *    publishes its rect (useLessonUi.coachRect) for the scene's top inset.
  *    UX fix round: a docked card folds while the lesson's acceptance
  *    results show and says 「課程完成——下一課」 on a pass (LS-12); on phones
@@ -43,6 +44,7 @@ import { useLessonProgress } from '../../lessons/progress'
 import type { HighlightSpec, IBreadboardScene } from '../../three/scene-api'
 import { t, useLang } from '../../i18n'
 import { useStore } from '../../state/store'
+import { runStartedByAutoRun } from '../../state/run-gate'
 import { useLab } from '../embedded/lab'
 import { ActionSheet, BookIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, Sheet, pressProps, sheetCoverHeight, subscribeSheetCover, tick } from '../kit'
 import { focusInspector, locateProblem, useProblems, type Problem } from '../embedded/problems'
@@ -197,6 +199,17 @@ function useSheetCover(): number {
   )
 }
 
+/**
+ * Does a floating coach card fold for this run? Only for a run the learner
+ * started (the capsule, Space, a step's ▶): the result they asked to see
+ * stays visible. A run auto-run started (round 5 — an opened circuit, an
+ * edit; runStartedByAutoRun) keeps it open: running is the normal state, so
+ * folding then would hide the guide for good. A docked card never folds.
+ */
+export function runFoldsCoach(running: boolean, docked: boolean): boolean {
+  return running && !docked && runStartedByAutoRun() === null
+}
+
 /** The floating coach's top (CSS: safe top + 58 px) and its folded header height. */
 const FLOAT_TOP_PX = 58
 const FOLDED_PX = 48
@@ -217,10 +230,12 @@ function CoachCard({ workspaceOn, desktop, onOpenMore }: { workspaceOn: boolean;
   const index = lesson ? clampStep(lesson, progress?.step ?? 0) : 0
   const cardRef = useRef<HTMLElement>(null)
 
-  // a floating card folds to its header while the simulation runs, so the result stays visible
+  // a floating card folds to its header while a run the learner started goes on, so the result
+  // stays visible — not for a run auto-run started (round 5: an opened circuit, an edit), or the
+  // card would stay folded for good now that running is the normal state
   const [runFold, setRunFold] = useState(false)
   useEffect(() => {
-    setRunFold(running && !docked)
+    setRunFold(runFoldsCoach(running, docked))
   }, [running, docked])
   // a docked card folds to its header while the lesson's acceptance results show below it (LS-12):
   // 「最可能的原因」 and 「下一課」 get the panel's height

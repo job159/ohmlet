@@ -131,8 +131,8 @@ describe('SH-12 wire hints name both ends; the coach is the way out', () => {
     const place: InteractionMode = { kind: 'place', type: 'resistor', pickedHoles: [] }
     const fromCard = hintForMode(place, true, 'card', layout)!
     const fromCoach = hintForMode(place, true, 'coach', layout)!
-    expect(fromCard).toContain('再點一次卡片可取消')
-    expect(fromCoach).toContain('再按一次「放置中」即可取消')
+    expect(fromCard).toContain('再點一次卡片即可結束')
+    expect(fromCoach).toContain('再按一次「放置中」即可結束')
     expect(fromCoach).not.toContain('卡片')
     expect(placedAgainHint('R1', true, 'coach')).toBe('已放置 R1——繼續點孔位可再放一顆 · 再按一次「放置中」即可結束')
     // a mouse hint names Esc either way

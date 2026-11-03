@@ -21,7 +21,7 @@ export type InteractionMode =
   /**
    * Placing a new component of catalog type `type`; leads placed
    * click-by-click. `rotation` (dip/footprint packages only; absent = 0) is
-   * the armed in-plane rotation — cycled by `rotateArmed()` (R key) and
+   * the armed in-plane rotation — cycled by `rotateArmed()` (Shift+R in the product chrome, R in the classic) and
    * threaded into `addComponent` on commit.
    */
   | { kind: 'place'; type: string; pickedHoles: HoleRef[]; rotation?: Rotation }
@@ -156,7 +156,7 @@ export interface AppState {
    */
   moveSelection(dCol: number, dRowLattice?: number): void
   /**
-   * Cycle the armed place-mode rotation (R key while placing): DIP packages
+   * Cycle the armed place-mode rotation (Shift+R while placing — R in the classic chrome): DIP packages
    * toggle 0↔180, footprints step quarter turns; no-op otherwise.
    */
   rotateArmed(): void

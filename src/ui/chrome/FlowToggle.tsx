@@ -9,16 +9,19 @@
  * idle), right of the capsule: the full chip (☑ 顯示電流) when there is
  * room, a short one (☑ 電流) on a phone (see the placement note below). The
  * preference is remembered ('bb.flow') and also lives in 更多 → 模擬
- * (FlowViewRow) and on the C key (product chrome; not while typing).
+ * (FlowViewRow) and on Shift+C (product chrome; a plain C picks up a
+ * capacitor — part-keys.ts, whose App.tsx branch toggles this view).
  *
  * Feedback is honest: the first time the dots can be SEEN (the view on while
  * the simulation runs), a toast gives the legend
  * 「光點越快越密＝電流越大，方向＝由正到負」 (the dots have one colour:
  * magnitude is speed and density only). Turned on while the simulation is
  * paused or not started (the chip, the 更多 row or the key), the toast says
- * the currents appear once it runs (they are measured only while it runs —
- * nothing is invented meanwhile) and the legend waits for that run — on a
- * phone there is no tooltip, so the toast is where the legend is learnt.
+ * the currents appear once it runs (「模擬繼續後」 after the learner's pause,
+ * else 「模擬執行時」 — auto-run starts every circuit, so no Run button is
+ * named; they are measured only while it runs — nothing is invented
+ * meanwhile) and the legend waits for that run — on a phone there is no
+ * tooltip, so the toast is where the legend is learnt.
  *
  * Material: Tier-S (the UndoPill recipe, NO backdrop-filter). Placement is
  * CSS-anchored to the capsule's own centre (50 % / the workspace's free
@@ -48,7 +51,7 @@ import { SHORTCUTS, withKey, type ShortcutId, type ShortcutRow } from './Shortcu
 import './FlowToggle.css'
 
 /** The key that flips 顯示電流 (product chrome). */
-export const FLOW_KEY = 'C'
+export const FLOW_KEY = 'Shift+C'
 /** SHORTCUTS id of the key (listed by the shortcuts sheet once the table has it). */
 const FLOW_SHORTCUT = 'current-flow'
 /** localStorage: the legend toast was shown once. */
@@ -101,10 +104,18 @@ export function toggleFlowView(announce = false): void {
     if (announce) showToast(t('Current flow hidden'))
     return
   }
-  if (getSimPhase() !== 'running') {
+  const phase = getSimPhase()
+  if (phase !== 'running') {
     // currents are measured only while the simulation runs — none to show
-    // yet; the legend waits for the run (FlowToggle's effect)
-    showToast(t('Current flow on — run the simulation to see it'), { duration: 3200 })
+    // yet; the legend waits for the run (FlowToggle's effect). Auto-run
+    // starts every circuit by itself, so the toast sends nobody to a Run
+    // button: a pause the learner made resumes, anything else just runs
+    showToast(
+      phase === 'paused'
+        ? t('Current flow on — resume the simulation to see it|autosim')
+        : t('Current flow on — the dots show while the simulation runs|autosim'),
+      { duration: 3200 },
+    )
     return
   }
   showFlowLegend(announce)
@@ -187,30 +198,6 @@ function useFlowLegendOnRun(enabled: boolean, visible: boolean, running: boolean
   }, [enabled, visible, running])
 }
 
-/** Is a key event aimed at a text field (never steal its letters)? */
-function typing(e: KeyboardEvent): boolean {
-  const el = e.target as HTMLElement | null
-  if (!el || typeof el.closest !== 'function') return false
-  if (el.isContentEditable) return true
-  return !!el.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
-}
-
-/** C toggles 顯示電流 (product chrome; a modal sheet swallows keys before they get here). */
-function useFlowKey(enabled: boolean): void {
-  useEffect(() => {
-    if (!enabled) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
-      if (e.key !== 'c' && e.key !== 'C') return
-      if (typing(e) || isLegacyChrome()) return
-      e.preventDefault()
-      toggleFlowView(true)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [enabled])
-}
-
 /**
  * half the capsule's width + how the chip fits beside it: 'full' (☑ 顯示電流),
  * 'short' (☑ 電流 — a phone), 'compact' (the box + a bolt), 'below' (the
@@ -237,7 +224,6 @@ export function FlowToggle() {
   const phase = useSimPhase()
   const visible = useFlowView((s) => s.visible)
   useLang()
-  useFlowKey(!legacy)
   useFlowLegendOnRun(!legacy, visible, phase === 'running')
   const session = phase !== 'idle'
   const show = !legacy && session

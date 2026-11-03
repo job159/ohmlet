@@ -156,6 +156,9 @@ export interface SceneCallbacks {
    * is being dragged (docked chrome shows two end handles) and aims at
    * `ref` (a hole or "ID:PIN" terminal) — return whether moving that end
    * there would be accepted (drives the preview's red tint). Missing = valid.
+   * Drag-to-wire (round 5): a mouse press-drag on ANY wire's end in its hole
+   * (or right at its end on a terminal post) re-routes that end the same way,
+   * once wireDrawStart is installed.
    */
   onWireEndPreview?(wireId: string, end: 'from' | 'to', ref: string): boolean
   /**
@@ -167,6 +170,93 @@ export interface SceneCallbacks {
    * src/ui/workspace/scene-bridge.ts registerScene.
    */
   onWireEndMove?(wireId: string, end: 'from' | 'to', ref: string | null): void
+  /**
+   * OPTIONAL (additive, round 5 drag-to-wire — docked chrome): a press on
+   * `ref` — a free hole, a part pin's hole or an off-board terminal "ID:PIN"
+   * — may draw a NEW wire by dragging, without the wire mode (select mode;
+   * with a mouse also wire mode while no first end is picked). Return the
+   * endpoint the wire really starts from (a part pin's hole moves to the
+   * free hole of its strip), or null when no wire starts there: the press
+   * keeps today's meaning (orbit, tap, the touch probe long-press). Pure —
+   * asked once per press (mouse: a press in a hole's mouth / on a pin or a
+   * post, armed at once, drawn after 5 px; touch: armed by a 500 ms
+   * long-press, a lift without a move asks onProbeRequest as before; a pen
+   * takes the mouse's press, and a 500 ms hold then a lift without a move
+   * asks onProbeRequest like a finger — final round). The mouse hover asks
+   * it too (once per hovered point and layout — final round), so the
+   * crosshair never shows where it answers null (a part pin whose strip has
+   * no free hole left: there the pin is part of its part, pointer and all).
+   * Missing = no drag-to-wire (the classic chrome, older hosts). Installed
+   * by src/ui/workspace/scene-bridge.ts registerScene.
+   */
+  wireDrawStart?(ref: string): string | null
+  /**
+   * OPTIONAL (additive, drag-to-wire): the drag from `from` became real
+   * (mouse: it moved past the drag threshold; touch: the long-press armed
+   * the grip) — the host's haptic moment. The scene voices 'wire-tip'
+   * itself (emitFxCue) when the wire leaves its start.
+   */
+  onWireDrawStarted?(from: string): void
+  /**
+   * OPTIONAL (additive, drag-to-wire): the drag aims at `to` (a hole or
+   * "ID:PIN" terminal) — would a wire from → to be accepted (drives the
+   * preview's red tint)? Asked once per new target. Missing = valid.
+   */
+  onWireDrawPreview?(from: string, to: string): boolean
+  /**
+   * OPTIONAL (additive, drag-to-wire): the drag was released. `to` is the
+   * aimed hole / terminal; null = released away from any (or back on its
+   * start) — a silent cancel (the scene plays nothing either). The host
+   * adds the wire (store.addWire: one undo step; a part pin's hole lands on
+   * the free hole of its strip — wireDrawLanding) or says why not, and
+   * voices a refusal itself; the scene never selects it. `pressed` (polish):
+   * the hole / terminal the press landed on, when the host moved the start
+   * (a part pin's hole → `from`), so the confirmation can say so.
+   */
+  onWireDraw?(from: string, to: string | null, pressed?: string): void
+  /**
+   * OPTIONAL (additive, drag-to-wire polish): where a new wire from `from`
+   * dropped on `to` really lands — `to` itself when the store takes it, or,
+   * on a part pin's hole (a leg is the natural target), the free hole of the
+   * same 5-hole strip / rail, as the start redirects; `note` is the aim
+   * chip's words for such a move (「c25 被 R1 第 2 腳佔用 → 接到同一排的
+   * a25」), null for a plain landing. Null = it cannot land there (the red
+   * route; the drop still asks onWireDraw, which says why); `to` null with a
+   * `note` (final round) = it cannot land there either, and the aim chip on
+   * the aimed point already says why (「d40 跟起點在同一排，本來就是通的」).
+   * Given, it replaces onWireDrawPreview: the ring, the chip and the preview
+   * route go to the hole the wire will really use. Pure; asked once per new
+   * target.
+   */
+  wireDrawLanding?(from: string, to: string): { to: string | null; note: string | null } | null
+  /**
+   * OPTIONAL (additive, drag-to-wire polish): the chip words of a running new
+   * wire that aims at nothing yet, when its start is not the point pressed
+   * (`pressed`, a part pin's hole) but `from` (the free hole of its strip) —
+   * 「c21 被 U1 PA4 佔用，已改從同一排的 a21 拉線」. Null = no chip.
+   */
+  wireDrawStartText?(pressed: string, from: string): string | null
+  /**
+   * OPTIONAL (additive, drag-to-wire polish): a finger's long-press just
+   * armed a grip on `ref` — a new wire's pressed point (`wireId` null) or
+   * the end of wire `wireId` — and the chip on it says what comes next:
+   * 「a24 · 放開：探測選單／拖曳：拉線」. Null = the plain hole / terminal chip.
+   */
+  wireGripText?(ref: string, wireId: string | null): string | null
+  /**
+   * OPTIONAL (additive, drag-to-wire polish): the mouse came to rest where a
+   * press would draw a new wire from a free hole (select mode; the crosshair
+   * just turned on) — the host's moment for its one-time tip. Called on the
+   * crosshair's off → on change only, never for a finger.
+   */
+  onWireDrawHint?(): void
+  /**
+   * OPTIONAL (additive, persona fix): a mouse press in the mouth of a hole
+   * that is too small on screen to draw from (zoomed far out) turned into an
+   * orbit — the host's moment to say how to zoom in (「放大一點…就能從孔位拉線」).
+   * Called once per such drag, select mode only, never for a finger.
+   */
+  onWireDrawTooSmall?(): void
   /**
    * OPTIONAL (additive, embedded platform): the component or wire under the
    * mouse pointer changed (desktop hover only — touch never hovers). `id` is
@@ -214,6 +304,9 @@ export interface SceneCallbacks {
    * reports onObjectLongPress. The right-click passes { pointer: 'mouse' }.
    * A long-press on a WIRE END arms its re-route grip (SC-13): dragging
    * re-routes it, lifting without a move asks for the probe menu here.
+   * With drag-to-wire installed (wireDrawStart) a long-press on a hole, a
+   * pin or a post where a wire can start arms a wire grip the same way: the
+   * probe menu is asked on the lift, a drag draws a new wire.
    * (`pointer` absent = unknown: the host decides by its own pointer query.)
    */
   onProbeRequest?(target: SceneProbeTarget, screen: { x: number; y: number }, opts?: { pointer?: 'mouse' | 'touch' }): void

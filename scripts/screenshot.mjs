@@ -12,7 +12,8 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const PORT = 4173
-const URL = `http://localhost:${PORT}/`
+// autorun=0: these shots / budgets predate auto-run (round 5) and stay comparable — the seeded circuits are shot stopped, as before
+const URL = `http://localhost:${PORT}/?autorun=0`
 
 function startPreview() {
   const proc = spawn('npm', ['run', 'preview', '--', '--port', String(PORT), '--strictPort'], {
@@ -206,11 +207,15 @@ async function main() {
 
       await ipage.screenshot({ path: 'shots/int-date-display-home.png' })
 
-      // second angle: orbit-drag the camera lower and to the side
+      // second angle: orbit-drag the camera lower and to the side (Alt held:
+      // in the product chrome a drag that starts in a hole's mouth draws a
+      // wire — round 5 drag-to-wire; Alt+drag always orbits)
+      await ipage.keyboard.down('Alt')
       await ipage.mouse.move(720, 430)
       await ipage.mouse.down()
       await ipage.mouse.move(560, 350, { steps: 14 })
       await ipage.mouse.up()
+      await ipage.keyboard.up('Alt')
       await settle(ipage, 900)
       await ipage.screenshot({ path: 'shots/int-date-display-angle.png' })
 

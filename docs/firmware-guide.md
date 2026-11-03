@@ -40,7 +40,7 @@
 5. `Project → Build Project`，產生 `<工作區>/<專案>/Debug/<專案>.elf`。
 6. 在 ohmlet 打開範例「Blue Pill 閃爍 LED（HAL）」（它已經接好電源），把你的 `.elf` **拖到 3D 畫面上**，放開即載入 U1。
    要從空白麵包板開始時，放一塊「STM32F103C8T6 Blue Pill 開發板」並接上電源（見[使用手冊 §3–§4](user-guide.md#3-放置元件)）。
-7. 按膠囊的 **▶ 執行模擬**。板載的 PC13 LED 每 501 ms 切換一次（`HAL_Delay(n)` 會等待 n + 1 個 tick，見 [§6](#hal-版本與行為細節)）。
+7. 載入後模擬會自動執行，不用按執行。板載的 PC13 LED 每 501 ms 切換一次（`HAL_Delay(n)` 會等待 n + 1 個 tick，見 [§6](#hal-版本與行為細節)）。
 
 ---
 

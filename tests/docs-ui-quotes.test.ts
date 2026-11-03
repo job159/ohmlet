@@ -12,17 +12,31 @@
  * 「直接送進 USART」 terminal note …), and every picture
  * scripts/docs-shots.mjs takes is a file in docs/images (and the other way
  * round), so a new shot cannot be forgotten in the docs.
+ *
+ * Round 5 (+ polish): the auto-run pause line, the short wire-mode hint, the
+ * one-time drag tip, the long-press grip chips, the drag-to-wire redirect
+ * words, the 「電路說明」 cathode row rendered by explainCircuit on a real
+ * SimEngine run, 〔換新〕／〔全部換新〕, the new shortcut rows — and the
+ * wording the polish round retired stays gone (ported from the docs
+ * stream's scratch quotes-check).
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { __setLangForTests, t } from '../src/i18n'
+import { tidyCjkSpaces } from '../src/i18n/tidy'
 import { getEntry } from '../src/model/catalog'
 import type { CircuitLayout } from '../src/model/types'
 import type { UartRxInfo } from '../src/sim/coordinator/api'
+import { SimEngine } from '../src/sim/engine'
+import { runErc } from '../src/sim/erc'
+import '../src/sim/models'
+import { SHORTCUTS } from '../src/ui/chrome/ShortcutsSheet'
+import { explainCircuit, newExplainHistory, observeTelemetry, type ExplainInput } from '../src/ui/chrome/explain'
+import { deriveProblems } from '../src/ui/embedded/problems'
 import { runCapsuleText } from '../src/ui/chrome/StatusBar'
 import { deletedText, historyStepText } from '../src/ui/chrome/edit-feedback'
-import { placementSpotRefusedHint, wireStartHint } from '../src/ui/chrome/hints'
+import { arrowJoin, placementSpotRefusedHint, wireStartHint } from '../src/ui/chrome/hints'
 import { meterReading, waveformLiveText } from '../src/ui/embedded/instruments/meter-readout'
 import { rxWireNote } from '../src/ui/embedded/instruments/uart-sent'
 import { speedOptions, speedRowTitle } from '../src/ui/sheets/MoreSheet'
@@ -269,5 +283,140 @@ describe('scripts/docs-shots.mjs and docs/images agree', () => {
 
   it('the phone examples picture is shown with §24', () => {
     expect(section(24)).toContain('](images/phone-examples.jpg)')
+  })
+})
+
+// ------------------------------------------------------------- round 5 (+ polish)
+
+/** §6.1 lives inside §6. */
+const s61 = () => {
+  const s = section(6)
+  return s.slice(s.indexOf('### 6.1'))
+}
+/** CHANGELOG's round-5 entry (the top entry, up to the round-4 one). */
+const r5log = () => read('CHANGELOG.md').split('## 操作簡化')[0]
+
+describe('round 5: docs quote the auto-run, drag-to-wire and damage words', () => {
+  it('the pause pill and its 〔繼續執行〕 (§6, README)', () => {
+    const paused = t('Simulation paused — editing parts or wires resumes it|autosim')
+    expect(paused).toBe('模擬已暫停——改動接線或元件就會自動繼續')
+    expect(section(6)).toContain(`「${paused}」，右邊是〔${t('Resume running')}〕按鈕`)
+    expect(read('README.md')).toContain(`「${paused}」並附〔${t('Resume running')}〕`)
+  })
+
+  it('§4: the short wire-mode hint (mouse and touch), the one-time tip and the grip chips; no retired hint tail', () => {
+    expect(section(4)).toContain(`「${t('Wire mode: tap two holes or terminals in turn · Esc to finish')}」`)
+    expect(section(4)).toContain(`「${t('Wire mode: tap two holes or terminals in turn · tap “Done” to finish')}」`)
+    const tip = t('Tip: hold a hole and drag to another hole to draw a wire')
+    expect(tip).toBe('小提示：按住孔位拖到另一個孔位，就能拉線')
+    expect(section(4)).toContain(`「${tip}」`)
+    expect(r5log()).toContain(`「${tip}」`)
+    const grip = tidyCjkSpaces(t('{point} · lift: probe menu / drag: draw a wire', { point: 'a24' }))
+    expect(section(4)).toContain(`「${grip}」`)
+    expect(r5log()).toContain(`「${grip}」`)
+    const gripEnd = t('{point} · lift: probe menu / drag: move this end', { point: '' }).replace(/^\s*·\s*/, '')
+    expect(section(4)).toContain(`「${gripEnd}」`)
+    for (const txt of [read('docs/user-guide.md'), r5log()]) {
+      expect(txt).not.toMatch(/不必切到導線模式」/)
+      expect(txt).not.toContain('也可以直接從孔位拖到另一個孔位')
+    }
+    expect(section(4)).not.toContain('觸控裝置上先選取導線')
+  })
+
+  it('§4: the redirect words of a drag that starts or lands on a part’s leg (polish)', () => {
+    const chip = tidyCjkSpaces(t('{hole} is taken by {pin} → lands on {free} in the same row', { hole: 'c26', pin: 'R1 第 2 腳', free: 'b26' }))
+    expect(chip).toBe('c26 被 R1 第 2 腳佔用 → 接到同一排的 b26')
+    expect(section(4)).toContain(`「${chip}」`)
+    const landed = t('{free} ({hole} is taken by {pin}, so it lands in the same row)', { free: 'b26', hole: 'c26', pin: 'R1 第 2 腳' })
+    expect(section(4)).toContain(`「${tidyCjkSpaces(t('Connected {ends}', { ends: arrowJoin(['a19', landed]) }))}」`)
+    const started = t('{free} ({hole} is taken by {pin}, so it starts in the same row)', { free: 'a21', hole: 'c21', pin: 'U1 PA4' })
+    expect(section(4)).toContain(`「${tidyCjkSpaces(t('Connected {ends}', { ends: arrowJoin([started, 'e40']) }))}」`)
+  })
+
+  it('§5 / §7 / §8: 〔換新〕 on the selection pill, 〔全部換新〕 in the Problems header with its toast', () => {
+    const renew = `〔${t('Replace|damaged')}〕`
+    expect(section(5)).toContain(renew)
+    expect(section(5)).toMatch(/〔換新〕（[^）]*選取膠囊/)
+    expect(section(8)).toContain(`${renew}按鈕`)
+    expect(section(7)).toContain(`〔${t('Replace all|damaged')}〕`)
+    expect(section(7)).toContain(`「${t('Replaced {ids} with new ones|damage', { ids: ['LED1', 'LED2'].join(t(', |damage-list')) })}」`)
+  })
+
+  it('§23: the four new 編輯 rows and the footer of the shortcuts sheet', () => {
+    for (const id of ['copy', 'cut', 'paste', 'duplicate'] as const) expect(section(23)).toContain(`| ${t(SHORTCUTS[id].label)} |`)
+    expect(section(23)).toContain('複製、貼上在輸入框以外都能用；其他編輯用的按鍵要在 3D 畫面上使用')
+  })
+
+  it('§22 quotes the 音效 subtitle; §3 the 常用元件 and its fold; §6.1 is 電路說明', () => {
+    const sound = t(
+      'A chime when a lesson passes or a circuit works, a pop when a part burns, and the mechanical sounds of plugging in parts, wires, buttons, switches and relays',
+    )
+    expect(section(22)).toContain(`「${sound}」`)
+    expect(section(3)).toContain('一聲輕輕的「咻」')
+    expect(t('Common parts')).toBe('常用元件')
+    expect(section(3)).toContain('「常用元件」')
+    expect(t('Fold the common parts')).toBe('收合常用元件')
+    expect(section(3)).toContain('可以收合')
+    expect(t('Circuit explanation|explain')).toBe('電路說明')
+    expect(section(6)).toContain('### 6.1 電路說明')
+  })
+})
+
+describe('round 5: §6.1 quotes the 「電路說明」 the code renders', () => {
+  it('the open-cathode row, from explainCircuit on a real run (PS1 / R1 top+3→a10 / LED1 b10→c20)', () => {
+    const layout = {
+      version: 1,
+      components: [
+        { id: 'PS1', type: 'power_supply', params: { voltage: 5 } },
+        { id: 'R1', type: 'resistor', holes: ['top+3', 'a10'], params: { resistance: 330 } },
+        { id: 'LED1', type: 'led', holes: ['b10', 'c20'], params: { color: 'red' } },
+      ],
+      wires: [
+        { id: 'W1', from: 'PS1:+', to: 'top+0' },
+        { id: 'W2', from: 'PS1:-', to: 'top-0' },
+      ],
+    } as unknown as CircuitLayout
+    const engine = new SimEngine(layout)
+    const history = newExplainHistory()
+    for (let i = 0; i < 10; i++) {
+      engine.advance(0.1, 1e-3)
+      observeTelemetry(history, layout, engine.telemetry())
+    }
+    const tele = engine.telemetry()
+    const findings = runErc(layout, { telemetry: tele, issues: tele.issues })
+    const problems = deriveProblems({ layout, findings, issues: tele.issues, firmware: {}, mcus: {}, running: true, simTime: tele.time })
+    const e = explainCircuit({ layout, telemetry: tele, phase: 'running', problems, findings, history } as unknown as ExplainInput)
+    expect(s61()).toContain(`「${e.lines[0]}」「${e.lines[1]}」`)
+  })
+
+  it('the lit line and the lesson-secret line 「LED1 亮著」', () => {
+    expect(s61()).toContain(`「${t('{id} is lit: brightness {value}|explain', { id: 'LED1', value: '49 %（9.70 mA）' })}」`)
+    expect(s61()).toContain(`「${t('{id} is lit|explain', { id: 'LED1' })}」`)
+  })
+})
+
+describe('round 5: wording the polish round retired stays gone', () => {
+  it('explain refresh, lesson values, card height, search order, preview colour', () => {
+    expect(read('docs/user-guide.md')).not.toContain('約 0.2 秒')
+    expect(r5log()).not.toContain('約 0.2 秒')
+    expect(r5log()).not.toContain('可能直接寫出要你量的數值')
+    expect(read('DESIGN.md')).not.toMatch(/at a FIXED height/)
+    expect(section(3)).not.toContain('搜尋結果也照這個順序')
+    expect(section(3)).toContain('符合程度')
+    expect(r5log()).not.toContain('搜尋結果同樣排序')
+    expect(r5log()).not.toContain('不依符合程度')
+    expect(r5log()).toContain('符合程度')
+    expect(r5log()).not.toContain('拖曳預覽一律是黃色')
+  })
+
+  it('no stale Run / sound / damage / orbit / explain wording; every Alt gesture carries （Mac：Option）', () => {
+    expect(read('README.md')).not.toMatch(/按 ▶ 執行模擬|\*\*3\. ▶ 執行模擬/)
+    expect(read('docs/user-guide.md')).not.toMatch(
+      /按膠囊的 \*\*▶ 執行模擬\*\*|按 ▶ 執行模擬即可|接線時的輕響|排除原因後修改電路或按「重置模擬」|左鍵拖曳空白處 \||陰極那一排|拉一條導線到/,
+    )
+    expect(read('docs/firmware-guide.md')).not.toContain('按膠囊的 **▶ 執行模擬**')
+    for (const f of ['README.md', 'docs/user-guide.md', 'CHANGELOG.md']) {
+      expect(read(f).split('## 操作簡化')[0].match(/Alt(?!（Mac：Option）)/g), f).toBeNull()
+    }
   })
 })

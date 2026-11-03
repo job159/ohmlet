@@ -33,7 +33,7 @@ describe('顯示電流 toggle', () => {
     expect(useStore.getState().running).toBe(false)
     toggleFlowView(false)
     expect(useFlowView.getState().visible).toBe(true)
-    expect(lastToast()).toBe('已開啟電流顯示——執行模擬時就會看到電流流動')
+    expect(lastToast()).toBe('已開啟電流顯示——模擬執行時就會看到電流流動')
   })
 
   it('the key toggle announces off', () => {
@@ -43,10 +43,12 @@ describe('顯示電流 toggle', () => {
     expect(lastToast()).toBe('已關閉電流顯示')
   })
 
-  it('C is free in the shared key table (or already listed for this action)', () => {
+  it('顯示電流 is Shift+C in the shared key table (a plain C picks up a capacitor)', () => {
+    expect(FLOW_KEY).toBe('Shift+C')
+    expect(SHORTCUTS['current-flow'].combos).toEqual([['Shift', 'C']])
     for (const [id, row] of Object.entries(SHORTCUTS)) {
       for (const combo of row.combos) {
-        if (combo.length === 1 && combo[0].toUpperCase() === FLOW_KEY) expect(id).toBe('current-flow')
+        if (combo.join('+') === FLOW_KEY) expect(id).toBe('current-flow')
       }
     }
   })
@@ -68,7 +70,7 @@ describe('顯示電流 toggle', () => {
     try {
       expect(useStore.getState().running).toBe(false)
       toggleFlowView(false) // the chip / the 更多 row before the run
-      expect(lastToast()).toBe('已開啟電流顯示——執行模擬時就會看到電流流動')
+      expect(lastToast()).toBe('已開啟電流顯示——模擬執行時就會看到電流流動')
       expect(mem.get('bb.flowHint')).toBeUndefined() // the verifier's q7: it used to be spent here
       // the run starts with the view on (FlowToggle's effect): the legend, once
       expect(showFlowLegend(false)).toBe(true)

@@ -594,7 +594,11 @@ function feedVia(c: Circuit, net: string | null): { edge: Edge; rail: string } |
 
 export function checkPower(c: Circuit, out: ErcFinding[]): void {
   if (c.sources.length === 0) {
-    const consumers = c.parts.filter(needsPower)
+    // A function generator wired into the circuit drives it too: an LED (or a
+    // bare 7-segment) it feeds really lights, so only parts that need a real
+    // supply (chips, modules with supply pins) are still "unpowered" then.
+    const driven = c.signals.some((g) => netUsed(c, g.out, g.part))
+    const consumers = c.parts.filter((p) => needsPower(p) && !(driven && p.entry.sim.kind === 'device' && !p.entry.supplyPins))
     if (consumers.length > 0) {
       out.push(
         makeFinding({
@@ -606,7 +610,8 @@ export function checkPower(c: Circuit, out: ErcFinding[]): void {
             `${consumers.length > 3 ? ` and ${consumers.length - 3} more` : ''} cannot work. ` +
             `Add a DC power supply (or battery) and wire its + and − terminals to the power rails.`,
           short: 'No power source',
-          fact: 'power:*',
+          // 「電路沒有電，什麼都不會動」 would be false while a generator drives part of it
+          fact: driven ? undefined : 'power:*',
           componentIds: consumers.map((p) => p.comp.id),
           nets: [],
           holes: [],

@@ -15,6 +15,7 @@
  * The blink example's LED is LED1 since bf340c5 (it was D1 when this replay
  * was written; the LED<n> designator, as the example's own text and the
  * lessons name it).
+ * Boots with `autorun=0`: the replay drives run / pause itself (round 5 auto-run off).
  * Exit code 1 on any failed check.
  */
 import { createRequire } from 'node:module'
@@ -64,7 +65,9 @@ async function open({ lang = 'zh-TW', workspace = true, phone = false, layout = 
   )
   // a loaded machine (several dev servers + browsers) takes 35-110 s to the load event of a
   // fresh profile's ~1000 dev modules (release triage, measured): wait for the page, not 30 s
-  await page.goto(URL, { timeout: 180000 })
+  // autorun=0 (round 5): this replay runs / pauses the simulation itself (store startSim /
+  // stopSim) and reads the states in between; auto-run would start or resume it on its own
+  await page.goto(`${URL}${URL.includes('?') ? '&' : '?'}autorun=0`, { timeout: 180000 })
   await page.waitForSelector('canvas', { timeout: 90000 })
   await sleep(2000)
   return { ctx, page, errors }
@@ -174,7 +177,7 @@ async function inspectorText(page) {
   await store(page, "const l = m.useStore.getState().layout; m.useStore.getState().loadLayout({ ...l, wires: l.wires.filter((w) => w.id.toLowerCase() !== 'w6') })")
   await runUntil(page, 0.8)
   const p = await problems(page)
-  const open1 = p.rows.find((r) => r.title === 'LED1 陰極沒接')
+  const open1 = p.rows.find((r) => r.title === 'LED1 陰極的電源軌沒接電') // the lead is wired — to a rail nothing feeds (persona fix)
   check(
     !!open1 && open1.detail === 'LED1 的陰極（top-32）接到上方 − 電源軌，但這條電源軌沒有接到電源（PS1 負端），所以電流回不去。請用導線把上方 − 電源軌接到下方 − 電源軌，或直接接到 PS1 負端。',
     'the floating-rail message', open1?.detail ?? p.rows.map((r) => r.title),

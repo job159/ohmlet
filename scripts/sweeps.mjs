@@ -441,7 +441,7 @@ async function main() {
       await settle(page, 400)
       await page.keyboard.press('Escape') // close the panel (place mode stays armed)
       await settle(page, 400)
-      await page.keyboard.press('r') // DIP rotation toggles 0 ↔ 180
+      await page.keyboard.press('Shift+R') // DIP rotation toggles 0 ↔ 180 (Shift+R rotates in both chromes; a plain R picks up a resistor in the product chrome)
       await settle(page, 300)
       await aimAt(page, 20, 'f', 10)
       await page.mouse.move(549, 399)
@@ -728,7 +728,7 @@ async function main() {
       await page.mouse.move(549, 399)
       await page.mouse.move(550, 400)
       await settle(page, 500)
-      await page.keyboard.press('r')
+      await page.keyboard.press('Shift+R')
       const toast = page.locator('.lg-toast')
       try {
         await toast.first().waitFor({ state: 'visible', timeout: 2500 })

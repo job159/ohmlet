@@ -12,6 +12,9 @@
  *   - the status pill is no longer silenced: 「電路已就緒（空白鍵）」 + 〔執行模擬〕
  *     (the button carries the verb once — release QA SH-F10);
  *   - after a reload no coach comes back (bb.lessons guiding is cleared).
+ * The page boots with `autorun=0` (round 5): with auto-run the opened example
+ * runs at once and the ready line (still shown after a paused simulation is
+ * reset) never appears, so the pill check needs auto-run off.
  * Exit code 1 on any failed assertion. UX_E2E_SHOTS=<dir> saves screenshots.
  */
 import { mkdirSync } from 'node:fs'
@@ -52,7 +55,8 @@ try {
     await page.evaluate(() => window.__e2e.ready())
     await sleep(800)
   }
-  await page.goto(`${URL}?e2e`, { timeout: 180_000 })
+  // autorun=0: the idle pill under test (auto-run would start the opened example at once)
+  await page.goto(`${URL}?e2e&autorun=0`, { timeout: 180_000 })
   await boot()
 
   // 課程 → b1 → 載入起始電路: the coach guides step 1

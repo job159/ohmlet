@@ -271,7 +271,8 @@ describe('SC-9 re-run: the wire tool armed on a phone frames the guided wiring s
     guide('i1-gpio-output', 1)
     useStore.setState({ mode: PLACE_R })
     expect(frames[0].opts?.minPitchPx).toBe(TOUCH_PITCH_TARGET_PX)
-    expect(frames[0].spec).toEqual(armFramingSpec(useStore.getState().layout, []))
+    // a part that goes into the board frames the board's part of the circuit (persona fix: no off-board supply)
+    expect(frames[0].spec).toEqual(armFramingSpec(useStore.getState().layout, [], { board: true }))
     useStore.setState({ mode: { kind: 'select' } })
     setArmFocusSource(() => {
       throw new Error('broken')

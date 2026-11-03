@@ -81,8 +81,8 @@ export function checkLive(c: Circuit, out: ErcFinding[], ledsReported: ReadonlyS
               key: id,
               message: isLed
                 ? // the LED model's burn rule (src/sim/devices.ts LED_TJ_BURN_C / LED_PEAK_CURRENT), as rules-led.ts words it
-                  `${id} burned out in the simulation (the LED model latches it as burned when its junction passes about 150 °C, far over its rating for seconds, or more than 150 mA flows for over 1 ms). Add or enlarge its series resistor, then reset the simulation.`
-                : `${id} (${label}) burned out in the simulation (its model latched an over-current). Limit the current through it, then reset the simulation.`,
+                  `${id} burned out in the simulation (the LED model latches it as burned when its junction passes about 150 °C, far over its rating for seconds, or more than 150 mA flows for over 1 ms). Add or enlarge its series resistor; a circuit edit puts in a new one (in the workspace, “Replace” and a value change do too).`
+                : `${id} (${label}) burned out in the simulation (its model latched an over-current). Limit the current through it; a circuit edit puts in a new one (in the workspace, “Replace” and a value change do too).`,
               short: `${id} burned out`,
               fact: `burned:${id}`,
               componentIds: [id],
@@ -157,6 +157,8 @@ export function checkLive(c: Circuit, out: ErcFinding[], ledsReported: ReadonlyS
                 key: `${id}:${el.id}`,
                 message: `${id}’s on-board LED ${el.id} burned out in the simulation (its junction passed about 150 °C, far over its rating for seconds, or more than 150 mA flowed for over 1 ms): something drives its pin with too much current. Check what is wired to ${el.pins.filter((p) => !p.startsWith('@')).join(' / ')}.`,
                 short: `${id} on-board LED burned out`,
+                // the simulator's own fact of it ('LED U1.LED_PC13 burned out'): one row, with 〔換新〕 for the board
+                fact: `burned:${id}.${el.id}`,
                 pins: el.pins.filter((p) => !p.startsWith('@')).map((pin) => ({ id, pin })),
                 componentIds: [id],
                 nets: el.pins.map((p) => (p.startsWith('@') ? null : netOfPin(part, p))),

@@ -25,8 +25,8 @@ const zh: Record<string, string> = {
 
   // ---- 更多 → 音效 ----
   Sound: '音效',
-  'A chime when a lesson passes or a circuit works, a pop when a part burns, quiet clicks while building':
-    '課程通過或電路正常運作時的提示音、元件燒毀的爆裂聲，以及接線時的輕響',
+  'A chime when a lesson passes or a circuit works, a pop when a part burns, and the mechanical sounds of plugging in parts, wires, buttons, switches and relays':
+    '課程通過或電路正常運作時的提示音、元件燒毀的爆裂聲，以及插拔元件、接線、按鈕、開關與繼電器的機械聲',
 
   // ---- problems: a pin measured beyond its absolute maximum ----
   'Beyond its absolute maximum rating a real chip’s pin may already be damaged — from here on the simulation no longer guarantees how {id} behaves. Fix the cause, then reset the simulation.':

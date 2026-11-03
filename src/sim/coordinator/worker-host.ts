@@ -46,6 +46,7 @@ export type MainToWorker =
   | { type: 'step'; seconds: number }
   | { type: 'mcu'; op: 'reset' | 'halt' | 'resume' | 'step'; componentId: string }
   | { type: 'param'; componentId: string; key: string; value: ParamValue }
+  | { type: 'repair'; ids: string[] | null }
   | { type: 'uart'; componentId: string; port: string; bytes: Uint8Array }
   | { type: 'logic-channels'; channels: LogicChannelConfig[] }
   | { type: 'query'; id: number; query: HostQuery }
@@ -162,6 +163,9 @@ export class WorkerSimHost implements SimHost {
   }
   setRuntimeParam(componentId: string, key: string, value: ParamValue): void {
     this.post({ type: 'param', componentId, key, value })
+  }
+  repairParts(ids: readonly string[] | null): void {
+    this.post({ type: 'repair', ids: ids ? [...ids] : null })
   }
   uartSend(componentId: string, port: string, bytes: Uint8Array): void {
     this.post({ type: 'uart', componentId, port, bytes: bytes.slice() })
@@ -318,6 +322,11 @@ export class SimWorkerRuntime {
           break
         case 'param':
           co.setRuntimeParam(m.componentId, m.key, m.value)
+          break
+        case 'repair':
+          // 換新: the parts are new at once — a paused view shows it now
+          co.repairParts(Array.isArray(m.ids) ? m.ids : null)
+          this.postFrame()
           break
         case 'uart':
           co.uartSend(m.componentId, m.port, m.bytes)

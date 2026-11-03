@@ -267,6 +267,13 @@ export interface SimHost {
    * on their own; solutions never change.
    */
   setCurrentTracking?(on: boolean): void
+  /**
+   * OPTIONAL (additive, 換新): replace the damaged parts `ids` (null = every
+   * damaged part) by new ones in place (SimulationCoordinator.repairParts) —
+   * no rebuild; the host publishes a frame, so a paused view updates at
+   * once. A cause still in place damages the part again.
+   */
+  repairParts?(ids: readonly string[] | null): void
 }
 
 // ======================================================================

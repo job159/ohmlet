@@ -41,7 +41,8 @@
  * project names, hole references like top+5, terminal references like
  * FG1:out) and a short list of proper names (ohmlet, Blue Pill, Cortex …).
  * ALL-CAPS words must be listed (so an English "WARNING" still leaks). The
- * modifier key names Ctrl, Shift, Alt and Esc stay as printed on the keycaps
+ * modifier key names Ctrl, Shift, Alt, Esc and the Mac's Option stay as printed on the keycaps
+ * (the onboarding's 「按住 Alt／Option 鍵」, round 5 drag-to-wire)
  * — the buttons' titles name their shortcut that way (H6 withKey: 「重置 MCU
  * （Shift+F5）」); words that are also English UI text (Delete…) still leak.
  * Data that is not UI text — UART bytes printed by the
@@ -149,7 +150,7 @@ const ALLOW = new Set(
   MSPS ksps Msps sps ksa Msa RX TX SWJ_CFG JTDI JTDO NJTRST TRACESWO TAMPER WKUP OSC PVD AWU NJTRST LL RGB
   NAND AND NOR XOR XNOR Kbit kbit Mbit TRM NOJTAG POR PDR BOR SoC CPOL CPHA
   NEMA LIN UID ARP CSS EVENTOUT Vin Vout Vth Vcc Vdd
-  Ctrl Shift Alt Esc
+  Ctrl Shift Alt Esc Option
   `
     .split(/\s+/)
     .filter(Boolean),
@@ -234,6 +235,7 @@ const AREAS = [
   ['[class*="lg-capsule"]', 'src/ui/chrome/StatusBar.tsx / src/ui/kit/StatusCapsule.tsx'],
   ['.lg-toast-host', 'toasts (src/App.tsx, src/ui/chrome/hints.ts, callers of showToast)'],
   ['.app-status-pill', 'src/ui/chrome/StatusPill.tsx'],
+  ['.app-explain', 'src/ui/chrome/ExplainCard.tsx (lines: src/ui/chrome/explain.ts)'],
   ['.app-keys', 'src/ui/chrome/ShortcutsSheet.tsx'],
   ['.ws-probe-menu', 'src/ui/workspace/ProbeMenu.tsx'],
   ['[class*="lsn-"]', 'src/ui/lessons/* (LessonOverlay, LessonBrowser)'],
@@ -605,8 +607,9 @@ async function classic(browser) {
     await dock(page, DOCK.parts)
     await sleep(page, 800)
     await audit(page, 'parts-sheet', errors)
-    // arm the first card → placement hint toast
-    await page.locator('.psh-grid button').first().click({ timeout: 3000 })
+    // arm the Blue Pill card → its placement hint toast (picked by name: the
+    // library order puts the everyday parts first, so it is no longer the first card)
+    await page.locator('.psh-grid button', { hasText: 'Blue Pill' }).first().click({ timeout: 3000 })
     await sleep(page, 600)
     await audit(page, 'placing', errors)
     await page.keyboard.press('Escape')

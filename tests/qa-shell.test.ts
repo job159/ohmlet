@@ -234,6 +234,11 @@ describe('SH-F9 undo / redo / delete name what changed', () => {
     const u1: CircuitLayout = { ...empty, components: [{ id: 'U1', type: 'stm32_bluepill', at: 'h10' }] }
     expect(describeLayoutChange(u1, { ...empty, components: [{ id: 'U1', type: 'stm32_bluepill', at: 'h10', rotation: 180 }] })).toBe('旋轉 U1')
     expect(describeLayoutChange(empty, BENCH)).toBe('載入電路')
+    // a paste (Ctrl+V, round 5) adds a part AND its wire while every part already there stays the same
+    // object — a placement, never 「載入電路」 (a load builds fresh objects, so the same additions read as one)
+    const pasted: CircuitLayout = { ...wired, components: [...wired.components, { id: 'R2', type: 'resistor', holes: ['a40', 'a44'] }], wires: [...wired.wires, { id: 'W9', from: 'b40', to: 'b50' }] }
+    expect(describeLayoutChange(wired, pasted)).toBe('放上 R2、導線 W9')
+    expect(describeLayoutChange(wired, JSON.parse(JSON.stringify(pasted)) as CircuitLayout)).toBe('載入電路')
     expect(describeLayoutChange(r1, { ...r1, board: 'labxl' })).toBe('變更麵包板')
     expect(describeLayoutChange(r1, r1)).toBeNull()
     expect(nameList(['R1', 'LED1', 'R2', 'R3', 'R4'])).toBe('R1、LED1、R2 等 5 項')

@@ -81,7 +81,8 @@ body.ws-on.ws-tray-closed {
 }
 .ws-right {
   right: calc(var(--lg-safe-right) + 16px);
-  top: 16px;
+  /* the 「電路說明」 card sits above it (ExplainCard publishes its height + gap; 0 without it) */
+  top: calc(16px + var(--ws-explain-h, 0px));
   bottom: 16px;
   width: var(--ws-right-w, 340px);
   --ws-in-x: 24px;
@@ -430,6 +431,46 @@ body.ws-resizing-y * {
 .ws-lib-section .lg-list-header {
   padding: 6px 6px 7px;
 }
+/* 「常用元件」 folds: its caption is a disclosure button with the caption's
+   look (font, colour, padding) — the parts are listed again in their
+   categories, so a frequent user can put them away */
+.ws-lib-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ws-lib-fold-title {
+  flex: 0 1 auto;
+}
+.ws-lib-fold-count {
+  flex: 0 1 auto;
+  color: var(--label-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ws-lib-fold-chevron {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--label-2);
+}
+.ws-lib-fold:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .ws-lib-fold:hover {
+    background: var(--fill-2);
+    color: var(--label);
+  }
+}
 .ws-lib-list {
   display: flex;
   flex-direction: column;
@@ -502,6 +543,48 @@ body.ws-resizing-y * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* a 常用元件's part key (round 5 — part-keys.ts: R 電阻, C 電容 …): a quiet
+   keycap at the right end of the sub line («2 腳 ··· R» — the name keeps its
+   whole width, no card grows), mouse pointers only (a finger has no letter
+   keys). Ink + hairline from the label tokens, so the glass's light tone
+   (.is-tone-light) flips it with the rest of the card. */
+.ws-part-text.has-key {
+  flex: 1 1 auto;
+}
+.ws-part-subrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ws-part-subrow .ws-part-sub {
+  min-width: 0; /* a long sub (the Blue Pill's part number) still ends in … */
+}
+.ws-part-key {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ws-part-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-width: 17px;
+    height: 16px;
+    margin-left: auto;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: var(--fill-2);
+    box-shadow: inset 0 0 0 0.5px var(--separator), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+    color: var(--label-2);
+    font: 600 10.5px/1 var(--lg-font);
+    letter-spacing: 0;
+  }
+  .ws-part-main:hover .ws-part-key,
+  .ws-part.is-armed .ws-part-key {
+    color: var(--label);
+  }
 }
 .ws-part-side {
   display: flex;

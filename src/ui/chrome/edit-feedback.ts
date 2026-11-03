@@ -39,12 +39,14 @@ import {
   wireRefusal,
   type WireRefusal,
 } from '../../state/store'
+import { isPasteResult } from '../../state/clipboard'
 import { t } from '../../i18n'
 import { partLabel, pinLabel } from '../../i18n/parts'
 import { tidyCjkSpaces } from '../../i18n/tidy'
 import { dismissToast, showToast } from '../kit'
 import { wireRefusalText } from '../workspace/hole-chip'
-import { playCue, type SoundCue } from '../fx/sound'
+import type { SoundCue } from '../fx/sound'
+import { withMechCause } from '../fx/mech-watch'
 import { isLegacyChrome } from './legacy'
 import { coarsePointer } from './hints'
 import { shortcutKeysText } from './ShortcutsSheet'
@@ -236,6 +238,14 @@ function attachedTo(w: Wire, ids: ReadonlySet<string>): boolean {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 
+/** Every part and wire of `before` (a board that has some) is the very same object in `after`. */
+function keptAsIs(before: CircuitLayout, after: CircuitLayout): boolean {
+  if (before.components.length + before.wires.length === 0) return false
+  const comps = new Set(after.components)
+  const wires = new Set(after.wires)
+  return before.components.every((c) => comps.has(c)) && before.wires.every((w) => wires.has(w))
+}
+
 /**
  * The edit that turns `before` into `after`, as a person says it (null when
  * nothing a person would name changed): 「清空麵包板」 (an emptied board of
@@ -266,6 +276,14 @@ function changeLabel(before: CircuitLayout, after: CircuitLayout): string | null
   // would list — deleting the last part reads 「刪除 R1」, never 「清空麵包板」
   if (after.components.length === 0 && after.wires.length === 0 && removedNames.length > 3) {
     return t('Clear the board|history')
+  }
+  // a paste (copy-paste.ts) adds parts AND wires to a board whose every part
+  // and wire stays the very same object — a load never does: validateLayout
+  // builds fresh objects (「放上 R2、LED2、導線 W9」); onto an empty board the
+  // planner's own mark tells it (state/clipboard.ts isPasteResult)
+  const onlyAdded = addedC.length > 0 && addedW.length > 0 && removedC.length === 0 && removedW.length === 0
+  if (onlyAdded && (keptAsIs(before, after) || isPasteResult(after))) {
+    return t('Place {names}|history', { names: nameList([...addedC, ...addedW.map((w) => wireName(w.id))]) })
   }
   // a whole circuit at once (an example, an import, an AI circuit): a single
   // edit never adds a part and a wire together, nor swaps parts for others
@@ -372,7 +390,7 @@ export function undoWithFeedback(): void {
     return
   }
   const before = st.layout
-  st.undo()
+  withMechCause('undo', () => st.undo()) // one swish, not the inverse edit's sound
   const after = useStore.getState().layout
   if (after === before) return
   dismissWireRefusalToast()
@@ -387,7 +405,7 @@ export function redoWithFeedback(): void {
     return
   }
   const before = st.layout
-  st.redo()
+  withMechCause('redo', () => st.redo())
   const after = useStore.getState().layout
   if (after === before) return
   dismissWireRefusalToast()
@@ -438,13 +456,14 @@ export function firmwareRiskDialog(
 }
 
 /**
- * A quiet sound cue for an edit (product chrome; src/ui/fx/sound.ts —
- * rate-limited, silent before the first gesture and while 音效 is off): a
- * part placed ('place'), a wire completed ('wire'), parts deleted
- * ('delete'). The classic chrome stays silent, as it always was.
+ * Inert — kept for its callers (App.tsx, the library, the parts sheet,
+ * 清空麵包板). The edit sounds now come from the board itself: mech-watch.ts
+ * voices every committed insert / wire / pull / move once, from the store
+ * (a part zipping into its holes, a wire end gripped, a part pulled out), so
+ * a cue here would sound twice. New flows add no sound call either.
  */
-export function editCue(cue: Extract<SoundCue, 'place' | 'wire' | 'delete'>): void {
-  if (!isLegacyChrome()) playCue(cue)
+export function editCue(_cue: Extract<SoundCue, 'place' | 'wire' | 'delete'>): void {
+  /* the store watcher plays it (mech-watch.ts) */
 }
 
 /**
@@ -498,8 +517,7 @@ export function removeSelectedWithFeedback(): boolean {
   const after = useStore.getState().layout
   // operation simplification: deleting never asks first — the toast carries 〔復原〕
   if (!isLegacyChrome() && after !== before && names.length > 0) {
-    undoableToast(deletedText(names), after)
-    editCue('delete')
+    undoableToast(deletedText(names), after) // the pull sound is the store watcher's (mech-watch.ts)
   }
   return true
 }
@@ -507,5 +525,4 @@ export function removeSelectedWithFeedback(): boolean {
 /** The long-press sheet's 「刪除」 and the inspector's 「移除」 (new chrome): the Delete key's words, with 〔復原〕. */
 export function deletedToast(names: readonly string[]): void {
   undoableToast(deletedText(names))
-  editCue('delete')
 }

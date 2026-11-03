@@ -324,7 +324,8 @@ export interface ComponentTelemetry {
   /**
    * Damage the part's OWN model latched (or a hot state it is in): only
    * from real electrical conditions, cleared when the simulation is reset /
-   * rebuilt (a fresh model) — see PartDamage.
+   * rebuilt (a fresh model) or the part is replaced (換新,
+   * SimHost.repairParts) — see PartDamage.
    */
   damage?: PartDamage
 

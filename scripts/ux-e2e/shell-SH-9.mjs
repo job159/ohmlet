@@ -16,6 +16,12 @@
  *   - F5 never reloads the page (defaultPrevented);
  *   - a button reached with Tab activates on Space (native, kept);
  *   - lesson i1: 「下一步」 then Space → the step stays, the simulation runs.
+ * Then the phone layout (820×900 with a mouse — a narrow desktop window; the
+ * panels are kit sheets there, aria-modal for screen readers but no modal for
+ * the run keys): a click on the 儀器 sheet's 「邏輯」 / 「示波器」 segment keeps
+ * its focus, and Space / F5 still run and drop it; in SW1's 屬性 sheet, a
+ * click on 「b」 then ← picks 「a」 without nudging the part, Delete keeps it,
+ * and Space runs / pauses without flipping the switch back.
  * State comes from the read-only `?e2e` hooks and the lab's own buffers.
  * Exit code 1 on any failed check.
  */
@@ -234,6 +240,95 @@ check((await stepText()) === s0, 'coach 「下一步」 then Space: the step sta
 check(await until(running, 3000), 'coach 「下一步」 then Space: the simulation runs')
 
 check(errors.length === 0, 'no page errors', errors.slice(0, 3).join(' / '))
+await ctx.close()
+
+// ---- the phone layout (< 900 px, mouse): a segment clicked in a kit sheet ----
+{
+  const LAYOUT = JSON.stringify({
+    version: 1,
+    name: 'sh9-phone',
+    board: 'standard',
+    components: [
+      { id: 'PS1', type: 'power_supply', params: { voltage: 5 } },
+      { id: 'SW1', type: 'slide_switch', holes: ['e40', 'e41', 'e42'] },
+      { id: 'U1', type: 'stm32_bluepill', at: 'h10' },
+    ],
+    wires: [],
+  })
+  const pctx = await browser.newContext({ viewport: { width: 820, height: 900 }, deviceScaleFactor: 1 })
+  const pp = await pctx.newPage()
+  const perrors = []
+  pp.on('pageerror', (e) => perrors.push(String(e)))
+  await pp.addInitScript((layout) => {
+    if (sessionStorage.getItem('sh9p.seeded')) return
+    localStorage.clear()
+    localStorage.setItem('bb.onboarded', '1')
+    localStorage.setItem('bb.renderMode', 'performance')
+    localStorage.setItem('bb.lang', 'zh-TW')
+    localStorage.setItem('bb.layout', layout)
+    for (const k of ['bb.hintShrink', 'bb.studioPhoneWarned']) localStorage.setItem(k, '1')
+    sessionStorage.setItem('sh9p.seeded', '1')
+  }, LAYOUT)
+  await pp.goto(`${URL}?e2e&shotrig`)
+  await pp.waitForFunction(() => !!window.__e2e, null, { timeout: 120000 })
+  await pp.evaluate(() => window.__e2e.ready())
+  await sleep(1200)
+  /** the store's facts + what has the focus */
+  const ps = () =>
+    pp.evaluate(async () => {
+      const st = (await import('/src/state/store.ts')).useStore.getState()
+      const sw = st.layout.components.find((c) => c.id === 'SW1')
+      const a = document.activeElement
+      return {
+        running: st.running,
+        at: sw?.holes?.[0] ?? null,
+        state: sw?.params?.state ?? null,
+        focus: a && a !== document.body ? `${a.getAttribute('role') ?? a.tagName}:${(a.textContent ?? '').trim()}` : 'body',
+      }
+    })
+  const pstop = () => pp.evaluate(async () => (await import('/src/state/store.ts')).useStore.getState().stopSim())
+  const pkey = async (k) => {
+    await pp.keyboard.press(k)
+    await sleep(350)
+  }
+
+  await pp.locator('.lg-dock').getByText('儀器', { exact: true }).click()
+  await sleep(900)
+  await pp.locator('.lg-sheet').getByRole('radio', { name: '邏輯', exact: true }).click()
+  await sleep(300)
+  const a0 = await ps()
+  check(a0.focus === 'radio:邏輯', 'phone: a clicked 儀器 sheet segment keeps its focus (its arrows pick the neighbour)', a0.focus)
+  await pkey('Space')
+  const a1 = await ps()
+  check(a1.running && a1.focus === 'body', 'phone: 「邏輯」 then Space runs and drops the segment’s focus', JSON.stringify(a1))
+  await pstop()
+  await sleep(300)
+  await pp.locator('.lg-sheet').getByRole('radio', { name: '示波器', exact: true }).click()
+  await sleep(300)
+  await pkey('F5')
+  check((await ps()).running, 'phone: 「示波器」 then F5 runs (not swallowed by the sheet)')
+  await pstop()
+  await pkey('Escape')
+  await sleep(500)
+
+  await pp.evaluate(async () => (await import('/src/state/store.ts')).useStore.getState().select('SW1'))
+  await sleep(900)
+  await pp.locator('.lg-sheet').getByRole('radio', { name: 'b', exact: true }).first().click()
+  await sleep(300)
+  const b0 = await ps()
+  await pkey('ArrowLeft')
+  const b1 = await ps()
+  check(b0.state === 'b' && b1.state === 'a' && b1.at === b0.at, 'phone: 屬性 「b」 then ← picks 「a」; the part does not move', `${b0.state}@${b0.at} → ${b1.state}@${b1.at}`)
+  await pkey('Delete')
+  check((await ps()).at === b0.at, 'phone: … then Delete keeps the part')
+  await pkey('Space')
+  const b2 = await ps()
+  check(b2.running && b2.state === 'a' && b2.focus === 'body', 'phone: … then Space runs; the switch stays 「a」', JSON.stringify(b2))
+  await pkey('Space')
+  check(!(await ps()).running, 'phone: a second Space pauses')
+  check(perrors.length === 0, 'phone: no page errors', perrors.slice(0, 3).join(' / '))
+  await pctx.close()
+}
 await browser.close()
 console.log(failures === 0 ? 'SH-9: all checks passed' : `SH-9: ${failures} check(s) failed`)
 process.exit(failures === 0 ? 0 : 1)

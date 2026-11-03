@@ -158,7 +158,7 @@ export const LESSON: Lesson = {
       id: 'firmware',
       title: '載入 hal-uart-hello，看開機訊息',
       body:
-        '按下方的「載入 hal-uart-hello 到 U1」，再按「▶ 執行模擬」（或空白鍵）；打開儀器的「UART 終端機」，選擇 **X1 的 COM 埠**：開機就會出現 `Hello from STM32F103!`，之後每秒一行 `tick 1`、`tick 2`…\n\n' +
+        '按下方的「載入 hal-uart-hello 到 U1」，載入後模擬會自動執行；打開儀器的「UART 終端機」，選擇 **X1 的 COM 埠**：開機就會出現 `Hello from STM32F103!`，之後每秒一行 `tick 1`、`tick 2`…\n\n' +
         '這些字元真的經過你接的 PA9 → RXD 這條線，才到達電腦端。',
       highlight: { components: ['X1', 'U1'] },
       action: [{ kind: 'load-firmware', component: 'U1', project: 'hal-uart-hello' }, { kind: 'run' }],

@@ -75,6 +75,7 @@ import {
   useStore,
 } from './store'
 import { firmwareBlobStore, isSha256Hex, sha256Hex } from './firmware-store'
+import { whileAutoRunHeld } from './run-gate'
 import {
   emptyLogicView,
   parseProject,
@@ -920,7 +921,78 @@ function reconcileBindings(layout: CircuitLayout): void {
     detached.delete(id)
     changed = true
   }
+  if (restoreShelved(layout)) changed = true
   if (changed) publishFirmware()
+}
+
+/**
+ * Copy / paste: bindings of boards that left the document while a paste
+ * gave their id to another board (cut U1, paste: a new U1). `detached` keeps
+ * one record per id, so each is kept here with the very board it belongs
+ * to; when undo / redo brings that board back unbound, it gets its firmware
+ * again (and the board that had the id meanwhile keeps its own here, for
+ * its redo). A board bound again its own way drops a stale entry.
+ */
+const shelved = new WeakMap<ComponentInstance, Binding>()
+let shelfInUse = false
+
+function shelve(d: (Binding & { instance?: ComponentInstance }) | undefined, keep?: ComponentInstance): void {
+  if (!d?.instance || d.instance === keep) return
+  const b: Binding = { record: d.record, image: d.image }
+  if (d.binBase !== undefined) b.binBase = d.binBase
+  shelved.set(d.instance, b)
+  shelfInUse = true
+}
+
+/** reconcileBindings' last pass: shelved boards back in `layout` and unbound get their firmware. */
+function restoreShelved(layout: CircuitLayout): boolean {
+  if (!shelfInUse) return false
+  let changed = false
+  for (const comp of layout.components) {
+    const b = shelved.get(comp)
+    if (!b) continue
+    if (bindings.has(comp.id)) {
+      if (lastInstance.get(comp.id) === comp) shelved.delete(comp) // bound again its own way
+      continue
+    }
+    if (!getEntry(comp.type)?.mcu) continue
+    shelve(detached.get(comp.id), comp)
+    detached.delete(comp.id)
+    shelved.delete(comp)
+    bindings.set(comp.id, b)
+    lastInstance.set(comp.id, comp)
+    changed = true
+  }
+  return changed
+}
+
+/**
+ * Copy / paste (round 5 — src/ui/chrome/copy-paste.ts): the pasted board
+ * `dst` runs the same image as `src` — the binding `src` has now, or the one
+ * it left behind when it was cut or deleted (detached). `opts.sha256` (the
+ * image at copy time) refuses another image the id got since. Undo / redo
+ * follow it like any binding: undoing the paste detaches it with the pasted
+ * board's own instance, and redo brings that very instance back. Returns
+ * the record now bound to `dst`, or null when there was nothing to copy.
+ * `dst` may be `src` itself: a board cut and pasted gets its id back, and
+ * its image from the binding it left behind. That binding stays the cut
+ * board's too (shelved with its instance): undoing the paste and then the
+ * cut brings the original board back WITH its firmware.
+ */
+export function copyFirmware(src: string, dst: string, opts: { sha256?: string } = {}): FirmwareRecord | null {
+  const from = bindings.get(src) ?? detached.get(src)
+  if (!from || (opts.sha256 !== undefined && from.record.sha256 !== opts.sha256)) return null
+  const board = findComponent(useStore.getState().layout, dst)
+  if (!board || !getEntry(board.type)?.mcu) return null
+  shelve(detached.get(dst), board) // bind() below drops the record a board that left under this id keeps
+  loadSeq.set(dst, (loadSeq.get(dst) ?? 0) + 1) // supersedes an in-flight load for that id
+  delete pendingRestore[dst] // a stale stored record of an earlier board with this id
+  const record: FirmwareRecord = { ...from.record, componentId: dst, loadedAt: Date.now(), warnings: from.record.warnings.slice() }
+  const b: Binding = { record, image: from.image }
+  if (from.binBase !== undefined) b.binBase = from.binBase
+  bind(dst, b, { createHost: false }) // a host built later gets every binding with its boot load
+  addTerminalMark(dst, 'load', { name: record.name, sha: record.sha256.slice(0, 8) })
+  return record
 }
 
 async function storeBytes(sha: string, bytes: Uint8Array, name: string): Promise<string | null> {
@@ -1318,7 +1390,9 @@ export const useLab = create<LabState>()((set, get) => ({
     })
   },
 
-  async importProject(text) {
+  // auto-run (round 5) waits for the whole import (state/run-gate.ts): loadLayout lands the new
+  // circuit before its firmware binds below, while the board id may still hold the previous image
+  importProject: whileAutoRunHeld(async (text: string) => {
     await bootPromise
     const parsed = parseProject(text)
     if (!parsed.ok) return { ok: false, errors: parsed.errors, warnings: parsed.warnings }
@@ -1407,7 +1481,7 @@ export const useLab = create<LabState>()((set, get) => ({
       applyWorkspaceOverrides(over)
     }
     return { ok: true, errors: [], warnings }
-  },
+  }),
 }))
 
 // ---------------------------------------------------------------------------

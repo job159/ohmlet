@@ -73,7 +73,7 @@ const zh: Record<string, string> = {
   'partially simulated': '部分模擬',
   'visual only, not simulated': '僅視覺接線，不模擬',
   'in development, not placeable': '開發中，無法放置',
-  '{part}, {meta}, {support}, placing — click again to cancel': '{part}，{meta}，{support}，放置中——再按一次即可取消',
+  '{part}, {meta}, {support}, placing — click again to cancel': '{part}，{meta}，{support}，放置中——再按一次即可結束',
   '{part}, {meta}, {support}, click to place': '{part}，{meta}，{support}，點選即可放置',
   Placing: '放置中',
   'Remove {part} from favorites': '將「{part}」從收藏移除',

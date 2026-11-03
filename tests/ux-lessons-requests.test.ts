@@ -141,10 +141,11 @@ describe('i1 compares LED1 with the board’s own LED: both stay in the frame (L
     expect(observeTargets(i4, at(i4, 'firmware'))?.components).toEqual(['LED1', 'LED2'])
   })
 
-  it('the text says where the board LED is, and names Space only for a keyboard', () => {
+  it('the text says where the board LED is, and sends nobody to a Run press (round 5 auto-run)', () => {
     const body = lesson('i1-gpio-output').steps.find((s) => s.id === 'run')!.body
-    expect(deviceText(body, false)).toContain('按上方的「▶ 執行模擬」（或空白鍵），看 LED1 與板載綠色 LED（PC13，在 USB 接頭旁）')
-    expect(deviceText(body, true)).toContain('按上方的「▶ 執行模擬」，看 LED1')
+    expect(deviceText(body, false)).toContain('模擬會自動執行，看 LED1 與板載綠色 LED（PC13，在 USB 接頭旁）')
+    expect(deviceText(body, true)).toContain('模擬會自動執行，看 LED1')
+    for (const touch of [false, true]) expect(deviceText(body, touch)).not.toMatch(/執行模擬|空白鍵/)
   })
 })
 

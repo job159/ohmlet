@@ -311,7 +311,7 @@ const LEGACY_SUPPORT: Record<string, SupportInfo> = {
     simulated: [
       "ideal linear resistance (Ohm's law)",
       'branch current and power telemetry',
-      'self-heating against its ¼ W power rating (first-order thermal model, τ ≈ 10 s): above its rating it overheats and smokes; a sustained gross overload (the body at 10 times the rated temperature rise — 10 Ω across 12 V, 14.4 W, takes ≈ 2 s) burns it open, latched until the simulation is reset or the circuit is edited (the engine is rebuilt)',
+      'self-heating against its ¼ W power rating (first-order thermal model, τ ≈ 10 s): above its rating it overheats and smokes; a sustained gross overload (the body at 10 times the rated temperature rise — 10 Ω across 12 V, 14.4 W, takes ≈ 2 s) burns it open, latched until a new part goes in (a circuit edit or a reset puts one in; in the workspace, “Replace” and a value change do too)',
     ],
     limits: [
       'no tolerance or temperature coefficient: the resistance stays the same while it heats',
@@ -323,7 +323,7 @@ const LEGACY_SUPPORT: Record<string, SupportInfo> = {
     simulated: [
       'ideal capacitance (backward-Euler companion at the analog step)',
       'charge persists while the simulation runs',
-      'a polarized (electrolytic) capacitor reversed by more than 1 V vents, latched until the simulation is reset or the circuit is edited (5 V reverse in ≈ 1 s, 2 V in ≈ 4 s, 1 V or less never)',
+      'a polarized (electrolytic) capacitor reversed by more than 1 V vents (5 V reverse in ≈ 1 s, 2 V in ≈ 4 s, 1 V or less never), latched until a new part goes in (a circuit edit or a reset puts one in; in the workspace, “Replace” and a value change do too)',
     ],
     limits: [
       'a vented capacitor keeps its capacitance in the simulation (a real one loses it and may short)',
@@ -356,7 +356,7 @@ const LEGACY_SUPPORT: Record<string, SupportInfo> = {
     simulated: [
       'Shockley junction (n = 2) fitted to the color forward voltage at 10 mA: red 1.8 V, yellow 2.0 V, green 2.2 V, blue 3.0 V, white 3.2 V',
       'brightness = current / its rated 20 mA: 100 % at 20 mA, above 100 % it is over-driven (it flickers); current and brightness are the mean over the last 20 ms of simulated time, as the eye sees it: a PWM-dimmed LED fades smoothly and reads as an average, with its on-current as the peak',
-      'junction temperature from P = Vf · I (first-order: 350 K/W, τ ≈ 5 s): above 100 °C it overheats; at 150 °C it burns open (latched until the simulation is reset or the circuit is edited); above 150 mA for more than 1 ms it burns at once (31 mA from 100 Ω on 5 V never burns it)',
+      'junction temperature from P = Vf · I (first-order: 350 K/W, τ ≈ 5 s): above 100 °C it overheats; at 150 °C it burns open (latched until a new part goes in — a circuit edit or a reset puts one in; in the workspace, “Replace” and a value change do too); above 150 mA for more than 1 ms it burns at once (31 mA from 100 Ω on 5 V never burns it)',
       'the 3D look follows that brightness as the eye sees it (perceptual curve): dark at 0 mA; from about 0.5 mA a hot core brighter than the lens and a soft glow, both brighter and wider at every step (2, 4, 10 mA); toward 20 mA a white-hot core, rays and a dazzling flare; a white LED glows brighter than the white board, with a darker cool edge; a burned LED is charred and dark',
     ],
     limits: ['no reverse breakdown', 'light output is linear in current (no efficiency droop, no dimming as it heats)'],

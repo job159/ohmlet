@@ -12,6 +12,7 @@ import { buildNetlist } from '../src/sim/netlist'
 import { growPaddleText, holeChipText, holeChipTextFor, objectChipText } from '../src/ui/workspace/hole-chip'
 import { registerScene } from '../src/ui/workspace/scene-bridge'
 import { moveWireEndTo, wireEndAccepted } from '../src/ui/workspace/wire-ends'
+import { drawWire, wireDrawAccepted, wireDrawStart, wireDrawStarted } from '../src/ui/workspace/wire-draw'
 import { useStore } from '../src/state/store'
 
 /** U1 Blue Pill at h10 (PA5 → c20), LED1 b40 / top-32, R1 a36–a40, SW1 at f50, a PSU on the rails. */
@@ -119,6 +120,11 @@ describe('SC-8 grow-paddle chip text', () => {
       objectLabelText: objectChipText,
       onWireEndPreview: wireEndAccepted,
       onWireEndMove: moveWireEndTo,
+      // drag-to-wire (round 5, tests/dragwire-host.test.ts)
+      wireDrawStart,
+      onWireDrawStarted: wireDrawStarted,
+      onWireDrawPreview: wireDrawAccepted,
+      onWireDraw: drawWire,
     })
     registerScene(null)
     registerScene({}) // a scene without setCallbacks: no-op

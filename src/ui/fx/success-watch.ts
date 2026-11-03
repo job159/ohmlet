@@ -55,7 +55,14 @@
  *      (HAND_SETTLE_S) and names only what still works; 保持按下 is a
  *      steady state and cheers like any other circuit;
  *    - at most once per circuit revision (circuitRevision: parts, placements,
- *      build-time params, wires, bound firmware — a knob is not a change).
+ *      build-time params, wires, bound firmware — a knob is not a change);
+ *    - never for what a circuit auto-run started on OPENING it does by
+ *      itself (round 5 — runStartedByAutoRun 'boot' / 'load' / 'chrome':
+ *      the app's restored board, an example, a lesson circuit, a project;
+ *      CheerJudge.quiet): the learner did not build it — it counts as done
+ *      (cleanSeen), it is not cheered. Once the learner USES that circuit (a
+ *      switch, a button, a knob, the supply — CheerJudge.wake) what newly
+ *      works cheers as usual, and so does what a user edit newly makes work.
  *
  * Under the visual-regression harness (?shotrig, celebrationsSuppressed)
  * nothing is watched: the shots stay deterministic.
@@ -68,6 +75,7 @@
 import type { CircuitLayout, ComponentTelemetry, SimTelemetry } from '../../model/types'
 import { getEntry } from '../../model/catalog'
 import { onSimHostEvent, useStore } from '../../state/store'
+import { runStartedByAutoRun } from '../../state/run-gate'
 import { pinDamageFromIssues } from '../../sim/erc/rules-damage'
 import { useLab } from '../embedded/lab'
 import { canPress, useLatchHolds } from '../embedded/latch'
@@ -395,14 +403,52 @@ export class CheerJudge {
   /** the problems list (identity) that last blocked: wait for a different one */
   private blockedBy: readonly Problem[] | null = null
   private rev: string | null = null
+  /** the revision opened, not built (quiet) — until the learner uses it (wake) */
+  private quietRev: string | null = null
+  /** the revision that was opened (kept through wake): a power cycle of it is quiet again */
+  private openedRev: string | null = null
 
-  /** a new simulation session (resetSim): nothing has worked yet */
+  /**
+   * Revision `rev` was OPENED, not built (auto-run started it for 'boot' /
+   * 'load' / 'chrome' — the app's restored board, an example, a lesson
+   * circuit, a project): what it does by itself is seeded into cleanSeen —
+   * its windows still run and confirm what works (a blocker or damage still
+   * retracts it), but they never cheer. Until the learner uses the circuit
+   * (wake): from then on what NEWLY works cheers as usual. A change of the
+   * circuit ends it too (revise): the edit is the learner's.
+   */
+  quiet(rev: string): void {
+    this.quietRev = rev
+    this.openedRev = rev
+  }
+
+  /**
+   * The learner used the quiet circuit (a runtime value — a switch, a
+   * button, a knob, the supply): what it already did counts as done (as for
+   * a change — a window not finished yet included, unless the circuit was
+   * known not to be clean), and what newly works from now on can cheer.
+   */
+  wake(): void {
+    if (this.quietRev === null || this.quietRev !== this.rev) return
+    this.quietRev = null
+    for (const k of this.provisional) this.cleanSeen.add(k)
+    this.provisional.clear()
+    this.pending = null
+  }
+
+  /** the opened revision is quiet (tests / diagnostics) */
+  get quietNow(): boolean {
+    return this.quietRev !== null && this.quietRev === this.rev
+  }
+
+  /** a new simulation session (resetSim): nothing has worked yet — an opened circuit powered up again is quiet again */
   reset(): void {
     this.cleanSeen.clear()
     this.provisional.clear()
     this.blocked = false
     this.pending = null
     this.blockedBy = null
+    if (this.openedRev !== null && this.openedRev === this.rev) this.quietRev = this.openedRev
   }
 
   /**
@@ -419,6 +465,9 @@ export class CheerJudge {
     this.rev = rev
     this.pending = null
     this.blockedBy = null
+    // a change of the circuit is the learner's: the opened revision is left behind
+    if (this.quietRev !== rev) this.quietRev = null
+    if (this.openedRev !== rev) this.openedRev = null
   }
 
   /** this revision is known not to be clean: what it did so far did not "work cleanly" */
@@ -576,6 +625,8 @@ export class CheerJudge {
     for (const k of this.provisional) this.cleanSeen.add(k)
     this.provisional.clear()
     this.pending = null
+    // an opened circuit (quiet): what it does is done now — not cheered, the learner did not build it
+    if (this.quietRev === snap.rev) return null
     if (this.cheered.has(snap.rev)) return null
     this.cheered.add(snap.rev)
     const a = activityFrom(items)
@@ -633,6 +684,13 @@ function handKey(layout: CircuitLayout): string {
     .split(',')
     .map((id) => (id && fingers.includes(id) ? `${id}*` : id))
     .join(',')
+}
+
+/** A part's values changed between `prev` and `next` (its params object replaced — an instrument moved keeps it). */
+export function valuesChanged(prev: CircuitLayout, next: CircuitLayout): boolean {
+  if (prev.components === next.components) return false
+  const before = new Map(prev.components.map((c) => [c.id, c.params]))
+  return next.components.some((c) => before.has(c.id) && before.get(c.id) !== c.params)
 }
 
 /** The parts a passed acceptance run looked at that are on the board (empty = the whole circuit). */
@@ -703,6 +761,8 @@ export function startSuccessWatch(opts: SuccessWatchOptions = {}): () => void {
   // noted on the layout / holds change; 保持按下 over a held button is a move too (handKey)
   let hands = handKey(useStore.getState().layout)
   let handAt = -Infinity
+  /** the auto-run start record the judge was last told about (quiet once per opening) */
+  let quietedFor: ReturnType<typeof runStartedByAutoRun> = null
 
   const reviseIfChanged = (): void => {
     const r = circuitRevision(useStore.getState().layout, useLab.getState().firmware)
@@ -730,6 +790,14 @@ export function startSuccessWatch(opts: SuccessWatchOptions = {}): () => void {
     busy = true
     try {
       reviseIfChanged()
+      // a circuit auto-run started on opening (the app, an example, a lesson circuit, a project)
+      // is not the learner's doing: what it does by itself does not cheer (CheerJudge.quiet —
+      // once per opening: using it afterwards wakes the judge)
+      const auto = runStartedByAutoRun()
+      if (auto !== quietedFor) {
+        quietedFor = auto
+        if (auto && (auto.reason === 'boot' || auto.reason === 'load' || auto.reason === 'chrome') && auto.rev === rev) judge.quiet(rev)
+      }
       const tele = s.telemetry
       const act = circuitActivity(s.layout, tele, levels, toggled, changes)
       if (uartSeen && uartFrom) {
@@ -755,7 +823,11 @@ export function startSuccessWatch(opts: SuccessWatchOptions = {}): () => void {
   unsubs.push(
     useStore.subscribe((s, prev) => {
       if (s.layout !== prev.layout) {
+        const before = rev
         reviseIfChanged()
+        // the same circuit with a part's value changed: the learner USES it (a switch, a button, a
+        // knob, the supply) — an opened circuit's quiet ends (an instrument moved is not using it)
+        if (rev === before && valuesChanged(prev.layout, s.layout)) judge.wake()
         noteHands()
       }
       if (s.telemetry !== prev.telemetry || s.running !== prev.running) check()

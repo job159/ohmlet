@@ -46,15 +46,56 @@ export interface SceneFxHost {
   pinWorld(id: string, pin: string): THREE.Vector3 | null
   /** ids of every placed part */
   ids(): Iterable<string>
+  /**
+   * OPTIONAL (quiet re-burn): what a placed part IS — its type, holes and
+   * params as one string (the same string = the same part in the same
+   * place), null = unknown. Without it every fresh burn bursts.
+   */
+  partKey?(id: string): string | null
+  /** OPTIONAL (quiet re-burn): the circuit's identity now — it changes with every edit */
+  circuit?(): unknown
 }
 
-export type FxCue = 'burn'
+/**
+ * Quiet re-burn (round 5 polish): with auto-run every edit rebuilds the
+ * circuit and heals what burned — and a part that is still wired the same
+ * way burns again at once, for the same reason. Its flash, sparks, smoke
+ * puff and pop then said nothing new, once per edit. A burn of the SAME
+ * part (partKey: same id, type, holes, params) with the same damage kind,
+ * in a circuit an edit made since its last burn, and not seen healthy
+ * across another edit in between, just shows its burned look. A 換新 in
+ * the same circuit (no edit) bursts as before; so does a part that was
+ * fixed (seen healthy across an edit) and then broken again.
+ */
+interface BurnMemo {
+  /** partKey + damage kind at its last burn */
+  part: string
+  /** the circuit it last burned in */
+  circuit: unknown
+  /** the circuit it was first seen healthy in since (NOT_SEEN = none yet) */
+  healthyIn: unknown
+}
+const NOT_SEEN: unique symbol = Symbol('not-seen')
+
+/**
+ * Scene moments the UI may voice: 'burn' (a damage burst) plus the
+ * hands-on moments that leave no store trace — a part or wire end lifted
+ * ('lift'), a drag aiming at a new hole ('snap'), a refused drop springing
+ * back ('settle'), a wire drag starting ('wire-tip'), a new board landing
+ * ('board').
+ */
+export type FxCue = 'burn' | 'lift' | 'settle' | 'snap' | 'wire-tip' | 'board'
 type CueSink = (cue: FxCue) => void
 let cueSink: CueSink | null = null
 
-/** The UI's sound player for damage cues (CelebrationOverlay registers playCue). */
+/** The UI's sound player for scene cues (CelebrationOverlay registers it). */
 export function setFxCueSink(sink: CueSink | null): void {
   cueSink = sink
+}
+
+/** Voice a scene moment through the registered sink (no sink: silent). */
+export function emitFxCue(cue: FxCue): void {
+  cueSink?.(cue)
 }
 
 /** a damage event younger than this (simulation seconds) animates */
@@ -213,6 +254,8 @@ export class SceneFx {
   private readonly markers = new Map<string, Marker>()
   /** id → last damage key seen ('burned@0.0012') */
   private readonly seenDamage = new Map<string, string>()
+  /** quiet re-burn: damage key → the part's last burn (kept across a stopped session) */
+  private readonly burnMemo = new Map<string, BurnMemo>()
   private issuesRef: unknown = null
   private issuesLen = -1
   private clock = 0
@@ -298,7 +341,13 @@ export class SceneFx {
       const ct = comps[id]
       if (!ct) continue
       this.damageOf(id, id, ct, t.time)
-      if (ct.sub) for (const sid in ct.sub) if (ct.sub[sid]?.damage) this.damageOf(`${id}/${sid}`, id, ct.sub[sid], t.time)
+      if (ct.sub) {
+        for (const sid in ct.sub) {
+          const st = ct.sub[sid]
+          // a sub seen damaged is followed until it clears (換新 drops its smoke; keys only while damage is seen)
+          if (st && (st.damage || (this.seenDamage.size > 0 && this.seenDamage.has(`${id}/${sid}`)))) this.damageOf(`${id}/${sid}`, id, st, t.time)
+        }
+      }
       // heat smoke (resistor above its rating)
       // (keys are built only for parts that have / get an emitter: the
       // steady state of a big circuit allocates nothing per frame)
@@ -356,6 +405,16 @@ export class SceneFx {
         }
       }
     }
+    // quiet re-burn: a remembered part seen healthy notes the circuit; healthy
+    // across another edit, it was fixed — its next burn is news again
+    if (this.burnMemo.size > 0) {
+      const circuit = this.host.circuit?.()
+      for (const [key, memo] of this.burnMemo) {
+        if (this.seenDamage.has(key)) continue
+        if (memo.healthyIn === NOT_SEEN) memo.healthyIn = circuit
+        else if (memo.healthyIn !== circuit) this.burnMemo.delete(key)
+      }
+    }
     // pin damage markers: only when the (latched, append-only) issue list changed
     if (t.issues !== this.issuesRef || t.issues.length !== this.issuesLen) {
       this.issuesRef = t.issues
@@ -371,10 +430,39 @@ export class SceneFx {
     if (prev === dk) return
     if (dk) this.seenDamage.set(key, dk)
     else this.seenDamage.delete(key)
+    // the damage cleared (換新, or an edit brought a new part): its smoke trail stops with it
+    if (prev && !dk) this.emitters.delete(`smoke:${partId}`)
     if (!d || dk === '') return
+    const quiet = this.rememberBurn(key, partId, d.kind)
     if (!(now - d.since <= FRESH_DAMAGE_S)) return // already broken when we first saw it: the look says so
+    if (quiet) return // the same part burning again for the same reason after an edit: the look says so
     if (d.kind === 'burned') this.burst(partId, 'burn')
     else if (d.kind === 'vented') this.burst(partId, 'vent')
+  }
+
+  /**
+   * Note a burn of `key` (part `partId`) for the quiet re-burn rule and say
+   * whether it is a quiet one: the same part, the same kind, a circuit an
+   * edit made since its last burn, never seen healthy across another edit.
+   * Without the host's partKey nothing is remembered (every burn bursts).
+   */
+  private rememberBurn(key: string, partId: string, kind: string): boolean {
+    let part: string | null = null
+    try {
+      part = this.host.partKey?.(partId) ?? null
+    } catch {
+      part = null
+    }
+    if (part === null) {
+      this.burnMemo.delete(key)
+      return false
+    }
+    part = `${part}|${kind}`
+    const circuit = this.host.circuit?.()
+    const memo = this.burnMemo.get(key)
+    const quiet = !!memo && memo.part === part && memo.circuit !== circuit && (memo.healthyIn === NOT_SEEN || memo.healthyIn === circuit)
+    this.burnMemo.set(key, { part, circuit, healthyIn: NOT_SEEN })
+    return quiet
   }
 
   private topOf(id: string, out: THREE.Vector3): boolean {

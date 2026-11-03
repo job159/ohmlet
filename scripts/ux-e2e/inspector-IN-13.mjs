@@ -19,6 +19,7 @@
  *    example's LED is LED1 since bf340c5 (the LED<n> designator, as the
  *    example's own text and the lessons name it)
  *  - an LED straight across the supply: one burned row
+ * Boots with `autorun=0`: the replay drives run / pause itself (round 5 auto-run off).
  * Exit code 1 on any failed check.
  */
 import { createRequire } from 'node:module'
@@ -68,7 +69,9 @@ async function open({ lang = 'zh-TW', workspace = true, phone = false, layout = 
   )
   // a loaded machine (several dev servers + browsers) takes 35-110 s to the load event of a
   // fresh profile's ~1000 dev modules (release triage, measured): wait for the page, not 30 s
-  await page.goto(URL, { timeout: 180000 })
+  // autorun=0 (round 5): this replay runs / pauses the simulation itself (store startSim /
+  // stopSim) and reads the states in between; auto-run would start or resume it on its own
+  await page.goto(`${URL}${URL.includes('?') ? '&' : '?'}autorun=0`, { timeout: 180000 })
   await page.waitForSelector('canvas', { timeout: 90000 })
   await sleep(2000)
   return { ctx, page, errors }

@@ -98,6 +98,36 @@ function publishCover(token: object, px: number) {
   for (const fn of coverSubs) fn(next)
 }
 
+/* Resting top (persona fix): px of the viewport bottom under the resting
+ * non-modal mobile sheets at ANY snap (the parts sheet's peek too) — max over
+ * the open ones, published as body.lg-sheet-resting + --lg-sheet-rest so the
+ * product chrome's toasts float above the sheet's top edge instead of
+ * printing over its words (kit.css). */
+const restByToken = new Map<object, number>()
+let restPx = 0
+function publishRest(token: object, px: number) {
+  if (px > 0) restByToken.set(token, px)
+  else restByToken.delete(token)
+  let next = 0
+  for (const v of restByToken.values()) next = Math.max(next, v)
+  if (next === restPx) return
+  restPx = next
+  if (typeof document === 'undefined' || !document.body) return
+  const b = document.body
+  if (next > 0) {
+    b.style.setProperty('--lg-sheet-rest', `${next}px`)
+    b.classList.add('lg-sheet-resting')
+  } else {
+    b.style.removeProperty('--lg-sheet-rest')
+    b.classList.remove('lg-sheet-resting')
+  }
+}
+
+/** px of the viewport bottom under the resting non-modal mobile sheets at any snap (0 = none). */
+export function sheetRestHeight(): number {
+  return restPx
+}
+
 /** px of the viewport bottom covered by resting mobile sheets (0 = none at ≥ 0.4). */
 export function sheetCoverHeight(): number {
   return coverPx
@@ -290,6 +320,12 @@ export function Sheet({
     publishCover(stackToken, px)
     onSnapHeightRef.current?.(px)
   }
+  const restRef = useRef(0)
+  const setRest = (px: number) => {
+    if (px === restRef.current) return
+    restRef.current = px
+    publishRest(stackToken, px)
+  }
 
   const fracs = useMemo(() => {
     const f = snapPoints
@@ -406,6 +442,8 @@ export function Sheet({
         ? Math.round((sheetHRef.current * fracs[i]) / maxFrac)
         : 0,
     )
+    // …and at every snap, where the toasts float above it (persona fix)
+    setRest(!desktop && !modal ? Math.round((sheetHRef.current * fracs[i]) / maxFrac) : 0)
   }
 
   const settle = (i: number, notify: boolean) => {
@@ -434,6 +472,7 @@ export function Sheet({
     // Escape targets the next sheet, the dying scrim stops eating taps
     setDockCovered(false)
     setCover(0)
+    setRest(0)
     // (applyStackTiers waits for the real unmount — promoting the sheet
     // below while this one still filters would overlap budgets mid-exit)
     const si = sheetStack.findIndex((e) => e.token === stackToken)
@@ -591,6 +630,10 @@ export function Sheet({
         coverRef.current = 0
         publishCover(stackToken, 0)
         onSnapHeightRef.current?.(0)
+      }
+      if (restRef.current !== 0) {
+        restRef.current = 0
+        publishRest(stackToken, 0)
       }
     }
   }, [mounted, desktop, bare, stackToken])

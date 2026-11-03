@@ -150,7 +150,7 @@ describe('m1: every LED burn sentence states the thermal model', () => {
     expect(f, summary(out)).toBeDefined()
     expect(f!.message).toMatch(/latches it as burned when/)
     expectThermalSentence(f!.message)
-    expect(zh(f!.message)).toBe(`LED1 在模擬中燒毀（LED 模型在電流長時間遠超額定、${RULE_ZH}時鎖定為燒毀）。請加上或加大串聯電阻，然後重置模擬。`)
+    expect(zh(f!.message)).toBe(`LED1 在模擬中燒毀（LED 模型在電流長時間遠超額定、${RULE_ZH}時鎖定為燒毀）。請加上或加大串聯電阻，再按〔換新〕；改好電路或數值時也會自動換新。`)
   })
 
   it('a board’s on-board LED burned out', () => {

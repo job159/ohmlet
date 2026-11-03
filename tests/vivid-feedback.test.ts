@@ -234,7 +234,7 @@ describe('vivid: damage in the problems list', () => {
     expect(rows[0].level).toBe('error')
     expect(rows[0].title).toBe('R2 燒斷了')
     expect(rows[0].detail).toContain('電阻膜過熱燒穿，已經不導電')
-    expect(rows[0].detail).toContain('請改用阻值更大或瓦數更高的電阻，再重置模擬')
+    expect(rows[0].detail).toContain('請改用阻值更大或瓦數更高的電阻，再按〔換新〕；改好電路或數值時也會自動換新') // round 5: 〔換新〕
   })
 
   it('a reversed electrolytic: ONE row 「C1 反接爆開」 that says the real part is ruined', () => {

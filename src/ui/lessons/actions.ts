@@ -26,6 +26,7 @@
  */
 import { create } from 'zustand'
 import { stripTransientParams, useStore } from '../../state/store'
+import { holdAutoRun } from '../../state/run-gate'
 import { WORKSPACE_MEDIA_QUERY, useLab } from '../embedded/lab'
 import { getEntry } from '../../model/catalog'
 import type { CircuitLayout } from '../../model/types'
@@ -72,6 +73,7 @@ import { dismissToast, getToasts, showToast, subscribeToasts, tick } from '../ki
 import { t } from '../../i18n'
 import { tMessage } from '../../i18n/messages'
 import { runOrResume } from '../chrome/run-control'
+import { autoRunActive } from '../chrome/auto-run'
 import { focusInScene, frameTargets, setArmFocusSource, type ArmFocus } from '../workspace/scene-bridge'
 import { runKey, useLessonUi, type CheckRun, type LessonSection } from './state'
 
@@ -606,8 +608,20 @@ export function loadNeedsConfirm(
  * board with the same id must not keep running its old firmware). A newer
  * load, or another circuit replacing this one while the firmware loads,
  * cancels the rest (false, silently — the newer action speaks for itself).
+ * Auto-run (round 5) waits for the whole load (state/run-gate.ts), so the
+ * circuit starts simulating once its own firmware is bound — never with the
+ * image an earlier board of the same id left in the coordinator.
  */
 export async function loadLessonCircuit(lesson: Lesson, which: 'start' | 'solution'): Promise<boolean> {
+  const release = holdAutoRun()
+  try {
+    return await loadLessonCircuitNow(lesson, which)
+  } finally {
+    release()
+  }
+}
+
+async function loadLessonCircuitNow(lesson: Lesson, which: 'start' | 'solution'): Promise<boolean> {
   const gen = ++loadGen
   const circuit: LessonCircuit = which === 'start' ? lesson.start : lesson.solution
   // a board that held something: the toast offers 〔復原〕 (product chrome)
@@ -1244,7 +1258,9 @@ export function applyParamFix(fix: ParamFix): void {
  *  - scope 'circuit': the More sheet's Reset simulation (store.resetSim):
  *    every part powers up again from 0 s; a simulation that was running
  *    runs on from the new power-on (the learner pressed it to see the
- *    cold start), a stopped one waits for ▶ 執行模擬.
+ *    cold start), a stopped one waits for ▶ 執行模擬. With auto-run on
+ *    (round 5) the restart is auto-run's own, as for the capsule's reset
+ *    (runStartedByAutoRun 'reset': the floating coach does not fold for it).
  * A board that is not on the board or has no firmware yet is told, not
  * reset. Returns whether something was reset.
  */
@@ -1253,7 +1269,8 @@ export function resetFromStep(a: Extract<LessonStepAction, { kind: 'reset' }>, l
     const wasRunning = useStore.getState().running
     tick(16)
     useStore.getState().resetSim()
-    if (wasRunning) runOrResume()
+    // auto-run restarts a reset of a running simulation by itself (its 'reset' trigger)
+    if (wasRunning && !autoRunActive()) runOrResume()
     showToast(wasRunning ? t('Simulation reset — the whole circuit powered up again') : t('Simulation reset'))
     return true
   }

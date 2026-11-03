@@ -180,7 +180,7 @@ export const LESSON: Lesson = {
       id: 'busy',
       title: '執行：只有 EEPROM 的匯流排',
       body: doc(
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開「UART 終端機」：開機訊息之後是 `bus busy: SDA/SCL stuck low (no pull-up on the bus?)`。再看狀態列與「問題」清單：電氣規則檢查指出 SCL、SDA 沒有上拉電阻（另外幾則是 IMU1、ENV1 還沒接線，接下來的步驟就會接上）。',
+        '模擬會自動執行，打開「UART 終端機」：開機訊息之後是 `bus busy: SDA/SCL stuck low (no pull-up on the bus?)`。再看狀態列與「問題」清單：電氣規則檢查指出 SCL、SDA 沒有上拉電阻（另外幾則是 IMU1、ENV1 還沒接線，接下來的步驟就會接上）。',
         '目前匯流排上只有 AT24C02，它沒有上拉電阻，STM32 的開汲極腳位也沒有。把游標停在 `a35` 上看：SCL 一直是 0 V。看完按「下一步」。',
       ),
       highlight: { holes: ['a35', 'a36'], components: ['U2', 'U1'] },

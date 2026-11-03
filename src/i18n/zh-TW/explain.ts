@@ -1,0 +1,195 @@
+/**
+ * zh-TW — 「電路說明」 (round 5 — explain, owner: explain): the one or two
+ * lines at the top right that say what the circuit is doing right now and
+ * why (src/ui/chrome/explain.ts, ExplainCard.tsx; on phones the status
+ * pill's lowest tier). The card names the EFFECT and its cause — 「LED1 不
+ * 亮：陰極（a38）沒有接地」 — while the pill names the fault; a line never
+ * repeats a Problems title word for word. Before a run (no readings) the
+ * effect is a prediction: 「LED1 不會亮：…」.
+ *
+ * Wording (round 5 polish): plain Taiwan usage and the app's own terms —
+ * 電源軌, 限流電阻, 板載 LED, 〔換新〕, 「用導線把 … 接到 …」 (the Problems
+ * rows' fix sentence), 撥動 for a slide / DIP switch; line 1 kept short so
+ * it rarely wraps (the card, and the phone pill that shows line 1 alone).
+ *
+ * Every key carries the '|explain' context, so no other dictionary's key is
+ * shadowed (later-sorted files win). Numbers arrive formatted (「9.70 mA」,
+ * 「49 %（9.70 mA）」); a burned part's recovery says 〔換新〕 / 改好就會自動換
+ * 上新的 (the damage stream's words). Taiwan usage, full-width punctuation;
+ * the lines are tidied (no space between two Chinese words).
+ */
+const dict: Record<string, string> = {
+  // ---- what an output does not do (running / before a run) + its cause
+  '{id} is dark|explain': '{id} 不亮',
+  '{id} is silent|explain': '{id} 不響',
+  '{id} is not turning|explain': '{id} 不轉',
+  '{id} shows nothing|explain': '{id} 沒有顯示',
+  '{id} cannot light|explain': '{id} 不會亮',
+  '{id} cannot sound|explain': '{id} 不會響',
+  '{id} cannot turn|explain': '{id} 不會轉',
+  '{id} cannot show anything|explain': '{id} 不會顯示',
+  '{what}: {cause}|explain': '{what}：{cause}',
+  'both of its leads are in one strip, so it is shorted|explain': '兩支腳插在同一排，被短路了',
+  'its leads are plugged in the wrong way round|explain': '長短腳插反了',
+  'none of its leads is wired yet|explain': '兩支腳都還沒接進電路',
+  'the rail its {pin} goes to has no supply|explain': '{pin}接的電源軌沒有電',
+  'the cathode row ({hole}) does not reach ground|explain': '陰極（{hole}）沒有接地',
+  '{pin} ({hole}) is connected to nothing|explain': '{pin}（{hole}）沒接到任何東西',
+  'the rail it is on has no supply|explain': '它接的電源軌沒有電',
+  'the rail {pin} goes to has no supply|explain': '{pin} 接的電源軌沒有電',
+  'the pin that drives it, {pin}, is not an output|explain': '驅動它的 {pin} 沒有設成輸出',
+  'the {board} that drives it has no power|explain': '驅動它的 {board} 沒有電',
+  'the {board} that drives it has no firmware|explain': '驅動它的 {board} 沒有韌體',
+  'the {board} that drives it is locked up|explain': '驅動它的 {board} 當機了',
+  'the {board} that drives it is halted by the debugger|explain': '驅動它的 {board} 被除錯器停住了',
+  'the {board} that drives it boots from system memory|explain': '驅動它的 {board} 從系統記憶體開機',
+  // ---- the fix (line 2)
+  'Wire {from} to {to}|explain': '用導線把 {from} 接到 {to}',
+  'Move one of its leads to another strip|explain': '把其中一支腳移到另一排',
+  'Wire both leads of {id} into the circuit|explain': '用導線把 {id} 的兩支腳接進電路',
+  'Swap the two leads of {id} (the long lead is the anode)|explain': '把 {id} 的兩支腳對調（長腳是陽極）',
+  'Load firmware into {id}|explain': '替 {id} 載入韌體',
+  'Hold {id} down to close the circuit|explain': '按住 {id}，電路就會接通',
+  'Flip {id} to close the circuit|explain': '撥動 {id}，電路就會接通',
+  'Hold {sw} down and {q} turns on|explain': '按住 {sw}，{q} 就會導通',
+  'Flip {sw} and {q} turns on|explain': '撥動 {sw}，{q} 就會導通',
+  '{pin} that drives it outputs low|explain': '驅動它的 {pin} 目前輸出低電位',
+  'Add a current-limiting resistor of about {r}; once fixed, a new {id} goes in by itself|explain': '串一顆約 {r} 的限流電阻；改好就會自動換上新的 {id}',
+  'Use a current-limiting resistor of at least {r}; once fixed, a new {id} goes in by itself|explain': '改用至少 {r} 的限流電阻；改好就會自動換上新的 {id}',
+  'Add a current-limiting resistor; once fixed, a new {id} goes in by itself|explain': '串一顆限流電阻；改好就會自動換上新的 {id}',
+  'Press Replace for a new one; fixing the circuit or a value also replaces it|explain': '按〔換新〕換上新的；改好電路或數值也會自動換新',
+  'Add a current-limiting resistor of about {r}|explain': '串一顆約 {r} 的限流電阻',
+  'Use a current-limiting resistor of at least {r}|explain': '改用至少 {r} 的限流電阻',
+  'Add a current-limiting resistor in series|explain': '串一顆限流電阻',
+  'Use a larger current-limiting resistor|explain': '換一顆阻值大一點的限流電阻',
+  'Use a larger resistance or a higher-wattage resistor; once fixed, a new {id} goes in by itself|explain': '改用阻值大一點或瓦數高一點的電阻；改好就會自動換上新的 {id}',
+  'Use a larger resistance or a higher-wattage resistor|explain': '改用阻值大一點或瓦數高一點的電阻',
+  'Turn {id} around so + goes to the higher voltage; once fixed, a new {id} goes in by itself|explain': '把 {id} 的兩支腳對調，讓 + 腳接較高的電壓；改好就會自動換上新的 {id}',
+  'Check what is wired to that pin; once fixed, a new one goes in by itself|explain': '檢查接在那支腳上的東西；改好就會自動換上新的',
+  'Remove the wire that joins + and − directly|explain': '拆掉直接把正、負端接在一起的導線',
+  'Limit what this pin drives; once the circuit is fixed, the simulation restores it|explain': '減輕這支腳的負載；改好電路後就會恢復',
+  'Keep this pin within its supply voltage; once the circuit is fixed, the simulation restores it|explain': '讓這支腳的電壓不超出供電範圍；改好電路後就會恢復',
+  'Resume running and the whole circuit carries on from this moment|explain': '繼續執行後，整個電路會從這一刻接著跑',
+  'Junction above 100 °C — {fix}|explain': '接面已超過 100 °C——{fix}',
+  'No clear cause found; check that both of its leads are in the circuit|explain': '找不到明確原因；請確認兩支腳都有接進電路',
+  // ---- the session (P0), damage (P1), no power (P2)
+  'The whole simulation stopped at {t}: {id} is halted by the debugger|explain': '整個模擬停在 {t}：{id} 被除錯器停住了',
+  'The whole simulation is stopped: {id} is halted by the debugger|explain': '整個模擬暫停中：{id} 被除錯器停住了',
+  '{id} locked up: its firmware is not running|explain': '{id} 當機了：韌體停止執行',
+  // the simulator's own reading at the burn — 「量到」, beside the ERC's estimate 「最多約 320 mA」 (persona fix)
+  '{id} burned out: {current} is above the rated {rated}|explain': '{id} 燒毀：量到 {current}，超過額定 {rated}',
+  '{id} burned out: the current was far above the rated {rated}|explain': '{id} 燒毀：電流遠超過額定 {rated}',
+  '{id} has a burned-out die: the current was above the rated {rated}|explain': '{id} 有晶粒燒毀：電流超過額定 {rated}',
+  '{id} burned open: it dissipated far more than its {max} rating|explain': '{id} 燒斷：功率遠超過額定 {max}',
+  '{id} vented: it was wired in reverse|explain': '{id} 的洩壓閥爆開：極性接反了',
+  '{id}’s on-board LED burned out|explain': '{id} 的板載 LED 燒毀',
+  '{id} is shorted: more than 2 A flows|explain': '{id} 短路了：輸出電流超過 2 A',
+  '{pin} draws too much current: {current}, over the 25 mA per pin|explain': '{pin} 電流過大：{current}（每支腳上限 25 mA）',
+  '{pin} is beyond its absolute maximum: {v}|explain': '{pin} 超過絕對最大額定：{v}',
+  'The circuit gets no power, so nothing can work|explain': '電路沒有電，什麼都不會動',
+  '{id} has no power, so its core does not run|explain': '{id} 沒有電，不會執行任何程式',
+  '{id} has no firmware, so its core does not run|explain': '{id} 沒有韌體，不會執行任何程式',
+  '{id} has BOOT0 = 1 and starts the system-memory bootloader|explain': '{id} 的 BOOT0 = 1，開機後執行內建的開機程式',
+  // ---- risks on parts that work (P4)
+  '{id} has no current-limiting resistor in series: the current may be too large|explain': '{id} 沒有串限流電阻：電流可能過大',
+  '{id}’s current-limiting resistor is on the small side: the current may exceed its rating|explain': '{id} 的限流電阻偏小：電流可能超過額定',
+  '{id} is overheating: {current} is far above the rated {rated}|explain': '{id} 過熱：電流 {current} 遠超過額定 {rated}',
+  '{id} is lit but {over}: brightness {value}|explain': '{id} 亮著，但{over}：亮度 {value}',
+  '{id} is lit, but its current-limiting resistor is on the small side|explain': '{id} 亮著，但限流電阻偏小',
+  '{id} is running hot: {power}, above its {max} rating|explain': '{id} 發燙：功率 {power} 超過額定 {max}',
+  // ---- what works (P5) and its path
+  '{id} is lit: brightness {value}|explain': '{id} 亮著：亮度 {value}',
+  // a guided lesson step asks the learner to measure this value: the state, never the number
+  '{id} is lit|explain': '{id} 亮著',
+  '{id} is lit (PWM)|explain': '{id} 亮著（PWM）',
+  '{id} is lit but {over}|explain': '{id} 亮著，但{over}',
+  '{id} glows only faintly|explain': '{id} 很暗',
+  '{id} is off|explain': '{id} 沒亮',
+  '{id} is overheating: far above the rated {rated}|explain': '{id} 過熱：電流遠超過額定 {rated}',
+  '{id} outputs {v}|explain': '{id} 輸出 {v}',
+  '{id} is supplying the circuit|explain': '{id} 正在供電',
+  '{id} is lit (PWM): brightness {value}|explain': '{id} 亮著（PWM）：亮度 {value}',
+  '{id} is blinking about every {period}: {current} while on|explain': '{id} 在閃，約每 {period} 一次：亮時 {current}',
+  '{id} is blinking: {current} while on|explain': '{id} 在閃：亮時 {current}',
+  '{id} is blinking about every {period}|explain': '{id} 在閃，約每 {period} 一次',
+  '{id} is blinking|explain': '{id} 在閃',
+  // a glide through many levels (a breathing LED, pwm-fade) is no blink: 漸亮漸暗; the shape not told yet: 一明一暗.
+  // 週期約 (the logic analyzer's own 週期) keeps line 1 on one line of the 340 px card: 「LED1 漸亮漸暗，週期約 2.03 s：最亮 4.05 mA」
+  '{id} fades up and down about every {period}: {current} at its brightest|explain': '{id} 漸亮漸暗，週期約 {period}：最亮 {current}',
+  '{id} fades up and down: {current} at its brightest|explain': '{id} 漸亮漸暗：最亮 {current}',
+  '{id} fades up and down about every {period}|explain': '{id} 漸亮漸暗，週期約 {period}',
+  '{id} fades up and down|explain': '{id} 漸亮漸暗',
+  '{id} goes bright and dark about every {period}: {current} at its brightest|explain': '{id} 一明一暗，週期約 {period}：最亮 {current}',
+  '{id} goes bright and dark: {current} at its brightest|explain': '{id} 一明一暗：最亮 {current}',
+  '{id} goes bright and dark about every {period}|explain': '{id} 一明一暗，週期約 {period}',
+  '{id} goes bright and dark|explain': '{id} 一明一暗',
+  // a buzzer switching on and off by itself (a beep the readings follow); a silent one never 「沒亮」
+  '{id} is beeping about every {period}|explain': '{id} 嗶嗶響，約每 {period} 一聲',
+  '{id} is beeping|explain': '{id} 嗶嗶響',
+  '{id} is lit: {n} segments on|explain': '{id} 有 {n} 段亮著',
+  '{id} is sounding|explain': '{id} 在響',
+  '{id} is turning: {rpm}|explain': '{id} 在轉：{rpm}',
+  '{n} rpm|explain': '每分鐘 {n} 轉',
+  '{id} shows a picture|explain': '{id} 正在顯示',
+  '{id} ({fw}): {pins} toggling|explain': '{id}（{fw}）：{pins} 在切換',
+  '{id}: {pins} toggling|explain': '{id}：{pins} 在切換',
+  '{id}’s on-board LED ({pin}) is blinking|explain': '{id} 的板載 LED（{pin}）在閃',
+  '{id}’s on-board LED is blinking|explain': '{id} 的板載 LED 在閃',
+  '{id}’s on-board LED ({pin}) fades up and down|explain': '{id} 的板載 LED（{pin}）漸亮漸暗',
+  '{id}’s on-board LED fades up and down|explain': '{id} 的板載 LED 漸亮漸暗',
+  '{id}’s on-board LED ({pin}) goes bright and dark|explain': '{id} 的板載 LED（{pin}）一明一暗',
+  '{id}’s on-board LED goes bright and dark|explain': '{id} 的板載 LED 一明一暗',
+  '{id}’s on-board LED ({pin}) is lit|explain': '{id} 的板載 LED（{pin}）亮著',
+  '{id}’s on-board LED is lit|explain': '{id} 的板載 LED 亮著',
+  '{id} is sending serial data|explain': '{id} 正在送出序列資料',
+  'Fed from {source} through {resistors}|explain': '由 {source} 經 {resistors} 供電',
+  'Driven by {source} through {resistors}|explain': '由 {source} 經 {resistors} 驅動',
+  'Fed straight from {source}|explain': '直接由 {source} 供電',
+  'Driven straight by {source}|explain': '直接由 {source} 驅動',
+  // ---- dark for a stated reason (P5b), no cause found (P6)
+  '{id} is off: {sw} is not pressed, so the circuit is open|explain': '{id} 沒亮：{sw} 沒按下，電路斷開',
+  '{id} is off: {sw} is switched open|explain': '{id} 沒亮：{sw} 撥在斷開的位置',
+  '{id} is off: {pin} outputs low|explain': '{id} 沒亮：{pin} 目前輸出低電位',
+  '{id} is off: {pin} outputs high|explain': '{id} 沒亮：{pin} 目前輸出高電位',
+  '{id} is off: {q} is not conducting|explain': '{id} 沒亮：{q} 沒有導通',
+  '{id} is silent: {sw} is not pressed, so the circuit is open|explain': '{id} 不響：{sw} 沒按下，電路斷開',
+  '{id} is silent: {sw} is switched open|explain': '{id} 不響：{sw} 撥在斷開的位置',
+  '{id} is silent: {pin} outputs low|explain': '{id} 不響：{pin} 目前輸出低電位',
+  '{id} is silent: {pin} outputs high|explain': '{id} 不響：{pin} 目前輸出高電位',
+  '{id} is silent: {q} is not conducting|explain': '{id} 不響：{q} 沒有導通',
+  '{id} glows only faintly: brightness {value}|explain': '{id} 很暗：亮度 {value}',
+  '{id} is off: only {current} flows|explain': '{id} 沒亮：電流只有 {current}',
+  '{id} is off: no current flows|explain': '{id} 沒亮：沒有電流流過',
+  // ---- steady (P7) and nothing to say
+  '{id} runs {fw}|explain': '{id} 正在跑 {fw}',
+  '{id} outputs {v}; the circuit draws {i}|explain': '{id} 輸出 {v}，供給電路 {i}',
+  '{id} outputs {v}; almost no current flows out|explain': '{id} 輸出 {v}，目前幾乎沒有電流流出',
+  'The circuit is being simulated|explain': '電路模擬中',
+  'The simulation has not started yet|explain': '模擬還沒開始',
+  'Once it runs, this card says what the circuit is doing|explain': '開始模擬後，這裡會說明電路正在做什麼',
+  // auto-run will start it by itself (persona fix — explainCircuit's not-started stand-in, input.autoStart)
+  'The simulation starts by itself in a moment|explain': '模擬即將自動開始',
+  'Then this card says what the circuit is doing|explain': '接著這裡會說明電路正在做什麼',
+  'There are no parts on the breadboard yet.|explain': '麵包板上還沒有元件。',
+  // ---- line 2: the rest of the same kind (「另外 LED2、LED3 也亮著（8.10 mA–9.40 mA）」), the next subject
+  'Also {ids} are lit ({range})|explain': '另外 {ids} 也亮著（{range}）',
+  'Also {ids} are lit|explain': '另外 {ids} 也亮著',
+  'Also {n} more are lit ({range})|explain': '另外還有 {n} 個也亮著（{range}）',
+  'Also {n} more are lit|explain': '另外還有 {n} 個也亮著',
+  'Also {ids} are blinking|explain': '另外 {ids} 也在閃',
+  'Also {ids} fade up and down|explain': '另外 {ids} 也漸亮漸暗',
+  'Also {ids} go bright and dark|explain': '另外 {ids} 也一明一暗',
+  'Also {ids} are turning|explain': '另外 {ids} 也在轉',
+  'Also {ids} are off|explain': '另外 {ids} 也沒亮',
+  'Also {ids} glow only faintly|explain': '另外 {ids} 也很暗',
+  'Also: {text}|explain': '另外，{text}',
+  '{lo}–{hi}|explain': '{lo}–{hi}',
+  ', |explain': '、',
+  // ---- the card / the pill
+  '{text} (paused)|explain': '{text}（已暫停）',
+  '{a}. {b}|explain': '{a}。{b}',
+  'Circuit explanation|explain': '電路說明',
+  'Click to select {id}|explain': '點一下選取 {id}',
+}
+
+export default dict

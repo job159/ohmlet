@@ -233,7 +233,7 @@ export const LESSON: Lesson = {
       id: 'run',
       title: '執行：1/8 微步轉一圈',
       body: doc(
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開「UART 終端機」：約 0.31 s 出現 `move +1600 steps 1/8 (1 rev)`，約 1.16 s 出現 `done, position 1600/8 full steps`，M1 的軸剛好轉一圈。',
+        '模擬會自動執行，打開「UART 終端機」：約 0.31 s 出現 `move +1600 steps 1/8 (1 rev)`，約 1.16 s 出現 `done, position 1600/8 full steps`，M1 的軸剛好轉一圈。',
         '點一下 M1 看屬性面板：位置約 200 個全步、轉了 1.003 圈（多出的 0.5 步是開機時停在 45° 電角度）。MS1 = MS2 = 1、MS3 = 0 選 1/8 微步，所以 1600 個脈波 ÷ 8 = 200 個全步。',
       ),
       highlight: { components: ['M1', 'DRV1'] },

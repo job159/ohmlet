@@ -4,7 +4,7 @@
  * (docs/ux/UX_VERIFY.md V-06, findings E2-04, AN2-14, AN2-07).
  *
  * The audit tasks, through the real interface (examples opened from the
- * library's 範例 tab, ▶ 執行模擬, the tray tabs; the scope probe is placed
+ * library's 範例 tab (it runs by itself — auto-run), the tray tabs; the scope probe is placed
  * with the probe menu's own action, addScopeProbeFor, and the timebase set
  * through the scope's settings store):
  *   1. 「UART 問候與回音」, a scope probe on PA9 (USART1 TX): the logic
@@ -117,7 +117,9 @@ async function openExample(page, title) {
   await page.waitForTimeout(800)
 }
 const runTo = async (page, seconds) => {
-  await page.getByRole('button', { name: /執行模擬/ }).first().click()
+  // auto-run (round 5): the opened example simulates by itself once its firmware is bound —
+  // nothing to press (a click on 執行模擬 / the capsule would PAUSE it now)
+  await page.waitForFunction(() => window.__e2e.state().running === true, null, { timeout: 60000 })
   await waitSim(page, seconds)
 }
 const trayTab = async (page, name) => {
@@ -139,7 +141,13 @@ try {
   {
     const { ctx, page, errors } = await boot(browser)
     await openExample(page, 'UART 問候與回音（終端機）')
+    // auto-run (round 5) already runs the example: pause it and reset to 0 s (a paused reset stays
+    // paused), so the probe watches PA9 from the power-on greeting — as when it went on before ▶
+    await page.waitForFunction(() => window.__e2e.state().running === true, null, { timeout: 60000 })
+    await withModule(page, '/src/state/store.ts', 'm.useStore.getState().stopSim(); m.useStore.getState().resetSim()')
     await withModule(page, '/src/ui/embedded/probe-actions.ts', "await m.addScopeProbeFor({ kind: 'mcu-pin', componentId: 'U1', pin: 'PA9' })")
+    // the probe may already have resumed it (an instrument is a change of the circuit); else run it
+    await withModule(page, '/src/state/store.ts', 'm.useStore.getState().startSim()')
     await runTo(page, 1.2)
     await trayTab(page, /邏輯分析儀/)
     await hoverRow(page, 0)

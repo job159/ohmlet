@@ -105,6 +105,17 @@ describe('off-board sources (CatalogEntry.source)', () => {
     expect(nf.ground).toBe(nf.netOf('FG1:gnd'))
   })
 
+  it('a function generator is a source: no "no power supply" for a generator-driven circuit', () => {
+    const layout = lay(
+      [
+        { id: 'FG1', type: 'function_generator' },
+        { id: 'R1', type: 'resistor', holes: ['a1', 'a5'] },
+      ],
+      [],
+    )
+    expect(messages(new SimEngine(layout))).not.toContain('no power supply')
+  })
+
   it('without any source the legacy warnings remain', () => {
     const layout = lay([{ id: 'R1', type: 'resistor', holes: ['a1', 'a5'] }], [])
     expect(buildNetlist(layout).warnings).toContain('no ground')

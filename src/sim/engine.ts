@@ -339,7 +339,8 @@ export class SimEngine {
   /**
    * Static + runtime issues, deduplicated by message. Append-only, except
    * that a supply's over-current issue is removed again once the
-   * over-current has ended (SUPPLY_OVERCURRENT_HOLD_S).
+   * over-current has ended (SUPPLY_OVERCURRENT_HOLD_S), and a part's damage
+   * issues once it was replaced (換新, repairParts).
    */
   readonly issues: SimIssue[] = []
   time = 0
@@ -403,6 +404,14 @@ export class SimEngine {
   private readonly issueDevices: AnalogDevice[] = []
   private readonly issueOwner: string[] = []
   private readonly ledReported: Uint8Array
+  /** per LED: the burn-out issue it raised (null = none standing) — retracted by repairParts */
+  private readonly ledIssue: (SimIssue | null)[]
+  /**
+   * per device that can be replaced (AnalogDevice.repair) and reported
+   * issues: the issues it raised — retracted when repairParts replaces it
+   * (filled only when such a device reports, never per step)
+   */
+  private readonly damageIssues = new Map<AnalogDevice, SimIssue[]>()
   /**
    * per supply: simulated seconds above SUPPLY_OVERCURRENT_A (leaky, see
    * SUPPLY_OVER_LEAK), seconds continuously at or below it, and the
@@ -506,8 +515,8 @@ export class SimEngine {
           continue
         }
         rt.entry = entry
-        // bench supply, or an independent source part (battery, current source)
-        if (comp.type === 'power_supply' || entry.source !== undefined) hasSupply = true
+        // bench supply, function generator, or an independent source part (battery, current source)
+        if (comp.type === 'power_supply' || comp.type === 'function_generator' || entry.source !== undefined) hasSupply = true
         if (entry.strictNewton === true) strict = true
 
         const nodes = this.resolvePinNodes(comp, entry)
@@ -572,6 +581,7 @@ export class SimEngine {
     this.requiresStrictConvergence = strict
 
     this.ledReported = new Uint8Array(this.leds.length)
+    this.ledIssue = new Array<SimIssue | null>(this.leds.length).fill(null)
     this.supplyOver = new Float64Array(this.supplies.length)
     this.supplyUnder = new Float64Array(this.supplies.length)
     this.supplyIssue = new Array<SimIssue | null>(this.supplies.length).fill(null)
@@ -890,6 +900,54 @@ export class SimEngine {
     }
   }
 
+  /**
+   * 換新: replace damaged parts by new ones in place — each device of part
+   * `ids` (null = every part; a board's on-board LEDs are its sub-circuit
+   * elements, replaced with the board) that latched damage starts afresh
+   * (AnalogDevice.repair), and the damage issues it raised are retracted,
+   * so a part that burns again raises a NEW issue (a new SimIssue object: a
+   * new log line, like the supply over-current). Nothing else changes — no
+   * rebuild: the solution, the MCUs, capacitor charge and the clock carry
+   * on, and a cause still in place damages the part again. Returns the ids
+   * of the parts it replaced; an unknown or intact part changes nothing.
+   */
+  repairParts(ids: readonly string[] | null): string[] {
+    const out: string[] = []
+    for (const id of ids ?? [...this.runtimeById.keys()]) {
+      const rt = this.runtimeById.get(id)
+      if (!rt || out.includes(id)) continue
+      let repaired = rt.device !== null && this.repairDevice(rt.device)
+      if (rt.subs) for (const s of rt.subs) if (this.repairDevice(s.device)) repaired = true
+      if (repaired) out.push(id)
+    }
+    return out
+  }
+
+  /** One device of repairParts: repaired → its burn-out / damage issues retracted. */
+  private repairDevice(d: AnalogDevice): boolean {
+    if (typeof d.repair !== 'function') return false
+    try {
+      if (!d.repair()) return false
+    } catch {
+      return false // never throw from a model
+    }
+    if (d instanceof LedDevice) {
+      const k = this.leds.indexOf(d)
+      if (k >= 0) {
+        this.ledReported[k] = 0
+        const issue = this.ledIssue[k]
+        if (issue) this.retractIssue(issue)
+        this.ledIssue[k] = null
+      }
+    }
+    const raised = this.damageIssues.get(d)
+    if (raised) {
+      for (const issue of raised) this.retractIssue(issue)
+      this.damageIssues.delete(d)
+    }
+    return true
+  }
+
   /** Voltage of the net a hole/terminal ref belongs to; NaN if unknown. */
   netVoltage(ref: EndpointRef): number {
     const net = this.netlist.netOf(ref)
@@ -1174,7 +1232,7 @@ export class SimEngine {
       if (this.ledReported[i] === 0 && leds[i].burned) {
         this.ledReported[i] = 1
         const led = leds[i]
-        this.addIssue(
+        this.ledIssue[i] = this.addIssue(
           'error',
           `LED ${led.comp.id} burned out (current ${Math.round(led.burnCurrentMa)}mA — add a series resistor)`,
           this.ledOwner[i],
@@ -1221,7 +1279,13 @@ export class SimEngine {
       for (let k = 0; k < raised.length; k++) {
         const issue = raised[k]
         if (!issue || typeof issue.message !== 'string') continue
-        this.addIssue(issue.level === 'error' ? 'error' : 'warning', issue.message, issue.componentId ?? this.issueOwner[i])
+        const added = this.addIssue(issue.level === 'error' ? 'error' : 'warning', issue.message, issue.componentId ?? this.issueOwner[i])
+        // a replaceable part's issue: retracted when it is replaced (repairParts)
+        if (added && typeof dev.repair === 'function') {
+          const list = this.damageIssues.get(dev)
+          if (list) list.push(added)
+          else this.damageIssues.set(dev, [added])
+        }
       }
     }
   }
@@ -1242,16 +1306,19 @@ export class SimEngine {
     }
   }
 
-  private addIssue(level: 'error' | 'warning', message: string, componentId?: string): void {
-    if (this.issueKeys.has(message)) return
+  /** Raise an issue; returns it, or null when one with this message stands already. */
+  private addIssue(level: 'error' | 'warning', message: string, componentId?: string): SimIssue | null {
+    if (this.issueKeys.has(message)) return null
     this.issueKeys.add(message)
     const issue: SimIssue = componentId ? { level, message, componentId } : { level, message }
     this.issues.push(issue)
+    return issue
   }
 
   /**
    * Remove a standing issue that is no longer true (a supply's over-current
-   * that ended — checkRuntimeIssues). It may be raised again later (a new
+   * that ended — checkRuntimeIssues; a replaced part's damage —
+   * repairParts). It may be raised again later (a new
    * SimIssue object: a new event). The list shrinks, so no reader may keep
    * an index into it: Coordinator.issues() slices it every frame, and the
    * simulation log remembers the issues it wrote by identity

@@ -72,8 +72,10 @@ const STEPS: readonly Step[] = [
   {
     icon: <ResetIcon size={40} />,
     title: 'Look around',
-    body: 'Drag with one finger to orbit, pinch to zoom, drag with two fingers to pan. Double-tap empty space to re-frame.',
-    mouseBody: 'Left-drag to orbit, scroll to zoom, right-drag to pan. Double-click empty space to re-frame.',
+    // drag-to-wire (round 5): a drag that starts in a hole draws a wire
+    body: 'Drag with one finger to orbit, pinch to zoom, drag with two fingers to pan; long-press a hole and drag to another hole to wire them. Double-tap empty space to re-frame.',
+    mouseBody:
+      'Left-drag off the holes to orbit (with Alt / Option held, drag anywhere to orbit), scroll to zoom, right-drag to pan; drag from one hole to another to wire them. Double-click empty space to re-frame.',
   },
   {
     icon: <BookIcon size={40} />,

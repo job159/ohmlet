@@ -116,7 +116,7 @@ export const LESSON: Lesson = {
       match: { checks: [4] },
     },
     {
-      symptom: '按「▶ 執行模擬」之後 UART 終端機一片空白，LED1 也不閃',
+      symptom: '模擬開始後 UART 終端機一片空白，LED1 也不閃',
       cause: 'U1 還沒有韌體，或載入的不是 lesson-a4-freertos',
       fix: '按步驟 1 的「載入 lesson-a4-freertos 到 U1」，再執行',
       match: { checks: [0] },
@@ -183,7 +183,7 @@ export const LESSON: Lesson = {
       id: 'boot',
       title: '執行：排程器啟動',
       body: doc(
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開儀器的「UART 終端機」：三行開機訊息的最後一行是 `heap free 5192 B, starting the scheduler`。',
+        '模擬會自動執行，打開儀器的「UART 終端機」：三行開機訊息的最後一行是 `heap free 5192 B, starting the scheduler`。',
         '`vTaskStartScheduler()` 建立閒置任務、把 SysTick 設成每 1 ms 一次，再執行 `svc 0`：SVC 例外從 `fast` 任務（就緒任務中優先權最高）的堆疊還原暫存器並切換到 PSP，第一個任務就此開始。約 0.1 s 後第一行任務輸出是 `[   100] fast  #1`——方括號裡是 `tick`。',
       ),
       highlight: { components: ['U1'] },

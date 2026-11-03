@@ -1,12 +1,18 @@
 /**
  * Workspace LEFT panel: Library | Examples | Lessons.
  *
- * Library — the full catalog (incl. MCU / Sensors / Modules / Motors) with
- * search over label, type, part number and tags (partMatches, shared with
- * the Parts sheet), category + support-level filters, favorites (★, lab
+ * Library — the full catalog (incl. MCU / Sensors / Modules / Motors) in
+ * usage order (library-order.ts: 收藏, then 常用元件 — foldable, the fold
+ * remembered in localStorage — then the categories from 被動元件 to 儀器)
+ * with search over label, type, part number and tags (partMatches, shared
+ * with the Parts sheet; results ranked by match quality, rankByMatch),
+ * category + support-level filters, favorites (★, lab
  * store, persisted), the support badge (supportOf(entry)) on every card and
  * an expandable spec card (meta.specs, what is / is not simulated, size).
- * Clicking a card arms placement exactly like the Parts sheet.
+ * Clicking a card arms placement exactly like the Parts sheet; a part listed
+ * twice shows 「放置中」 on the copy clicked only (armedSection). A 常用元件's
+ * card (every copy) shows its part key as a small keycap on mouse pointers
+ * (R 電阻, C 電容 … — src/ui/chrome/part-keys.ts; the key arms it the same way).
  *
  * Examples — the curated example library (src/ui/workspace/examples.ts, the
  * same list as More → Examples): search, category / difficulty filters,
@@ -32,7 +38,8 @@ import {
 } from '../kit'
 import { placementValid, useStore } from '../../state/store'
 import { getEntry, supportOf, type CatalogEntry, type ComponentCategory, type SupportLevel } from '../../model/catalog'
-import { CATEGORY_ORDER, PartGlyph, orderedCatalog, partMatches } from '../sheets/PartsSheet'
+import { PartGlyph, partMatches, partSearchFields } from '../sheets/PartsSheet'
+import { armedSection, commonParts, libraryCategories, orderedCatalog, rankByMatch, type ArmedCopy } from './library-order'
 import { SupportBadge } from '../embedded/PartInfo'
 import { lang, t, useLang } from '../../i18n'
 import { partDoc, partLabel, partSpecs, partSupport, supportLevelLabel } from '../../i18n/parts'
@@ -69,6 +76,7 @@ import type { WorkspacePrefs } from '../../state/lab-types'
 import type { CircuitLayout } from '../../model/types'
 import { useLegacyChrome, isLegacyChrome } from '../chrome/legacy'
 import { editCue, firmwareAtRisk, firmwareRiskDialog, undoableToast } from '../chrome/edit-feedback'
+import { partKeyOf, partKeyTitle } from '../chrome/part-keys'
 
 type LeftTab = WorkspacePrefs['left']['tab']
 
@@ -149,6 +157,28 @@ function libraryMatches(entry: CatalogEntry, query: string): boolean {
   return terms.every((term) => local.includes(term) || partMatches(entry, term))
 }
 
+/** localStorage: the desktop 元件庫's 「常用元件」 is folded ('1'); absent = open, the default. */
+export const LS_COMMON_FOLDED = 'bb.libraryCommonFolded'
+
+/** Is 「常用元件」 folded on this browser? (false without storage) */
+export function readCommonFolded(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(LS_COMMON_FOLDED) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Remember the fold (storage failures are ignored: the fold then lasts this session). */
+export function writeCommonFolded(folded: boolean): void {
+  try {
+    if (folded) window.localStorage.setItem(LS_COMMON_FOLDED, '1')
+    else window.localStorage.removeItem(LS_COMMON_FOLDED)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export function LibraryPanel({
   onCollapse,
   searchRef,
@@ -204,23 +234,37 @@ function LibraryTab({ searchRef }: { searchRef?: React.RefObject<HTMLInputElemen
   const [level, setLevel] = useState<LevelFilter>('any')
   const [favOnly, setFavOnly] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
+  // 常用元件 folds (its parts are listed again in their categories) — remembered per browser
+  const [commonOpen, setCommonOpen] = useState(() => !readCommonFolded())
+  // the card copy the learner armed (a part can be in 收藏, 常用元件 and its category)
+  const [armedAt, setArmedAt] = useState<ArmedCopy | null>(null)
   const localRef = useRef<HTMLInputElement>(null)
   const inputRef = searchRef ?? localRef
 
   const armedType = mode.kind === 'place' ? mode.type : null
+  // placement over: forget the copy clicked, so a later arm from elsewhere (a
+  // lesson's 「拿一顆電阻」, a shortcut) shows on the first copy on screen
+  useEffect(() => {
+    if (armedType === null) setArmedAt(null)
+  }, [armedType])
+  // usage order (library-order.ts): the workspace is product chrome only
   const all = useMemo(() => orderedCatalog(), [])
-  const presentCats = useMemo(() => CATEGORY_ORDER.filter((c) => all.some((e) => e.category === c)), [all])
+  const common = useMemo(() => commonParts(), [])
+  const presentCats = useMemo(() => libraryCategories(all), [all])
 
-  const filtered = all.filter(
+  const matching = all.filter(
     (e) =>
       (cat === 'all' || e.category === cat) &&
       (level === 'any' || supportOf(e).level === level) &&
       (!favOnly || favorites.includes(e.type)) &&
       libraryMatches(e, query),
   )
+  // a search: the best matches first (a name before a tag); usage order breaks ties
+  const filtered = rankByMatch(matching, query, (e) => partSearchFields(e, [categoryName(e.category)]))
   const filtering = query.trim() !== '' || cat !== 'all' || level !== 'any' || favOnly
 
-  // unfiltered: Favorites first, then one section per category
+  // unfiltered: Favorites first (the user's own pins), then 常用元件, then one
+  // section per category; filtering: one flat list, best matches first
   const sections: { key: string; title: string; entries: CatalogEntry[] }[] = filtering
     ? [
         {
@@ -233,15 +277,27 @@ function LibraryTab({ searchRef }: { searchRef?: React.RefObject<HTMLInputElemen
         ...(favorites.length > 0
           ? [{ key: 'fav', title: t('Favorites'), entries: all.filter((e) => favorites.includes(e.type)) }]
           : []),
+        { key: 'common', title: t('Common parts'), entries: common },
         ...presentCats.map((c) => ({
           key: c,
           title: categoryName(c),
           entries: all.filter((e) => e.category === c),
         })),
       ]
+  // what is on screen: an empty section, or 常用元件 folded, lists no cards
+  const shown = sections.filter((s) => s.entries.length > 0 && (s.key !== 'common' || commonOpen))
+  // 「放置中」 + the armed hint on ONE copy: the one clicked, else the first shown
+  const armedKey = armedSection(shown, armedType, armedAt)
+
+  const toggleCommon = () => {
+    tick()
+    const open = !commonOpen
+    setCommonOpen(open)
+    writeCommonFolded(!open)
+  }
 
   const suppressClick = useRef(false)
-  const arm = (entry: CatalogEntry) => {
+  const arm = (entry: CatalogEntry, section: string) => {
     if (suppressClick.current) {
       // the click that ends a drag released over its own card
       suppressClick.current = false
@@ -249,8 +305,12 @@ function LibraryTab({ searchRef }: { searchRef?: React.RefObject<HTMLInputElemen
     }
     if (supportOf(entry).level === 'dev') return
     tick()
-    if (armedType === entry.type) setMode({ kind: 'select' })
-    else {
+    if (armedType === entry.type && armedKey === section) setMode({ kind: 'select' })
+    else if (armedType === entry.type) {
+      // another copy of the part being placed: keep placing, the card clicked shows it
+      setArmedAt({ type: entry.type, section })
+    } else {
+      setArmedAt({ type: entry.type, section })
       // an off-board part (supply, meter…) is placed by arming it: that is its placement commit
       const before = useStore.getState().layout.components.length
       setMode({ kind: 'place', type: entry.type, pickedHoles: [] })
@@ -340,33 +400,58 @@ function LibraryTab({ searchRef }: { searchRef?: React.RefObject<HTMLInputElemen
         </div>
       )}
 
-      {sections.map((sec) =>
-        sec.entries.length === 0 ? null : (
+      {sections.map((sec) => {
+        if (sec.entries.length === 0) return null
+        // 常用元件 folds: a disclosure button with the section caption's look
+        const foldable = sec.key === 'common'
+        const open = !foldable || commonOpen
+        const listId = `ws-lib-list-${sec.key}`
+        return (
           <section key={sec.key} className="ws-lib-section" aria-label={sec.title}>
-            <div className="lg-list-header lg-caption">{sec.title}</div>
-            <div className="ws-lib-list">
-              {sec.entries.map((entry) => (
-                <PartCard
-                  key={`${sec.key}:${entry.type}`}
-                  entry={entry}
-                  armed={armedType === entry.type}
-                  favorite={favorites.includes(entry.type)}
-                  expanded={expanded === `${sec.key}:${entry.type}`}
-                  onArm={() => arm(entry)}
-                  onDragStart={(e) => dragToPlace(e, entry)}
-                  onFavorite={() => {
-                    tick()
-                    toggleFavorite(entry.type)
-                  }}
-                  onExpand={() =>
-                    setExpanded((x) => (x === `${sec.key}:${entry.type}` ? null : `${sec.key}:${entry.type}`))
-                  }
-                />
-              ))}
-            </div>
+            {foldable ? (
+              <button
+                type="button"
+                className="lg-list-header lg-caption ws-lib-fold"
+                aria-expanded={open}
+                aria-controls={open ? listId : undefined}
+                title={open ? t('Fold the common parts') : t('Show the common parts')}
+                onClick={toggleCommon}
+              >
+                <span className="ws-lib-fold-title">{sec.title}</span>
+                {!open && <span className="ws-lib-fold-count">{t('{n} parts', { n: sec.entries.length })}</span>}
+                <span className="ws-lib-fold-chevron" aria-hidden="true">
+                  {open ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+                </span>
+              </button>
+            ) : (
+              <div className="lg-list-header lg-caption">{sec.title}</div>
+            )}
+            {open && (
+              <div className="ws-lib-list" id={listId}>
+                {sec.entries.map((entry) => (
+                  <PartCard
+                    key={`${sec.key}:${entry.type}`}
+                    copy={sec.key}
+                    entry={entry}
+                    armed={armedType === entry.type && armedKey === sec.key}
+                    favorite={favorites.includes(entry.type)}
+                    expanded={expanded === `${sec.key}:${entry.type}`}
+                    onArm={() => arm(entry, sec.key)}
+                    onDragStart={(e) => dragToPlace(e, entry, () => setArmedAt({ type: entry.type, section: sec.key }))}
+                    onFavorite={() => {
+                      tick()
+                      toggleFavorite(entry.type)
+                    }}
+                    onExpand={() =>
+                      setExpanded((x) => (x === `${sec.key}:${entry.type}` ? null : `${sec.key}:${entry.type}`))
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </section>
-        ),
-      )}
+        )
+      })}
     </div>
   )
 }
@@ -386,7 +471,8 @@ const DRAG_START_PX = 6
  * tap-to-arm (a finger drag scrolls the list).
  */
 function useDragToPlace(suppressClick: React.MutableRefObject<boolean>) {
-  return (e: React.PointerEvent<HTMLButtonElement>, entry: CatalogEntry) => {
+  /** `onStart`: the drag armed the part (the card dragged is the copy that shows it). */
+  return (e: React.PointerEvent<HTMLButtonElement>, entry: CatalogEntry, onStart?: () => void) => {
     if (e.button !== 0 || e.pointerType !== 'mouse' || supportOf(entry).level === 'dev') return
     const x0 = e.clientX
     const y0 = e.clientY
@@ -395,6 +481,7 @@ function useDragToPlace(suppressClick: React.MutableRefObject<boolean>) {
       if (started || Math.hypot(ev.clientX - x0, ev.clientY - y0) <= DRAG_START_PX) return
       started = true
       tick()
+      onStart?.()
       useStore.getState().setMode({ kind: 'place', type: entry.type, pickedHoles: [] })
       document.body.classList.add('ws-part-dragging')
     }
@@ -434,6 +521,7 @@ function useDragToPlace(suppressClick: React.MutableRefObject<boolean>) {
 }
 
 function PartCard({
+  copy,
   entry,
   armed,
   favorite,
@@ -443,7 +531,10 @@ function PartCard({
   onExpand,
   onDragStart,
 }: {
+  /** the section this copy of the card sits in (a part can be listed in 收藏, 常用元件 and its category) */
+  copy: string
   entry: CatalogEntry
+  /** this copy shows the placement (「放置中」 + the hint): only one copy of the armed part does */
   armed: boolean
   favorite: boolean
   expanded: boolean
@@ -464,8 +555,12 @@ function PartCard({
   ]
     .filter(Boolean)
     .join(' · ')
-  const detailsId = `ws-part-${entry.type}`
+  // unique per copy: the same part in 常用元件 and in its category has two spec cards
+  const detailsId = `ws-part-${copy}-${entry.type}`
   const spoken = { part: label, meta: placement, support: t(SUPPORT_SPOKEN[support.level]) }
+  // round 5 part keys (part-keys.ts): a 常用元件's letter — R 電阻, C 電容 … — as a
+  // quiet keycap on every copy of its card (mouse pointers only: CSS) + the tooltip
+  const hotkey = partKeyOf(entry.type)
   return (
     <div className={`ws-part lg-card cat-${entry.category} ${armed ? 'is-armed' : ''} ${expanded ? 'is-open' : ''}`}>
       <div className="ws-part-row">
@@ -479,7 +574,8 @@ function PartCard({
               ? t('{part}, {meta}, {support}, placing — click again to cancel', spoken)
               : t('{part}, {meta}, {support}, click to place', spoken)
           }
-          title={armed ? t('Click the card again to stop placing') : undefined}
+          aria-keyshortcuts={hotkey ?? undefined}
+          title={armed ? t('Click the card again to stop placing') : (partKeyTitle(entry) ?? undefined)}
           {...pressProps}
           onClick={onArm}
           onPointerDown={(e) => {
@@ -490,9 +586,19 @@ function PartCard({
           <span className="ws-part-glyph" aria-hidden="true">
             <PartGlyph entry={entry} />
           </span>
-          <span className="ws-part-text">
+          <span className={hotkey ? 'ws-part-text has-key' : 'ws-part-text'}>
             <span className="ws-part-label">{label}</span>
-            <span className="ws-part-sub">{sub}</span>
+            {hotkey ? (
+              // the keycap ends the sub line («2 腳 ··· R»): the name keeps its whole width
+              <span className="ws-part-subrow">
+                <span className="ws-part-sub">{sub}</span>
+                <kbd className="ws-part-key" aria-hidden="true">
+                  {hotkey}
+                </kbd>
+              </span>
+            ) : (
+              <span className="ws-part-sub">{sub}</span>
+            )}
           </span>
         </button>
         <span className="ws-part-side">

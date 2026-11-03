@@ -37,8 +37,9 @@
  *      per run the honest note 「U1 的電流迴路無法完整追蹤，暫不顯示它的光點」;
  *   L  a 7404 on the Blue Pill 3V3 pin: its output current closes through
  *      the board's regulator and the bench supply (+ wire = − wire);
- *   M  turned on while paused: 「執行模擬時就會看到」, and the legend toast
- *      comes when the run resumes (not spent while nothing can be seen).
+ *   M  turned on while paused: 「模擬繼續後就會看到」 (auto-run, round 5: no
+ *      Run button named), and the legend toast comes when the run resumes
+ *      (not spent while nothing can be seen).
  * Exit code 1 on any failed assertion. UX_E2E_SHOTS=<dir> saves screenshots.
  */
 import { mkdirSync, readFileSync } from 'node:fs'
@@ -134,8 +135,11 @@ const box = async (loc) => (await loc.count()) > 0 ? await loc.first().boundingB
 {
   const { ctx, page, errors } = await open()
   await openExample(page, 'blink')
-  // A — no chip before the first run
-  check((await chip(page).count()) === 0, 'A: no 顯示電流 chip while nothing has run (idle)')
+  // A — no chip before the first run. ?shotrig keeps auto-run off, so the opened example waits
+  // idle; under &autorun (round 5) it runs at once and the chip comes with that run
+  const idle = await store(page, 'const s = m.useStore.getState(); return !s.running && s.simTime === 0')
+  if (idle) check((await chip(page).count()) === 0, 'A: no 顯示電流 chip while nothing has run (idle)')
+  else check((await chip(page).count()) === 1, 'A: the example runs by itself (auto-run) → the chip shows at once')
   await runFor(page, 0.6)
   const c = chip(page)
   check((await c.count()) === 1, 'A: running → the chip shows')
@@ -205,17 +209,17 @@ const box = async (loc) => (await loc.count()) > 0 ? await loc.first().boundingB
   const f2 = await stats(page)
   check(!!f1 && !!f2 && f1.heads > 0 && f1.sig === f2.sig, 'C: paused → particles frozen in place (still shown)', { f1: f1?.sig, f2: f2?.sig, heads: f1?.heads })
 
-  // D — the C key
+  // D — the Shift+C key (a plain C picks up a capacitor — part-keys.ts)
   await page.locator('canvas').first().click({ position: { x: 700, y: 400 } }).catch(() => {})
   await page.keyboard.press('Escape')
-  await page.keyboard.press('c')
+  await page.keyboard.press('Shift+C')
   await sleep(500)
-  check((await c.getAttribute('aria-checked')) === 'false', 'D: C key → off')
+  check((await c.getAttribute('aria-checked')) === 'false', 'D: Shift+C → off')
   check((await toasts(page)).includes('已關閉電流顯示'), 'D: toast 「已關閉電流顯示」', await toasts(page))
   check(((await stats(page))?.visible ?? false) === false, 'D: particles gone')
-  await page.keyboard.press('c')
+  await page.keyboard.press('Shift+C')
   await sleep(500)
-  check((await c.getAttribute('aria-checked')) === 'true', 'D: C key → on again')
+  check((await c.getAttribute('aria-checked')) === 'true', 'D: Shift+C → on again')
 
   // E — parallel LEDs, very different currents
   const parallel = {
@@ -459,7 +463,7 @@ for (const [W, H] of [
   await chip(page).click()
   await sleep(600)
   const before = await toasts(page)
-  check(before.includes('已開啟電流顯示') && !before.includes('光點越快越密'), 'M: paused → 「執行模擬時就會看到」, no legend yet', before)
+  check(before.includes('已開啟電流顯示——模擬繼續後就會看到電流流動') && !before.includes('光點越快越密'), 'M: paused → 「模擬繼續後就會看到」, no legend yet', before)
   check((await page.evaluate(() => localStorage.getItem('bb.flowHint'))) !== '1', 'M: the one-time legend is not spent while nothing can be seen')
   await page.locator('.lg-capsule').first().click()
   await sleep(1500)

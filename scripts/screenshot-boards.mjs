@@ -12,7 +12,8 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const PORT = 4174
-const URL = `http://localhost:${PORT}/`
+// autorun=0: these shots / budgets predate auto-run (round 5) and stay comparable — the seeded circuits are shot stopped, as before
+const URL = `http://localhost:${PORT}/?autorun=0`
 
 function startPreview() {
   const proc = spawn('npm', ['run', 'preview', '--', '--port', String(PORT), '--strictPort'], {

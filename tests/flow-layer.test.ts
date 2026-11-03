@@ -7,7 +7,18 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
-import { bodyTopOf, CurrentFlowLayer, FLOW_RGB, flowColor, flowGap, flowLevel, flowSpeed, MIN_SHOWN_A } from '../src/three/internal/current-flow'
+import {
+  bodyTopOf,
+  CurrentFlowLayer,
+  FLOW_RGB,
+  flowColor,
+  flowGap,
+  flowLevel,
+  flowSpeed,
+  MIN_SHOWN_A,
+  SCALE_HI_A,
+  SCALE_LO_A,
+} from '../src/three/internal/current-flow'
 import type { RoutedComponent } from '../src/three/internal/wire-router'
 import type { SimTelemetry } from '../src/model/types'
 import { currentTrackingDefault, registerTrackingTarget } from '../src/sim/coordinator/tracking'
@@ -74,6 +85,35 @@ describe('perceptual scale (log, 10 µA … 200 mA)', () => {
       prev = s
     }
   })
+
+  it('every everyday step (0.5 → 2 → 10 → 20 mA) is visibly faster and denser', () => {
+    const steps = [0.5e-3, 2e-3, 10e-3, 20e-3]
+    for (let i = 1; i < steps.length; i++) {
+      const [a, b] = [steps[i - 1], steps[i]]
+      const label = `${a * 1e3} → ${b * 1e3} mA`
+      // 10 → 20 mA used to be only 1.09× faster: indistinguishable
+      expect(flowSpeed(b) / flowSpeed(a), label).toBeGreaterThanOrEqual(1.15)
+      expect(flowGap(b), label).toBeLessThan(flowGap(a))
+    }
+  })
+
+  it('speed is geometric on the log scale: every decade multiplies it by the same factor', () => {
+    const r1 = flowSpeed(1e-3) / flowSpeed(1e-4)
+    const r2 = flowSpeed(1e-2) / flowSpeed(1e-3)
+    expect(r1).toBeGreaterThan(1)
+    expect(r2).toBeCloseTo(r1, 9)
+    expect(flowSpeed(SCALE_LO_A)).toBeCloseTo(0.5, 9)
+    expect(flowSpeed(SCALE_HI_A)).toBeCloseTo(8, 9)
+  })
+
+  it('calm and sparse: a typical LED current (10 mA) runs slowly with few dots', () => {
+    // slower (was 8.6 pitches/s) …
+    expect(flowSpeed(10e-3)).toBeLessThanOrEqual(5)
+    expect(flowSpeed(10e-3)).toBeGreaterThan(2) // … but still clearly moving
+    // … and fewer (was a dot every 1.2 pitches)
+    expect(flowGap(10e-3)).toBeGreaterThanOrEqual(2)
+    expect(flowGap(SCALE_HI_A)).toBeCloseTo(1.4, 9) // even at full scale
+  })
 })
 
 describe('particles follow the real currents', () => {
@@ -119,6 +159,16 @@ describe('particles follow the real currents', () => {
     small.tick(0.016)
     big.tick(0.016)
     expect(heads(big)).toBeGreaterThan(heads(small))
+  })
+
+  it('the drawn dots use the same spacing as flowGap (no second copy of the formula)', () => {
+    useClock()
+    for (const i of [0.5e-3, 10e-3, 0.2]) {
+      const layer = wireLayer(i)
+      layer.tick(0.016)
+      // a 20-pitch wire: a whole number of dots, one every flowGap pitches
+      expect(heads(layer), `${i} A`).toBe(Math.floor(20 / flowGap(i)))
+    }
   })
 
   it('a paused simulation (time stops advancing) freezes the particles in place', () => {

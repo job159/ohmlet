@@ -15,14 +15,20 @@
  *
  * Classic chrome: never mounted (App.tsx — SH-10), its keys are not routed.
  * Shift+A (分析版面) is listed only while the desktop workspace shows.
+ *
+ * 「放置元件」 (round 5 — part-keys.ts): one letter per 常用元件 (R 電阻,
+ * C 電容, L LED …), two to a line, named as the library names them; the
+ * letters took R and C, so 旋轉 is Shift+R and 顯示電流 Shift+C here.
  */
-import { useEffect, useRef, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon, KeyboardIcon, pressProps, tick } from '../kit'
 import { t, useLang } from '../../i18n'
+import { partLabel } from '../../i18n/parts'
 import { tc } from '../format'
 import { useWorkspaceActive } from '../workspace/state'
 import { isLegacyChrome } from './legacy'
+import { partKeyRows } from './part-keys'
 import './ShortcutsSheet.css'
 
 /** Mac keyboards say ⌘ where others say Ctrl. */
@@ -77,6 +83,10 @@ export type ShortcutId =
   | 'analysis-layout'
   | 'regions'
   | 'current-flow'
+  | 'copy'
+  | 'cut'
+  | 'paste'
+  | 'duplicate'
 
 /** THE key table (English sources): what the sheet lists and what withKey announces. */
 export const SHORTCUTS: Readonly<Record<ShortcutId, ShortcutRow>> = {
@@ -86,7 +96,8 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, ShortcutRow>> = {
   'reset-mcu': { combos: [['Shift', 'F5']], label: 'Reset the MCU' },
   frame: { combos: [['F']], label: 'Frame the circuit' },
   shortcuts: { combos: [['?']], label: 'Show this list' },
-  rotate: { combos: [['R']], label: 'Rotate' },
+  // Shift+R: a plain R picks up a resistor (part-keys.ts — the classic chrome, which never shows this list, keeps R)
+  rotate: { combos: [['Shift', 'R']], label: 'Rotate' },
   delete: { combos: [['Delete']], label: 'Delete' },
   nudge: { combos: [['Arrows']], label: 'Nudge the selection' },
   cancel: { combos: [['Esc']], label: 'Cancel / clear the selection' },
@@ -97,8 +108,14 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, ShortcutRow>> = {
   'analysis-layout': { combos: [['Shift', 'A']], label: 'Analysis layout' },
   // F6 / Shift+F6 between the rail, the panels, the 3D view and the tray (SH-16)
   regions: { combos: [['F6'], ['Shift', 'F6']], label: 'Move between panels' },
-  // 顯示電流 — the chip beside the run capsule and 更多 → 模擬 (FlowToggle.tsx handles the key)
-  'current-flow': { combos: [['C']], label: 'Show current' },
+  // 顯示電流 — the chip beside the run capsule and 更多 → 模擬; Shift+C because a plain C picks up a
+  // capacitor (part-keys.ts isFlowKey, App.tsx)
+  'current-flow': { combos: [['Shift', 'C']], label: 'Show current' },
+  // copy / paste with the settings (copy-paste.ts — round 5); distinct sources: 'Duplicate' is the sheet's 「複製」
+  copy: { combos: [['Mod', 'C']], label: 'Copy the selection with its settings' },
+  cut: { combos: [['Mod', 'X']], label: 'Cut the selection' },
+  paste: { combos: [['Mod', 'V']], label: 'Paste at the pointer or beside the original' },
+  duplicate: { combos: [['Mod', 'D']], label: 'Duplicate the selection beside it' },
 }
 
 /** Rows that only work in the desktop workspace (the sheet hides them elsewhere). */
@@ -118,6 +135,10 @@ export const SHORTCUT_GROUPS: readonly { title: string; rows: readonly ShortcutR
     rows: [
       SHORTCUTS.rotate,
       SHORTCUTS.delete,
+      SHORTCUTS.copy,
+      SHORTCUTS.cut,
+      SHORTCUTS.paste,
+      SHORTCUTS.duplicate,
       SHORTCUTS.nudge,
       SHORTCUTS.cancel,
       // two rows: one combo per line reads faster than 「Ctrl+Z ／ Ctrl+Y」 wrapped
@@ -127,6 +148,16 @@ export const SHORTCUT_GROUPS: readonly { title: string; rows: readonly ShortcutR
     ],
   },
 ]
+
+/** English source of the 「放置元件」 group's title (tc(…, 'shortcuts')) — the part keys (part-keys.ts). */
+export const PLACE_PARTS_GROUP = 'Place parts'
+/** The sheet lists 「放置元件」 right after this group (before 編輯: pick a part up, then edit). */
+export const PLACE_PARTS_AFTER = 'View'
+
+/** The 「放置元件」 rows as the sheet prints them: the letter and the part's library name (常用元件 order). */
+export function placePartRows(): { key: string; label: string }[] {
+  return partKeyRows().map((r) => ({ key: r.key, label: partLabel(r.entry) }))
+}
 
 /** One combo as printed in a title: 「F10」, 「Shift+F5」, 「Ctrl+Z」 (⌘Z on a Mac), 「空白鍵」. */
 function comboText(keys: readonly string[]): string {
@@ -187,6 +218,28 @@ function Combo({ keys }: { keys: string[] }) {
     )
   })
   return <span className="app-keys-combo">{out}</span>
+}
+
+/** 「放置元件」: one letter per 常用元件, two to a line (exported for tests). */
+export function PlacePartsGroup() {
+  const rows = placePartRows()
+  if (rows.length === 0) return null
+  return (
+    <section className="app-keys-group app-keys-parts">
+      <div className="app-keys-group-title">{tc(PLACE_PARTS_GROUP, 'shortcuts')}</div>
+      <div className="app-keys-parts-grid">
+        {rows.map((r) => (
+          <div key={r.key} className="app-keys-row app-keys-part">
+            <span className="app-keys-keys">
+              <Combo keys={[r.key]} />
+            </span>
+            <span className="app-keys-label">{r.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="app-keys-note">{t('They work anywhere but a text field; press the same letter again to stop placing')}</div>
+    </section>
+  )
 }
 
 export interface ShortcutsSheetProps {
@@ -263,30 +316,34 @@ export function ShortcutsSheet({ open, onDismiss }: ShortcutsSheetProps) {
         </div>
         <div ref={bodyRef} className="app-keys-body" tabIndex={0} aria-label={t('Keyboard shortcuts')}>
           {SHORTCUT_GROUPS.map((g) => (
-            <section key={g.title} className="app-keys-group">
-              <div className="app-keys-group-title">{tc(g.title, 'shortcuts')}</div>
-              {g.rows.filter((r) => workspaceOn || !WORKSPACE_ONLY_ROWS.has(r)).map((r) => (
-                <div key={r.label} className="app-keys-row">
-                  <span className="app-keys-keys">
-                    {r.combos.map((c, i) => (
-                      <span key={i} className="app-keys-alt">
-                        {i > 0 && (
-                          <span className="app-keys-or" aria-hidden="true">
-                            ／
-                          </span>
-                        )}
-                        <Combo keys={c} />
-                      </span>
-                    ))}
-                  </span>
-                  <span className="app-keys-label">{t(r.label)}</span>
-                </div>
-              ))}
-            </section>
+            <Fragment key={g.title}>
+              <section className="app-keys-group">
+                <div className="app-keys-group-title">{tc(g.title, 'shortcuts')}</div>
+                {g.rows.filter((r) => workspaceOn || !WORKSPACE_ONLY_ROWS.has(r)).map((r) => (
+                  <div key={r.label} className="app-keys-row">
+                    <span className="app-keys-keys">
+                      {r.combos.map((c, i) => (
+                        <span key={i} className="app-keys-alt">
+                          {i > 0 && (
+                            <span className="app-keys-or" aria-hidden="true">
+                              ／
+                            </span>
+                          )}
+                          <Combo keys={c} />
+                        </span>
+                      ))}
+                    </span>
+                    <span className="app-keys-label">{t(r.label)}</span>
+                  </div>
+                ))}
+              </section>
+              {/* 「放置元件」 (part-keys.ts): after 檢視, before 編輯 */}
+              {g.title === PLACE_PARTS_AFTER && <PlacePartsGroup />}
+            </Fragment>
           ))}
         </div>
         <div className="app-keys-foot">
-          {t('Space, F5, F10 and Shift+F5 work wherever the focus is (Space not while you type in a field); the editing keys work on the 3D view.')}
+          {t('Space, F5, F10 and Shift+F5 work wherever the focus is (Space not while you type in a field); copy and paste work anywhere but a text field; the other editing keys work on the 3D view.')}
         </div>
       </div>
     </div>,

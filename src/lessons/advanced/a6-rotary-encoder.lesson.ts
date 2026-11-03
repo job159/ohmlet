@@ -233,7 +233,7 @@ export const LESSON: Lesson = {
       id: 'turn',
       title: '執行並轉動旋鈕',
       body: doc(
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開「UART 終端機」：開機印出 `pos=0`。接著點 ENC1，在屬性面板把「位置」改成 **5**：約每 50 ms 一行，`pos=1`～`pos=5`。再改成 2，看到 `pos=4`、`pos=3`、`pos=2`。',
+        '模擬會自動執行，打開「UART 終端機」：開機印出 `pos=0`。接著點 ENC1，在屬性面板把「位置」改成 **5**：約每 50 ms 一行，`pos=1`～`pos=5`。再改成 2，看到 `pos=4`、`pos=3`、`pos=2`。',
         '打開「保持按下」再關掉（或在麵包板上按住旋鈕再放開）：約 20 ms 後各出現 `SW pressed`、`SW released`。計數完全由 TIM4 的硬體完成，主迴圈每 1 ms 醒來讀一次 `CNT`。',
       ),
       highlight: { components: ['ENC1'] },

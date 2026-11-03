@@ -18,7 +18,7 @@ const zh: Record<string, string> = {
   'Reproduce this mistake: load {project}': '重現這個錯誤：載入 {project}',
   'Take a {part}': '拿一顆{part}',
   'Placing — click the holes on the board': '放置中——點麵包板上的孔位',
-  'Press again to stop placing': '再按一次即可取消放置',
+  'Press again to stop placing': '再按一次即可結束放置',
   'Loaded {file} into {id}': '已將 {file} 載入 {id}',
   'Couldn’t load {project}: {error}': '無法載入 {project}：{error}',
   '{id} is not on the board — load the starting circuit first': '電路中沒有 {id}——請先按「載入起始電路」',

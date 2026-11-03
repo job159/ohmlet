@@ -5,8 +5,10 @@
  * 「繼續執行」, 「對調兩腳」) and 「在電路板上標示」 (scene bridge, problem layer,
  * which also selects the problem's part).
  *
- *   variant 'panel'   — header 「問題（n）」, every problem with its detail;
- *                       an all-clear row when there is nothing to report
+ *   variant 'panel'   — header 「問題（n）」 (plus 〔全部換新〕 while two or
+ *                       more parts read destroyed — ReplaceAllChip, product
+ *                       chrome), every problem with its detail; an
+ *                       all-clear row when there is nothing to report
  *   variant 'compact' — ONE row (the most important, the same the status pill
  *                       would name) with a two-line explanation, and
  *                       「另 n 個」 that leads to the full problems panel
@@ -33,7 +35,9 @@ import { t, useLang } from '../../i18n'
 import { terminalLabel } from '../../i18n/parts'
 import { focusInScene } from '../workspace/scene-bridge'
 import { stateColor } from '../chrome/run-control'
+import { useLegacyChrome } from '../chrome/legacy'
 import { ChipButton, sourceHoverProps, useSourceHoverRelease } from './controls'
+import { damagedPartIds, replaceAllDamagedWithFeedback } from './replace-part'
 import { tc, tText } from './text'
 import {
   PROBLEMS_ANCHOR_ID,
@@ -136,13 +140,56 @@ export function showExecutionCard(componentId: string): void {
   row.focus({ preventScroll: true })
 }
 
+/**
+ * The parts 〔全部換新〕 would replace: two or more on the board that the
+ * readings show destroyed (product chrome only), else none. A joined string
+ * from the store, so a host re-renders only when that set changes — not on
+ * every telemetry push (≤ 10 Hz).
+ */
+export function useReplaceAllIds(): string[] {
+  const legacy = useLegacyChrome()
+  const ids = useStore((s) => (legacy ? '' : damagedPartIds(s.telemetry, s.layout).join(',')))
+  const list = ids ? ids.split(',') : []
+  return list.length >= 2 ? list : []
+}
+
+/**
+ * 〔全部換新〕 for a Problems list header (product chrome): while two or more
+ * parts read destroyed, one click replaces them all — one host call, one
+ * insert sound, one toast 「已換上新的 LED1、R2」 (replace-part.ts, the same
+ * feedback as 〔換新〕). Renders nothing otherwise. The phone 更多 → 問題 list
+ * shows it in its header (ProblemsList 'panel'); the workspace's problems
+ * panel (ErcPanel) can place it in its header row the same way.
+ */
+export function ReplaceAllChip() {
+  useLang()
+  return <ReplaceAllButton ids={useReplaceAllIds()} />
+}
+
+/** The chip itself for `ids` (nothing below two). */
+export function ReplaceAllButton({ ids }: { ids: readonly string[] }) {
+  if (ids.length < 2) return null
+  return (
+    <span className="erc-replace-all">
+      <ChipButton
+        accent
+        aria-label={t('Replace every destroyed part ({ids}) with a new one|damage', { ids: ids.join(t(', |damage-list')) })}
+        onClick={() => void replaceAllDamagedWithFeedback()}
+      >
+        {t('Replace all|damaged')}
+      </ChipButton>
+    </span>
+  )
+}
+
 /** Store-bound list: the problems of useProblems (re-renders when it publishes). */
 export function ProblemsList(props: ProblemsListProps) {
   // the watcher is reference-counted: hosts that mount a list keep it running
   useEffect(() => startProblemsWatcher(), [])
   const problems = useProblems((s) => s.problems)
   const layout = useStore((s) => s.layout)
-  return <ProblemsView {...props} problems={problems} layout={layout} />
+  const replaceIds = useReplaceAllIds()
+  return <ProblemsView {...props} problems={problems} layout={layout} replaceIds={replaceIds} />
 }
 
 /**
@@ -169,7 +216,13 @@ export function ProblemsView({
   exclude,
   header,
   boardState,
-}: ProblemsListProps & { problems: readonly Problem[]; layout?: CircuitLayout }) {
+  replaceIds = [],
+}: ProblemsListProps & {
+  problems: readonly Problem[]
+  layout?: CircuitLayout
+  /** the panel variant's header offers 〔全部換新〕 for these (two or more destroyed parts — useReplaceAllIds) */
+  replaceIds?: readonly string[]
+}) {
   useLang()
   const [unfolded, setUnfolded] = useState(false)
   const mine = all.filter((p) => (!componentId || p.componentIds.includes(componentId)) && !exclude?.(p))
@@ -185,6 +238,17 @@ export function ProblemsView({
   const ordered = states.length > 0 ? [...states, ...problems.filter((p) => !p.state)] : problems
   const shown = compact && !unfolded ? ordered.slice(0, 1) : ordered
   const more = ordered.length - shown.length
+  // the panel's own header (「問題（n）」), with 〔全部換新〕 beside it while two or more parts are destroyed
+  const ownHeader =
+    replaceIds.length >= 2 ? (
+      <span className="erc-head-row">
+        <span className="erc-head-title">{problemsHeaderText(problems)}</span>
+        <span className="erc-head-spacer" />
+        <ReplaceAllButton ids={replaceIds} />
+      </span>
+    ) : (
+      problemsHeaderText(problems)
+    )
   const row = (p: Problem) => (
     <ProblemRow
       key={p.id}
@@ -198,7 +262,7 @@ export function ProblemsView({
   return (
     <ListGroup
       className={`erc-panel ${compact ? 'is-compact' : ''}`}
-      header={compact ? undefined : header !== undefined ? header ?? undefined : problemsHeaderText(problems)}
+      header={compact ? undefined : header !== undefined ? header ?? undefined : ownHeader}
     >
       {ordered.length === 0 ? (
         <ListRow

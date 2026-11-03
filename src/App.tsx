@@ -83,8 +83,9 @@ import {
   type DockItem,
 } from './ui/kit'
 import { EmptyState, Onboarding, StatusBar, WireColorStrip, hintForMode, markOnboarded, needsOnboarding, pushRenderProgress } from './ui/chrome'
-import { FlowToggle } from './ui/chrome/FlowToggle'
+import { FlowToggle, toggleFlowView } from './ui/chrome/FlowToggle'
 import { StatusPill, pillProblem } from './ui/chrome/StatusPill'
+import { ExplainCard } from './ui/chrome/ExplainCard'
 import { ShortcutsSheet } from './ui/chrome/ShortcutsSheet'
 import { isLegacyChrome, isWorkspaceShowing, useLegacyChrome } from './ui/chrome/legacy'
 import { haltedMcuIds, mcuIdsInLayout, runOrResume, targetMcuId } from './ui/chrome/run-control'
@@ -125,12 +126,14 @@ import {
   undoWithFeedback,
   wireStartCheck,
 } from './ui/chrome/edit-feedback'
+import { clipboardKeyAction, duplicateWithFeedback, runClipboardKey, textSelectionActive } from './ui/chrome/copy-paste'
+import { installPartKeys, isFlowKey, isRotateKey } from './ui/chrome/part-keys'
 import { conventionWireColor, resetWireColorPick, wireColorPicked } from './ui/chrome/wire-convention'
-import { wireRoleColors, wireRoleOf } from './ui/wire-roles'
+import { roleColorOfNewWire, wireRoleColors } from './ui/wire-roles'
 import { UndoPill } from './ui/chrome/UndoPill'
 import { SelectionPill } from './ui/chrome/SelectionPill'
 import { RotateButton } from './ui/chrome/RotateButton'
-import { PartsSheet, showPartsSheetSegment } from './ui/sheets/PartsSheet'
+import { PartsSheet, partsSheetAtPeek, raisePartsSheet, showPartsSheetSegment } from './ui/sheets/PartsSheet'
 import { AiSheet } from './ui/sheets/AiSheet'
 import { ScopeSheet } from './ui/sheets/ScopeSheet'
 import { MoreSheet, saveProjectFile } from './ui/sheets/MoreSheet'
@@ -141,11 +144,16 @@ import { computeGeometry, setHoveredObject, useWorkspaceActive } from './ui/work
 import { holeLabelFor } from './ui/workspace/hole-labels'
 import { holeChipText } from './ui/workspace/hole-chip'
 import { frameCircuit, registerScene } from './ui/workspace/scene-bridge'
+import { joinedRefusalText } from './ui/workspace/wire-draw'
 import { CelebrationOverlay } from './ui/fx/CelebrationOverlay'
 import { applyFlowChrome } from './ui/fx/flow'
+import { playMech } from './ui/fx/sound'
 import { openProbeMenu } from './ui/workspace/ProbeMenu'
 import { useLab } from './ui/embedded/lab'
 import { startProblemsWatcher, useProblems } from './ui/embedded/problems'
+import { startAutoRun } from './ui/chrome/auto-run'
+import { startAutoHeal } from './ui/embedded/auto-heal'
+import { isReplaceable, replaceDamagedWithFeedback } from './ui/embedded/replace-part'
 import { bindLatchScene, latchPart, latchSheetItem, pressMomentary } from './ui/embedded/latch'
 import { useLessonUi } from './ui/lessons/state'
 import { openLessons, startFirstLesson } from './ui/lessons/actions'
@@ -174,7 +182,7 @@ function syncOverlays(scene: BreadboardScene, s: AppState): void {
       scene.setGhost({
         type: mode.type,
         at: s.hoverHole,
-        // rotation-aware (R key cycles mode.rotation for dip/footprint parts)
+        // rotation-aware (the rotate key — Shift+R; classic R — cycles mode.rotation for dip/footprint parts)
         valid: placementValid(s.layout, mode.type, s.hoverHole, mode.pickedHoles, mode.rotation),
         // already-picked holes → the scene shows the FULL routed holographic
         // part stretching first-hole → hover for 2-lead leaded parts
@@ -217,6 +225,13 @@ function wireEndpointClick(endpoint: string): void {
   // the colour of its net's role (the scene shows the role colours anyway;
   // the stored one is what an export / the classic chrome shows)
   if (!legacy && from) {
+    // the drag's rule too (final round): a hole on the first end's own strip /
+    // rail is joined already — say so and keep the start for a re-aim
+    const joined = joinedRefusalText(st.layout, from, endpoint)
+    if (joined) {
+      showWireRefusalToast(joined)
+      return
+    }
     const color = roleColorOfNewWire(st.layout, from, endpoint)
     const before = st.layout.wires.length
     const refusal = wireRefusal(st.layout, from, endpoint)
@@ -277,12 +292,6 @@ function wireEndpointClick(endpoint: string): void {
   }
 }
 
-/** The role colour (C1) a wire from → to would take once added to `layout`. */
-function roleColorOfNewWire(layout: AppState['layout'], from: string, to: string): string {
-  const probe = { id: '__new_wire__', from, to }
-  return wireRoleOf({ ...layout, wires: [...layout.wires, probe] }, probe.id).color
-}
-
 /**
  * Contract C1: the scene draws the product chrome's wires in their net's
  * role colour (src/ui/wire-roles.ts); the classic chrome keeps the stored
@@ -307,7 +316,7 @@ function isRotatableComponent(st: AppState, id: string): boolean {
 /**
  * Rotate a placed package via the store (one undo step) with user feedback:
  * haptic tick on success, teaching toast when no other rotation fits. Shared
- * by the long-press ActionSheet "Rotate" row and the R key in select mode.
+ * by the long-press ActionSheet "Rotate" row and the rotate key (Shift+R; classic R) in select mode.
  */
 function rotatePlacedWithFeedback(id: string): void {
   const st = useStore.getState()
@@ -347,6 +356,7 @@ function handleHoleClick(hole: HoleRef): void {
         // names the row to click, a package off the edge says which way to
         // move, else the validator's reason
         const rotation = mode.rotation ?? 0
+        playMech('refuse') // …with the soft refusal thunk (音效 on)
         if (refusalToastId != null) dismissToast(refusalToastId)
         refusalToastId = showToast(
           placementRefusedHint(entry, rotationProblemText(mode.type, hole, rotation), refusalWhere(mode.type, hole, rotation)),
@@ -361,6 +371,7 @@ function handleHoleClick(hole: HoleRef): void {
       // new chrome says why, replacing the previous refusal (release QA SH-F6)
       if (!placementValid(st.layout, mode.type, hole, mode.pickedHoles)) {
         if (!isLegacyChrome()) {
+          playMech('refuse') // the hole is refused (the ghost shows red): the soft refusal thunk
           const reason = placementSpotReason(st.layout, mode.type, hole, mode.pickedHoles)
           if (refusalToastId != null) dismissToast(refusalToastId)
           refusalToastId = reason ? showToast(placementSpotRefusedHint(reason), { duration: 3200 }) : null
@@ -541,7 +552,7 @@ function handleInstrumentMoveCommit(id: string, pos: { x: number; z: number }): 
 }
 
 /**
- * Teaching toast for an invalid armed rotation (R key / rotate button): the
+ * Teaching toast for an invalid armed rotation (the rotate key / rotate button): the
  * text comes from validateLayout on a probe placement, so the explanation is
  * the validator's own ("straddles the channel", "covered by ...", ...).
  */
@@ -931,6 +942,10 @@ export default function App() {
   // problems store (K3): ERC + simulator issues + MCU states, ≤ 1 Hz — the
   // status pill, the inspector's problems panel and the More sheet read it
   useEffect(() => startProblemsWatcher(), [])
+  // auto-run (round 5): the product chrome simulates every circuit without a Run press
+  useEffect(() => startAutoRun(), [])
+  // automatic 換新 (round 5): a fixed value brings destroyed parts back (product chrome)
+  useEffect(() => (legacy ? undefined : startAutoHeal()), [legacy])
 
   // contract C1: a chrome switch (Settings → 介面語言 / the workspace) swaps
   // role colours ↔ stored colours
@@ -1027,12 +1042,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyCapture, true)
   }, [])
 
+  // part keys (new chrome, round 5): R 電阻, C 電容, L LED, P 電源供應器, B 按鈕,
+  // V 可變電阻, D 二極體, Q 電晶體, U Blue Pill, M 萬用電表 pick up a 常用元件 the
+  // way its library card does (same letter again: stop placing) — window
+  // CAPTURE phase, so a library card that kept the focus after a click (the
+  // panels' guardKeys) still hears them; a text field, a dialog and a control
+  // that reads letters itself keep them (part-keys.ts). Classic: none.
+  useEffect(() => installPartKeys({ legacy: isLegacyChrome, textSelected: textSelectionActive }), [])
+
   // keyboard (desktop): Esc cancel/deselect, Delete remove, F frame the
   // circuit (new chrome), Ctrl/Cmd+S save the project and ? the shortcuts
-  // list (new chrome), Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z or Ctrl+Y redo,
-  // R = rotate the armed part while placing OR the single selected
+  // list (new chrome), Ctrl/Cmd+C／X／V／D copy / cut / paste / duplicate the
+  // parts with their settings (new chrome), Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z or Ctrl+Y redo,
+  // Shift+R (new chrome — R picks up a resistor there) / R (classic) = rotate
+  // the armed part while placing OR the single selected
   // dip/footprint package in select mode (rotatePlaced — next valid
-  // rotation, one undo step), arrow keys = nudge the selection (dCol ±1;
+  // rotation, one undo step), Shift+C 顯示電流 (new chrome — C is the
+  // capacitor), arrow keys = nudge the selection (dCol ±1;
   // Up/Down step leads parts along the strip-row lattice — all-or-nothing);
   // the classic chrome keeps its pre-wave Space here
   useEffect(() => {
@@ -1059,6 +1085,23 @@ export default function App() {
         void saveProjectFile()
         return
       }
+      // Ctrl/⌘+C／X／V／D copy, cut, paste, duplicate the parts with their settings (new
+      // chrome, copy-paste.ts); selected text, a modal and the classic chrome keep the browser's
+      const clipAction = !(e.metaKey || e.ctrlKey)
+        ? 'pass'
+        : clipboardKeyAction(e, {
+            legacy: legacyChrome,
+            editableTarget: isEditableTarget(e.target),
+            textSelected: textSelectionActive(),
+            selectionCount: st.selection.length,
+            modalOpen: blockingModalOpen() || describeKeyTarget(e.target).inModal,
+          })
+      if (clipAction !== 'pass') {
+        e.preventDefault() // only a key it acts on (with nothing selected Ctrl+D still bookmarks)
+        // a paste goes where the mouse points when it fits; a held key acts once (no spray of copies)
+        runClipboardKey(clipAction, { near: st.hoverHole, repeat: e.repeat })
+        return
+      }
       if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey && !legacyChrome) {
         e.preventDefault()
         setShortcutsOpen((o) => !o)
@@ -1069,13 +1112,21 @@ export default function App() {
         frameCircuit()
         return
       }
-      if (key === 'r' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // 顯示電流 (new chrome): Shift+C — once per press; FlowToggle's own listener may have taken it
+      if (isFlowKey(e, legacyChrome) && !e.defaultPrevented) {
+        e.preventDefault()
+        if (!e.repeat) toggleFlowView(true)
+        return
+      }
+      // rotate: Shift+R in the new chrome (a plain R picks up a resistor — part-keys.ts, which
+      // already turned an armed ghost: defaultPrevented), R in the classic
+      if (isRotateKey(e, legacyChrome) && !e.defaultPrevented) {
         if (st.mode.kind === 'place') {
           e.preventDefault()
           st.rotateArmed()
           return
         }
-        // select mode: R rotates the single selected dip/footprint package
+        // select mode: Shift+R (classic: R) rotates the single selected dip/footprint package
         if (
           st.mode.kind === 'select' &&
           st.selection.length === 1 &&
@@ -1086,9 +1137,13 @@ export default function App() {
           return
         }
       }
+      // (new chrome: an arrow a focused control already used — a Segmented, a
+      // slider, a resize handle preventDefault the ones they act on — never also
+      // nudges the part, however that control got its focus; classic: as before)
       if (
         st.mode.kind === 'select' &&
         st.selection.length > 0 &&
+        !(e.defaultPrevented && !legacyChrome) &&
         (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')
       ) {
         e.preventDefault()
@@ -1135,7 +1190,7 @@ export default function App() {
   }, [])
 
   // teaching toast when cycling to a rotation that cannot fit at the hovered
-  // anchor (R key AND the chrome RotateButton both funnel through
+  // anchor (the rotate key — Shift+R, classic R — AND the chrome RotateButton both funnel through
   // mode.rotation, so one subscription covers both); text from validateLayout
   const prevRotationRef = useRef<Rotation | null>(null)
   useEffect(() => {
@@ -1311,6 +1366,11 @@ export default function App() {
       return
     }
     if (key === 'none') return
+    // 元件 while the phone parts sheet peeks (after a placement): raise it to its cards, not close it (persona fix)
+    if (key === 'parts' && activeSheet === 'parts' && !legacy && partsSheetAtPeek()) {
+      raisePartsSheet()
+      return
+    }
     setActiveSheet((cur) => (cur === key ? null : key))
   }
 
@@ -1350,12 +1410,16 @@ export default function App() {
 
   // --- long-press action sheet ---
   const layout = useStore((s) => s.layout)
+  // a boolean: App re-renders when the target's latched damage comes or goes, not with the 10 Hz telemetry
+  const targetDamaged = useStore((s) => (actionTarget ? isReplaceable(s.telemetry?.components[actionTarget]) : false))
   const targetComp = actionTarget ? layout.components.find((c) => c.id === actionTarget) : undefined
   const targetWire = actionTarget ? layout.wires.find((w) => w.id === actionTarget) : undefined
   const targetEntry = targetComp ? getEntry(targetComp.type) : undefined
   const actionSheetActions: ActionSheetAction[] = []
   if (targetComp) {
     actionSheetActions.push({ label: t('Properties'), onSelect: () => select(targetComp.id) })
+    // 〔換新〕 (round 5, product chrome): a part the simulation destroyed → a new one in place, params kept
+    if (!legacy && targetDamaged) actionSheetActions.push({ label: t('Replace|damaged'), onSelect: () => void replaceDamagedWithFeedback(targetComp.id) })
     // 保持按下 / 放開 (latch.ts — product chrome): a button can be kept pressed from here before a
     // run or between runs; during a session a touch long-press on it presses it instead (SC-6 —
     // the finger is the hand on the button), and the part it selects shows the same switch in its
@@ -1377,7 +1441,8 @@ export default function App() {
         onSelect: () => rotatePlacedWithFeedback(targetComp.id),
       })
     }
-    actionSheetActions.push({ label: t('Duplicate'), onSelect: () => duplicateComponent(targetComp.id) })
+    // 複製: the product chrome copies it at once, settings and all, beside it (copy-paste.ts); classic re-places it
+    actionSheetActions.push({ label: t('Duplicate'), onSelect: () => (legacy ? duplicateComponent(targetComp.id) : duplicateWithFeedback([targetComp.id])) })
   }
   if (targetComp || targetWire) {
     // the TOUCH multi-select path (DESIGN §8: everything touch-completable):
@@ -1431,6 +1496,8 @@ export default function App() {
       {/* status pill under it: the top problem or the next step (new chrome;
           self-hides in the classic chrome and when there is nothing to say) */}
       <StatusPill hidden={onboarding || emptyVisible} onOpenMore={() => setActiveSheet('more')} />
+      {/* 「電路說明」: what the circuit is doing, top right (desktop; phones: the pill's lowest tier) */}
+      <ExplainCard hidden={onboarding} empty={emptyVisible} />
 
       {/* empty-state card */}
       {emptyVisible && (

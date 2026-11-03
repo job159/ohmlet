@@ -174,7 +174,7 @@ export const LESSON: Lesson = {
       id: 'firmware',
       title: '載入 hal-spi-595，看跑馬燈',
       body:
-        '按下方的「載入 hal-spi-595 到 U1」，再按「▶ 執行模擬」（或空白鍵）：LED1（QA）→ LED8（QH）每 100 ms 前進一顆。\n\n' +
+        '按下方的「載入 hal-spi-595 到 U1」，載入後模擬會自動執行：LED1（QA）→ LED8（QH）每 100 ms 前進一顆。\n\n' +
         '終端機（USART1）開機印出 `74HC595 chaser 10 Hz`。主迴圈每 100 ms：`HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); HAL_SPI_Transmit(&hspi1, &pattern, 1, 10); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);`',
       highlight: { components: ['U2', 'LED1', 'LED8'] },
       check: { kind: 'firmware-loaded', component: 'U1', project: 'hal-spi-595', label: 'U1 已載入 hal-spi-595' },

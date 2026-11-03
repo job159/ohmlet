@@ -38,7 +38,8 @@ describe('docs/support-matrix.md', () => {
           `first difference at line ${i + 1}:\n  committed: ${a[i] ?? '(end of file)'}\n  generated: ${b[i] ?? '(end of file)'}`,
       )
     }
-  })
+    // the first test pays the generator's cold import (catalog + every i18n table): ~5 s on a busy machine
+  }, 30_000)
 
   it('lists every peripheral of the MCU model and every catalog part', async () => {
     const gen = (await import(/* @vite-ignore */ GENERATOR)) as Generator

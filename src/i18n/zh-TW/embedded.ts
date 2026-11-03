@@ -234,7 +234,8 @@ const zh: Record<string, string> = {
   'The rule check could not run on this layout': '無法對此電路執行規則檢查',
   'No problems found': '未發現問題',
   'Wiring + live readings': '接線＋即時讀數',
-  'Wiring and ratings (start the simulation to add live readings)': '接線與額定值（開始模擬即可加入即時讀數）',
+  // persona fix: the simulation starts by itself (auto-run) — no 「開始模擬即可…」 that asks the learner to start it
+  'Wiring and ratings (start the simulation to add live readings)': '接線與額定值（模擬執行時加入即時讀數）',
   'Rule-based checks of the wiring, the parts’ datasheet ratings and the latest simulation readings — not a proof that the circuit works or is safe.':
     '依接線、元件資料手冊的額定值與最新模擬讀數進行的規則式檢查——並不能證明電路可正常運作或安全。',
   'Rule-based checks of the wiring and the parts’ datasheet ratings — not a proof that the circuit works or is safe.':

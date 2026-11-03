@@ -331,6 +331,30 @@ class RgbLedDevice extends LedDevice {
     this.brightness = maxBright
   }
 
+  /**
+   * 換新 (AnalogDevice.repair): a new RGB LED — every burned die is intact
+   * again, its over-current time and eye window start afresh; the intact
+   * dies carry on, so their readings do not blink. Overrides LedDevice's
+   * (its single-junction state is not used here).
+   */
+  repair(): boolean {
+    let any = false
+    for (let ch = 0; ch < 3; ch++) {
+      if (!this.burnedC[ch]) continue
+      any = true
+      this.burnedC[ch] = false
+      this.overC[ch] = 0
+      this.brightC[ch] = 0
+      this.winC[ch].clear()
+    }
+    if (!any) return false
+    // what the engine's burn-out issue reads
+    this.burned = false
+    this.burnCurrentMa = 0
+    this.burnedAt = NaN
+    return true
+  }
+
   fillTelemetry(t: ComponentTelemetry): void {
     // eye-averaged per die over the last LED_EYE_S of simulated time (LedWindow)
     const w = [this.winC[0].read(), this.winC[1].read(), this.winC[2].read()]

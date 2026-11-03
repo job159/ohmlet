@@ -4,7 +4,11 @@
  * Self-contained: renders the kit <Sheet> itself (snaps peek/half/full —
  * 0.28 / 0.55 / 0.92; desktop = floating glass panel anchored left).
  * Search filters by label/type/tags/part number (partMatches), horizontally
- * scrollable category chips, 2-column grid of part cards with
+ * scrollable category chips, 2-column grid of part cards in library order
+ * (src/ui/workspace/library-order.ts: 「全部」 opens with the everyday
+ * parts under a 「常用元件」 label, then the rest under their category
+ * names; a search ranks by match quality; classic chrome keeps the
+ * original flat order) with
  * schematic-style SVG glyphs and — for anything short of a full model —
  * the simulation support badge (supportOf(entry)). Tapping a
  * card arms placement mode (store.setMode place) with a haptic and drops
@@ -34,20 +38,29 @@
  *     desktop={isDesktop} />
  *   showPartsSheetSegment('examples'); setActiveSheet('parts')
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Sheet, Segmented, pressProps, tick, CloseIcon } from '../kit'
 import { useStore } from '../../state/store'
 import {
-  CATALOG,
   getEntry,
   supportOf,
   type CatalogEntry,
   type ComponentCategory,
   type SupportLevel,
 } from '../../model/catalog'
+import {
+  CATEGORY_ORDER,
+  LEGACY_CATEGORY_ORDER,
+  orderedCatalog,
+  rankByMatch,
+  sheetGroups,
+  type PartSearchFields,
+  type SheetGroup,
+} from '../workspace/library-order'
 import { SupportBadge } from '../embedded/PartInfo'
 import { useLegacyChrome } from '../chrome/legacy'
 import { editCue } from '../chrome/edit-feedback'
+import { partKeyOf, partKeyTitle } from '../chrome/part-keys'
 import { t, useLang } from '../../i18n'
 import { partLabel } from '../../i18n/parts'
 import { ProbeMenuHost } from '../workspace/ProbeMenu'
@@ -67,19 +80,8 @@ const HALF = 1
 const PEEK = 0
 const FULL = 2
 
-export const CATEGORY_ORDER: ComponentCategory[] = [
-  'mcu',
-  'passive',
-  'semiconductor',
-  'switch',
-  'display',
-  'ic',
-  'power',
-  'sensor',
-  'module',
-  'motor',
-  'instrument',
-]
+// the library order lives in one pure module (usage order; classic chrome keeps the original)
+export { CATEGORY_ORDER, orderedCatalog } from '../workspace/library-order'
 
 /** English category names (translate for display with categoryText()). */
 export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
@@ -131,12 +133,6 @@ export function supportSpoken(level: SupportLevel): string {
   return t(SUPPORT_SPOKEN[level])
 }
 
-/** Every catalog entry in library order (CATEGORY_ORDER, then catalog order). */
-export function orderedCatalog(): CatalogEntry[] {
-  const entries = Object.values(CATALOG)
-  return CATEGORY_ORDER.flatMap((c) => entries.filter((e) => e.category === c))
-}
-
 /**
  * Library search: every whitespace-separated term must match the label,
  * type key, part number, manufacturer or one of the search tags
@@ -159,6 +155,19 @@ export function partMatches(entry: CatalogEntry, query: string): boolean {
     .join('\n')
     .toLowerCase()
   return terms.every((t) => hay.includes(t))
+}
+
+/**
+ * The fields search results are RANKED by (library-order.ts rankByMatch):
+ * the names (UI language, English, type key, part number) above the tags
+ * (search tags, maker, category name + `extraTags`). The same texts
+ * partMatches filters on.
+ */
+export function partSearchFields(entry: CatalogEntry, extraTags: readonly string[] = []): PartSearchFields {
+  return {
+    names: [partLabel(entry), entry.label, entry.type, entry.meta?.partNumber ?? ''],
+    tags: [...(entry.meta?.tags ?? []), entry.meta?.manufacturer ?? '', categoryText(entry.category), ...extraTags],
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -439,6 +448,20 @@ export interface PartsSheetProps {
 
 type CatFilter = 'all' | ComponentCategory
 
+/**
+ * The parts grid for a chip + query (exported for tests): classic chrome —
+ * the original flat list; a query — one list, best matches first
+ * (rankByMatch: a name before a tag, the usage order breaks ties); 「全部」
+ * — 「常用元件」, then the rest under their category names (sheetGroups);
+ * a category chip — that category in usage order.
+ */
+export function sheetPartGroups(legacy: boolean, cat: CatFilter, query: string): SheetGroup[] {
+  const list = orderedCatalog({ legacy }).filter((e) => (cat === 'all' || e.category === cat) && partMatches(e, query))
+  if (legacy) return [{ key: 'all', entries: list }]
+  if (query.trim() !== '') return [{ key: 'all', entries: rankByMatch(list, query, (e) => partSearchFields(e)) }]
+  return cat === 'all' ? sheetGroups(list) : [{ key: 'all', entries: list }]
+}
+
 /** The sheet's two views (new chrome): the parts library and the example library. */
 export type PartsSheetSegment = 'parts' | 'examples'
 
@@ -463,6 +486,24 @@ export function showPartsSheetSegment(segment: PartsSheetSegment): void {
   for (const fn of segmentSubs) fn(segment)
 }
 
+/** The open phone sheet rests at its peek (its cards under the dock — persona fix). */
+let peekOpen = false
+const raiseSubs = new Set<() => void>()
+
+/** Does the open phone parts sheet rest at its peek? (the dock's 元件 then raises it — App onDock) */
+export function partsSheetAtPeek(): boolean {
+  return peekOpen
+}
+
+/**
+ * Raise the open phone parts sheet from its peek to its resting half (the
+ * dock's 元件 while the sheet peeks — persona fix: that tap closed the sheet,
+ * and the next card took a second tap). Placing stays armed.
+ */
+export function raisePartsSheet(): void {
+  for (const fn of raiseSubs) fn()
+}
+
 /**
  * The segment the next opening shows (consumes a pending request). Exported
  * for tests.
@@ -482,6 +523,20 @@ export function afterExampleOpened(ex: Pick<LibraryExample, 'instruments' | 'key
   const tab = exampleMainInstrument(ex)
   if (tab && revealInstrument(tab, { open: true })) return
   dismiss()
+}
+
+/**
+ * The phone parts sheet went from open to closed (`was` → `open`): placing
+ * ends (product chrome; the desktop panel and the classic chrome keep it —
+ * a mouse's ghost follows the pointer there, and the classic chrome keeps
+ * its original behaviour). Persona fix: after a swipe down or the dock's
+ * 元件 nothing on screen said a part was still armed, and the next tap on
+ * the board silently started one.
+ */
+export function endPlacingOnPartsClose(was: boolean, open: boolean, opts: { desktop: boolean; legacy: boolean }): void {
+  if (!was || open || opts.desktop || opts.legacy) return
+  const st = useStore.getState()
+  if (st.mode.kind === 'place') st.setMode({ kind: 'select' })
 }
 
 export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps) {
@@ -519,6 +574,23 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
     }
   }, [])
 
+  // the dock's 元件 while the sheet peeks: raise it (persona fix — partsSheetAtPeek / raisePartsSheet)
+  useEffect(() => {
+    peekOpen = open && !desktop && snap === PEEK
+    return () => {
+      peekOpen = false
+    }
+  }, [open, desktop, snap])
+  useEffect(() => {
+    const on = () => {
+      if (openRef.current) setSnap(HALF)
+    }
+    raiseSubs.add(on)
+    return () => {
+      raiseSubs.delete(on)
+    }
+  }, [])
+
   // SC-16: on a phone the scene shows its grow paddles while this library is open
   // (the parts library — not the examples)
   useEffect(() => {
@@ -535,16 +607,27 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
     return () => partsSheetCover(0)
   }, [open, snap, desktop])
 
+  // persona fix (product chrome, phone): closing the sheet — a swipe down,
+  // the dock's 元件, the scrim — ends placing. The armed card and its
+  // 「放置中」 line leave with it, so nothing on screen would say that the
+  // next tap on the board starts a part.
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    const was = wasOpen.current
+    wasOpen.current = open
+    endPlacingOnPartsClose(was, open, { desktop, legacy })
+  }, [open, desktop, legacy])
+
   const armedType = mode.kind === 'place' ? mode.type : null
   // new chrome (SC-7): while a part is armed the phone sheet sits at its peek
   // snap with the armed card under the dock — say what is armed and how to
   // stop right under the title (classic chrome: unchanged)
   const armedEntry = !legacy && armedType ? getEntry(armedType) : undefined
 
-  const parts = useMemo(
-    () => orderedCatalog().filter((e) => (cat === 'all' || e.category === cat) && partMatches(e, query)),
+  const groups = useMemo(
+    () => sheetPartGroups(legacy, cat, query),
     // lang: partMatches also matches the localised part / category names
-    [query, cat, lang],
+    [query, cat, lang, legacy],
   )
 
   const onCard = (entry: CatalogEntry) => {
@@ -609,7 +692,7 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
               setQuery={setQuery}
               cat={cat}
               setCat={setCat}
-              parts={parts}
+              groups={groups}
               armedType={armedType}
               legacy={legacy}
               onSearchFocus={() => {
@@ -624,14 +707,14 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
   )
 }
 
-/** The parts library view of the sheet (the classic chrome's whole sheet body under its title). */
-function PartsView({
+/** The parts library view of the sheet (the classic chrome's whole sheet body under its title). Exported for tests. */
+export function PartsView({
   armedEntry,
   query,
   setQuery,
   cat,
   setCat,
-  parts,
+  groups,
   armedType,
   legacy,
   onSearchFocus,
@@ -642,12 +725,63 @@ function PartsView({
   setQuery: (q: string) => void
   cat: CatFilter
   setCat: (c: CatFilter) => void
-  parts: CatalogEntry[]
+  /** the grid's runs: one headerless 'all' run, or 常用元件 + the categories (全部 in the product chrome) */
+  groups: SheetGroup[]
   armedType: string | null
   legacy: boolean
   onSearchFocus: () => void
   onCard: (entry: CatalogEntry) => void
 }) {
+  const grid = (entries: CatalogEntry[]) => (
+    <div className="psh-grid">
+      {entries.map((entry) => {
+        const armed = armedType === entry.type
+        const level = supportOf(entry).level
+        // round 5 part keys (part-keys.ts — product chrome): R 電阻, C 電容 … as a
+        // corner keycap (mouse pointers only: CSS; 「放置中」 takes the corner while armed)
+        const hotkey = legacy ? null : partKeyOf(entry.type)
+        return (
+          <button
+            key={entry.type}
+            type="button"
+            className={
+              // nested glass card (rim + slab via lg-card) with the gel
+              // press: the specular blooms from the touch point
+              `psh-card lg-card lg-pressable lg-specular lg-gel cat-${entry.category}`
+            }
+            aria-pressed={armed}
+            aria-disabled={level === 'dev' || undefined}
+            aria-keyshortcuts={hotkey ?? undefined}
+            title={
+              armed && !legacy ? t('Click the card again to stop placing') : hotkey ? (partKeyTitle(entry) ?? undefined) : undefined
+            }
+            aria-label={
+              t('{part}, {meta}, {support}', { part: partLabel(entry), meta: placementMeta(entry), support: supportSpoken(level) }) +
+              (armed ? t(', placing') : '')
+            }
+            {...pressProps}
+            onClick={() => onCard(entry)}
+          >
+            <span className="psh-card-glyph" aria-hidden="true">
+              <PartGlyph entry={entry} />
+            </span>
+            <span className="psh-card-label">{partLabel(entry)}</span>
+            <span className="psh-card-tags">
+              <span className="psh-card-meta lg-tabular">{placementMeta(entry)}</span>
+              {level !== 'full' && <SupportBadge level={level} />}
+            </span>
+            {armed && <span className="psh-card-armed">{t('Placing')}</span>}
+            {hotkey && !armed && (
+              <kbd className="psh-card-key" aria-hidden="true">
+                {hotkey}
+              </kbd>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+  const count = groups.reduce((n, g) => n + g.entries.length, 0)
   return (
     <>
       {armedEntry && (
@@ -665,7 +799,7 @@ function PartsView({
 
       <div className="psh-chips" role="group" aria-label={t('Filter by category')}>
         <CategoryChip label={t('All')} active={cat === 'all'} onSelect={() => setCat('all')} />
-        {CATEGORY_ORDER.map((c) => (
+        {(legacy ? LEGACY_CATEGORY_ORDER : CATEGORY_ORDER).map((c) => (
           <CategoryChip
             key={c}
             label={categoryText(c)}
@@ -675,45 +809,21 @@ function PartsView({
         ))}
       </div>
 
-      {parts.length === 0 ? (
+      {count === 0 ? (
         <div className="psh-empty lg-caption">{t('No parts match “{query}”', { query: query.trim() })}</div>
       ) : (
-        <div className="psh-grid">
-          {parts.map((entry) => {
-            const armed = armedType === entry.type
-            const level = supportOf(entry).level
-            return (
-              <button
-                key={entry.type}
-                type="button"
-                className={
-                  // nested glass card (rim + slab via lg-card) with the gel
-                  // press: the specular blooms from the touch point
-                  `psh-card lg-card lg-pressable lg-specular lg-gel cat-${entry.category}`
-                }
-                aria-pressed={armed}
-                aria-disabled={level === 'dev' || undefined}
-                title={armed && !legacy ? t('Click the card again to stop placing') : undefined}
-                aria-label={
-                  t('{part}, {meta}, {support}', { part: partLabel(entry), meta: placementMeta(entry), support: supportSpoken(level) }) +
-                  (armed ? t(', placing') : '')
-                }
-                {...pressProps}
-                onClick={() => onCard(entry)}
-              >
-                <span className="psh-card-glyph" aria-hidden="true">
-                  <PartGlyph entry={entry} />
-                </span>
-                <span className="psh-card-label">{partLabel(entry)}</span>
-                <span className="psh-card-tags">
-                  <span className="psh-card-meta lg-tabular">{placementMeta(entry)}</span>
-                  {level !== 'full' && <SupportBadge level={level} />}
-                </span>
-                {armed && <span className="psh-card-armed">{t('Placing')}</span>}
-              </button>
-            )
-          })}
-        </div>
+        groups.map((g) => {
+          if (g.key === 'all') return <Fragment key="all">{grid(g.entries)}</Fragment>
+          // 全部: a small label over each run — 常用元件, then the category names —
+          // so the learner sees where the everyday parts end (the 範例 headers' look)
+          const title = g.key === 'common' ? t('Common parts') : categoryText(g.key)
+          return (
+            <section key={g.key} className="ws-lib-section psh-group" aria-label={title}>
+              <div className="lg-list-header lg-caption">{title}</div>
+              {grid(g.entries)}
+            </section>
+          )
+        })
       )}
     </>
   )

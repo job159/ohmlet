@@ -117,8 +117,10 @@ body.ws-on:not(.app-wire-armed) .lg-toast-host {
 .app-run-disc.is-fault svg {
   margin-top: -1px;
 }
-/* running: ❚❚ inside the pulsing green ring (the classic dot's keyframes —
-   transform/opacity only) */
+/* running: ❚❚ inside the green ring (the classic dot's keyframes —
+   transform/opacity only). With auto-run (round 5) running is the normal
+   state: the ring pulses twice (~3 s) when a run starts, then rests steady —
+   the animation restarts whenever the disc turns .is-running again */
 .app-run-disc.is-running {
   color: var(--ios-green);
   background: rgba(48, 209, 88, 0.16);
@@ -130,7 +132,7 @@ body.ws-on:not(.app-wire-armed) .lg-toast-host {
   inset: 0;
   border: 2px solid var(--app-state, var(--ios-green));
   border-radius: 50%;
-  animation: app-dot-pulse 1.5s var(--lg-spring) infinite;
+  animation: app-dot-pulse 1.5s var(--lg-spring) 2;
 }
 /* running, but every board is stopped by its blocker (release QA SH-F3):
    ❚❚ on a solid disc in the blocker's state colour (no power red, no
@@ -309,6 +311,7 @@ body.app-wire-armed .lg-toast-host {
 }
 .app-empty-body {
   text-wrap: pretty;
+  white-space: pre-line; /* a translation may break between sentences (zh: 範例。⏎電路會…) */
 }
 .app-empty-actions {
   display: flex;

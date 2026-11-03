@@ -457,7 +457,10 @@ const settle = (page, ms) => page.waitForTimeout(ms)
  * 360° orbit over ~8s: eight 45° strokes of real pointer events. OrbitControls
  * maps a horizontal drag of one clientHeight to a full 2π, so total dx =
  * canvas CSS height. Strokes run through the canvas center (hover processing
- * included — that IS part of the user-reported workload).
+ * included — that IS part of the user-reported workload). Alt is held: in
+ * the product chrome a left-drag that starts in a hole's mouth draws a wire
+ * (round 5 drag-to-wire) and the canvas centre of a dense circuit is full of
+ * holes — Alt+drag always orbits (the classic chrome ignores it).
  */
 async function orbit360(page, seconds = ORBIT_SECONDS, strokes = ORBIT_STROKES) {
   const box = await page.locator('canvas').first().boundingBox()
@@ -467,21 +470,26 @@ async function orbit360(page, seconds = ORBIT_SECONDS, strokes = ORBIT_STROKES) 
   const cx = box.x + box.width / 2
   const cy = box.y + box.height * 0.5
   const strokeMs = (seconds * 1000) / strokes
-  for (let s = 0; s < strokes; s++) {
-    const x0 = cx + dxStroke / 2
-    const x1 = cx - dxStroke / 2
-    await page.mouse.move(x0, cy)
-    await page.mouse.down()
-    const t0 = Date.now()
-    let elapsed = 0
-    while (elapsed < strokeMs) {
-      const k = Math.min(1, elapsed / strokeMs)
-      await page.mouse.move(x0 + (x1 - x0) * k, cy)
-      await page.waitForTimeout(8)
-      elapsed = Date.now() - t0
+  await page.keyboard.down('Alt')
+  try {
+    for (let s = 0; s < strokes; s++) {
+      const x0 = cx + dxStroke / 2
+      const x1 = cx - dxStroke / 2
+      await page.mouse.move(x0, cy)
+      await page.mouse.down()
+      const t0 = Date.now()
+      let elapsed = 0
+      while (elapsed < strokeMs) {
+        const k = Math.min(1, elapsed / strokeMs)
+        await page.mouse.move(x0 + (x1 - x0) * k, cy)
+        await page.waitForTimeout(8)
+        elapsed = Date.now() - t0
+      }
+      await page.mouse.move(x1, cy)
+      await page.mouse.up()
     }
-    await page.mouse.move(x1, cy)
-    await page.mouse.up()
+  } finally {
+    await page.keyboard.up('Alt')
   }
 }
 

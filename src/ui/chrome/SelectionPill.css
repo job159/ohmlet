@@ -1,6 +1,7 @@
 /* ==========================================================================
    SelectionPill — floating glass pill centered above the dock while 2+
-   items are selected ("3 selected · Delete · Clear"). Springs in/out via
+   items are selected ("3 selected · Delete · Clear"), or one destroyed part
+   is (「LED1 已燒毀 · 換新」). Springs in/out via
    transform + opacity only (house spring; reduced motion collapses the
    duration tokens in kit.css). Tier-S Liquid Glass: bent-light rim + slab
    inset shadows come from the `lg-card` class (kit.css); this file layers
@@ -57,6 +58,32 @@ body.app-wire-armed .app-sel-pill {
   bottom: calc(var(--lg-safe-bottom) + 145px);
 }
 
+/* product chrome, phones: one row above the undo / redo pill (dock bottom 12 + dock 61 + gap 10 +
+   that pill 50 + gap 6) — on its row the pill covered undo / redo; in wire mode above the undo
+   pill's own hop (145 px). The classic chrome keeps its row. */
+@media (max-width: 899px) {
+  .app-sel-pill.is-product {
+    bottom: calc(var(--lg-safe-bottom) + 139px);
+  }
+  body.app-wire-armed .app-sel-pill.is-product {
+    bottom: calc(var(--lg-safe-bottom) + 201px);
+  }
+}
+
+/* product chrome, phones: that row is the toasts' row while the undo pill shows (UndoPill.css
+   +140 px, app.css +203 px in wire mode), so a toast from the pill's own 複製 / 換新 covered it
+   (toast z 60 over pill z 42). While the pill shows (body.app-sel-visible — SelectionPill.tsx,
+   never in the classic chrome) the toasts float one row above it: pill row + pill 50 + gap 6.
+   Not while a sheet covers the pill (it hides with the dock). */
+@media (max-width: 899px) {
+  body.app-sel-visible:not(.lg-dock-covered):not(.app-wire-armed):not(.lg-sheet-resting) .lg-toast-host {
+    bottom: calc(var(--lg-safe-bottom) + 195px);
+  }
+  body.app-sel-visible.app-wire-armed:not(.lg-dock-covered):not(.lg-sheet-resting) .lg-toast-host {
+    bottom: calc(var(--lg-safe-bottom) + 257px);
+  }
+}
+
 .app-sel-count {
   font: 600 15px/20px var(--lg-font);
   color: var(--label);
@@ -101,6 +128,58 @@ body.app-wire-armed .app-sel-pill {
 /* destructive action — red tinted (DESIGN.md §3) */
 .app-sel-delete {
   color: var(--ios-red);
+}
+
+/* 〔換新〕 — the pill's primary action while a selected part is destroyed (the accent chip's blue tint) */
+.app-sel-renew {
+  margin: 0 2px;
+  padding: 0 14px;
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.34), rgba(10, 132, 255, 0.22));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 0.5px rgba(120, 180, 255, 0.35);
+  color: #9fcbff;
+}
+.app-sel-renew[data-pressed='true'] {
+  background: linear-gradient(180deg, rgba(10, 132, 255, 0.46), rgba(10, 132, 255, 0.32));
+}
+
+/* product chrome (the classic chrome's pill is unchanged): the count / the destroyed part's
+   state gives way first, never the buttons */
+.app-sel-pill.is-product .app-sel-count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-sel-pill.is-product .app-sel-btn {
+  flex: 0 0 auto;
+}
+
+/* never wider than the screen (a 320 px phone): the separators drop and the buttons tighten —
+   the 44 px targets stay */
+.app-sel-pill.is-product {
+  box-sizing: border-box;
+  max-width: calc(100vw - var(--lg-safe-left, 0px) - var(--lg-safe-right, 0px) - 16px);
+}
+@media (max-width: 400px) {
+  .app-sel-pill.is-product {
+    gap: 0;
+    padding: 3px 4px 3px 12px;
+  }
+  .app-sel-pill.is-product .app-sel-dot {
+    display: none;
+  }
+  .app-sel-pill.is-product .app-sel-count {
+    margin-right: 4px;
+    font-size: 14px;
+  }
+  .app-sel-pill.is-product .app-sel-btn {
+    padding: 0 8px;
+  }
+  .app-sel-pill.is-product .app-sel-renew {
+    margin: 0 4px 0 0;
+    padding: 0 12px;
+  }
 }
 
 /* desktop ≥900px: the dock is a left rail — drop to the bottom edge */

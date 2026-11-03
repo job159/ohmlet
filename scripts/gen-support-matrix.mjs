@@ -54,10 +54,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const MATRIX_PATH = path.join(ROOT, 'docs', 'support-matrix.md')
 
 /**
- * Library order (src/ui/sheets/PartsSheet.tsx CATEGORY_ORDER) and the
- * library's category names (t() sources with the 'category' context). Kept
- * here instead of importing the React sheet; a category missing from this
- * list is still emitted (after the known ones), never dropped.
+ * The original (classic chrome) library order — LEGACY_CATEGORY_ORDER in
+ * src/ui/workspace/library-order.ts — and the library's category names (t()
+ * sources with the 'category' context). The product library now lists by
+ * usage (library-order.ts CATEGORY_ORDER); the matrix keeps this stable
+ * reference order on purpose. A category missing from this list is still
+ * emitted (after the known ones), never dropped.
  */
 const CATEGORY_ORDER = ['mcu', 'passive', 'semiconductor', 'switch', 'display', 'ic', 'power', 'sensor', 'module', 'motor', 'instrument']
 const CATEGORY_NAMES = {

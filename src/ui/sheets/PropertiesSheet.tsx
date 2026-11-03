@@ -127,6 +127,7 @@ import { DamageBanner, damageText, fmtHeat } from '../embedded/DamageBanner'
 import { classicLedBrightness, isAveragedLed, ledLightParts, LED_LIGHT_RATED_A } from '../../instruments/led-light'
 import { isMeterPart, isWaveformSourcePart, meterReading, waveformLiveText } from '../embedded/instruments/meter-readout'
 import { expectationText, meetsExpectation, useStepExpectation, type StepExpectation } from '../lessons/expectation'
+import { useAutoRunWaiting } from '../chrome/auto-run'
 import '../embedded/inspector.css'
 import './PropertiesSheet.css'
 
@@ -756,6 +757,8 @@ function ReadoutGroup({
   tele: ComponentTelemetry | undefined
 }) {
   const running = useStore((s) => s.running)
+  // auto-run is about to start the board (the boot's firmware restore, a load): a reading is coming
+  const startComing = useAutoRunWaiting()
   // the probes' wires are part of the reading (UX QA IS-F11): wiring one while paused updates the card
   const layout = useStore((s) => s.layout)
   const meter = isMeterPart(entry)
@@ -777,7 +780,7 @@ function ReadoutGroup({
               ? !running
                 ? t('{what} · paused (last reading)', { what: sub })
                 : sub
-              : running
+              : running || startComing
                 ? t('Waiting for the first reading…')
                 : t('Shown once you press “▶ Run simulation” above')}
         </span>
@@ -1882,6 +1885,7 @@ function MemberList({ parts }: { parts: string[] }) {
 function WireNetGroup({ wire }: { wire: Wire }) {
   const layout = useStore((s) => s.layout)
   const running = useStore((s) => s.running)
+  const startComing = useAutoRunWaiting()
   const index = netIndexOf(layout)
   const net = index.netOf(wire.from) ?? index.netOf(wire.to)
   const members = net ? index.members(net) : []
@@ -1894,7 +1898,7 @@ function WireNetGroup({ wire }: { wire: Wire }) {
   const held = heldParts(live, reading)
   const note =
     reading === '—'
-      ? running
+      ? running || startComing
         ? t('Waiting for the first reading…')
         : t('Shown once you press “▶ Run simulation” above')
       : !running

@@ -103,7 +103,9 @@ async function openAndRun(page, title, seconds) {
     return (st.layout.components ?? []).some((c) => c.id === 'U1') && !!st.firmware?.U1
   }, null, { timeout: 120000 })
   await page.waitForTimeout(800)
-  await page.getByRole('button', { name: /執行模擬/ }).first().click()
+  // auto-run (round 5): the opened example simulates by itself once its firmware is bound —
+  // nothing to press (a click on 執行模擬 / the capsule would PAUSE it now)
+  await page.waitForFunction(() => window.__e2e.state().running === true, null, { timeout: 60000 })
   await waitSim(page, seconds)
   await page.locator('.ws-tray-tabs').getByText('邏輯分析儀', { exact: true }).click()
   await page.waitForTimeout(2500)

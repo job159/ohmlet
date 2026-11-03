@@ -699,6 +699,18 @@ export class SimulationCoordinator implements StimulusHost {
   }
 
   /**
+   * 換新: replace the damaged parts `ids` (null = every damaged part) by new
+   * ones in place (SimEngine.repairParts) — no load(): MCUs, digital hosts,
+   * capacitor charge and the clock all carry on. Logs one line per part it
+   * replaced; returns their ids (an intact or unknown part: nothing).
+   */
+  repairParts(ids: readonly string[] | null): string[] {
+    const done = this.eng?.repairParts(ids) ?? []
+    for (const id of done) this.pushLog('info', 'sim', `${id} replaced with a new part`, id)
+    return done
+  }
+
+  /**
    * Host → device serial bytes (the UART terminal). A module port gets them
    * through its own `hostSend`; an MCU USART through the terminal's virtual
    * USB-TTL adapter on the USART's RX pin — real UART frames on the wire

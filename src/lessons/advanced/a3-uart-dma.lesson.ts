@@ -147,7 +147,7 @@ export const LESSON: Lesson = {
       id: 'run',
       title: '執行：第一筆訊息只用 1 次中斷',
       body: doc(
-        '按上方的「▶ 執行模擬」{滑鼠：（或空白鍵）｜觸控：}，打開儀器的「UART 終端機」（USART1，115200 8N1）。約 0.12 s 會出現 `msg #1: 5 B [idle] irq=1 isr=12.2 us: hello`。',
+        '模擬會自動執行，打開儀器的「UART 終端機」（USART1，115200 8N1）。約 0.12 s 會出現 `msg #1: 5 B [idle] irq=1 isr=12.2 us: hello`。',
         '`hello` 的 5 個位元組全部由 DMA 搬進 `rx_ring[0]`～`rx_ring[4]`，CPU 一次都沒有被叫醒，直到最後一個位元組後線路閒置 86.8 µs，IDLE 事件才觸發唯一的一次中斷。`isr=12.2 us` 是這次中斷花掉的 CPU 時間。',
       ),
       highlight: { components: ['U1'] },

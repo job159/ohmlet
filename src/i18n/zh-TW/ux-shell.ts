@@ -56,8 +56,9 @@ const zh: Record<string, string> = {
   'Wire from {from}: tap the second hole · Esc cancels this one': '從 {from} 拉線：點第二個孔位 · Esc 取消這條',
   '{part}: tap the pin-1 hole in row f (DIP-{n} straddles the channel) · Esc to cancel':
     '{part}：點 f 列中第 1 腳的孔位（DIP-{n} 跨在中央溝槽上）· Esc 取消',
-  '{part}: tap a hole in row {row} to drop it ({pin} lands on that hole) · R rotates · Esc to cancel':
-    '{part}：點 {row} 列的孔位放下（{pin} 對齊那個孔）· R 旋轉 · Esc 取消',
+  // round 5: R picks up a resistor (part-keys.ts), so the package turns with Shift+R
+  '{part}: tap a hole in row {row} to drop it ({pin} lands on that hole) · Shift+R rotates · Esc to cancel':
+    '{part}：點 {row} 列的孔位放下（{pin} 對齊那個孔）· Shift+R 旋轉 · Esc 取消',
   '{part}: tap a hole on the net you want to plot · Esc to cancel': '{part}：點要量測的網路上的孔位 · Esc 取消',
   '{part}: tap a hole to place it · Esc to cancel': '{part}：點一個孔位放下 · Esc 取消',
   '{part}: tap {n} holes in turn ({pins}) · Esc to cancel': '{part}：依序點 {n} 個孔位（{pins}）· Esc 取消',
@@ -67,13 +68,13 @@ const zh: Record<string, string> = {
   'Wire mode: tap two holes or terminals in turn · tap “Done” to finish': '導線模式：依序點兩個孔位或端子 · 點「完成」結束',
   'Wire from {from}: tap the second hole · tap empty space to cancel this one': '從 {from} 拉線：點第二個孔位 · 點空白處取消這條',
   '{part}: tap the pin-1 hole in row f (DIP-{n} straddles the channel) · tap the card again to cancel':
-    '{part}：點 f 列中第 1 腳的孔位（DIP-{n} 跨在中央溝槽上）· 再點一次卡片可取消',
+    '{part}：點 f 列中第 1 腳的孔位（DIP-{n} 跨在中央溝槽上）· 再點一次卡片即可結束',
   '{part}: tap a hole in row {row} to drop it ({pin} lands on that hole) · tap the card again to cancel':
-    '{part}：點 {row} 列的孔位放下（{pin} 對齊那個孔）· 再點一次卡片可取消',
-  '{part}: tap a hole on the net you want to plot · tap the card again to cancel': '{part}：點要量測的網路上的孔位 · 再點一次卡片可取消',
-  '{part}: tap a hole to place it · tap the card again to cancel': '{part}：點一個孔位放下 · 再點一次卡片可取消',
-  '{part}: tap {n} holes in turn ({pins}) · tap the card again to cancel': '{part}：依序點 {n} 個孔位（{pins}）· 再點一次卡片可取消',
-  'Lead {i}/{n}: tap the hole for “{pin}” · tap the card again to cancel': '第 {i}/{n} 腳：點「{pin}」的孔位 · 再點一次卡片可取消',
+    '{part}：點 {row} 列的孔位放下（{pin} 對齊那個孔）· 再點一次卡片即可結束',
+  '{part}: tap a hole on the net you want to plot · tap the card again to cancel': '{part}：點要量測的網路上的孔位 · 再點一次卡片即可結束',
+  '{part}: tap a hole to place it · tap the card again to cancel': '{part}：點一個孔位放下 · 再點一次卡片即可結束',
+  '{part}: tap {n} holes in turn ({pins}) · tap the card again to cancel': '{part}：依序點 {n} 個孔位（{pins}）· 再點一次卡片即可結束',
+  'Lead {i}/{n}: tap the hole for “{pin}” · tap the card again to cancel': '第 {i}/{n} 腳：點「{pin}」的孔位 · 再點一次卡片即可結束',
   'Placed {id} — keep tapping holes to place another · tap the card again to finish':
     '已放置 {id}——繼續點孔位可再放一顆 · 再點一次卡片即可結束',
   '{part} doesn’t fit here: {reason}': '這裡放不下 {part}：{reason}',
@@ -97,6 +98,10 @@ const zh: Record<string, string> = {
   'Simulation|shortcuts': '模擬',
   'View|shortcuts': '檢視',
   'Editing|shortcuts': '編輯',
+  // round 5 part keys (part-keys.ts): the sheet's 「放置元件」 and the library cards' tooltip
+  'Place parts|shortcuts': '放置元件',
+  'They work anywhere but a text field; press the same letter again to stop placing': '在輸入框以外都能按；同一個字母再按一次就停止放置',
+  '{part} (shortcut {key})': '{part}（快捷鍵 {key}）',
   'Run / pause': '執行／暫停',
   'Halt / resume the core': '停住／繼續核心',
   'Step one instruction': '單步執行一道指令',
@@ -135,9 +140,10 @@ const zh: Record<string, string> = {
   'Connected {ends}': '已接上 {ends}',
   'Can’t wire here: {reason}': '這裡不能接：{reason}',
   // fragments of the touch hints above (must stay word-for-word inside them)
-  'tap the card again to cancel|exit': '再點一次卡片可取消',
+  // one verb for stopping placement, before or after a part went in (persona fix: the toast said 可取消 over the sheet's 即可結束)
+  'tap the card again to cancel|exit': '再點一次卡片即可結束',
   'tap the card again to finish|exit': '再點一次卡片即可結束',
-  'press “Placing” again to cancel|exit': '再按一次「放置中」即可取消',
+  'press “Placing” again to cancel|exit': '再按一次「放置中」即可結束',
   'press “Placing” again to finish|exit': '再按一次「放置中」即可結束',
 
   // ---- SH-13 the status pill never says something false ----

@@ -158,7 +158,7 @@ export const LESSON: Lesson = {
       id: 'run',
       title: '執行：初始化與第一個畫格',
       body: doc(
-        '按上方的「▶ 執行模擬」（或空白鍵），打開儀器的「UART 終端機」，看到 `SSD1306 at 0x3C ready (charge pump on)`，螢幕亮起第一個畫格。',
+        '模擬會自動執行，打開儀器的「UART 終端機」，看到 `SSD1306 at 0x3C ready (charge pump on)`，螢幕亮起第一個畫格。',
         '韌體先等 100 ms 讓模組電源穩定，用 `HAL_I2C_IsDeviceReady()` 確認 0x3C 有 ACK，接著在一次傳輸裡送出控制位元組 00h 與 26 個命令位元組的初始化序列，然後畫第一個畫格並量傳輸時間：`frame 1: 1024 B in 23275 us, 860 px lit`。和理論值比較：1034 個位元組 × 9 個時脈 × 2.5 µs = 23.27 ms。',
       ),
       highlight: { components: ['U1', 'OLED'] },

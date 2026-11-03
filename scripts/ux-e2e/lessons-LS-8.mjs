@@ -12,6 +12,10 @@
  *     the learner to press ▶ 執行模擬;
  *   - the Wiring section's firmware pill reads 「✓ 已載入 · 尚未執行」, and
  *     after ▶ 執行模擬 「✓ 已載入 · 執行中」 (the hint after the check is gone).
+ * The page boots with `autorun=0` (round 5): the product runs every circuit
+ * by itself, so the idle wording this replay pins (it still shows after a
+ * paused simulation is reset) needs auto-run off; the firmware load then
+ * leaves the simulation idle as before.
  * Exit code 1 on any failed assertion. UX_E2E_SHOTS=<dir> saves screenshots.
  */
 import { mkdirSync } from 'node:fs'
@@ -47,7 +51,8 @@ try {
     mkdirSync(SHOTS, { recursive: true })
     await page.screenshot({ path: path.join(SHOTS, `LS-8-${name}.png`) })
   }
-  await page.goto(`${URL}?e2e`, { timeout: 180_000 })
+  // autorun=0: the idle state under test (auto-run would start the lesson circuit at once)
+  await page.goto(`${URL}?e2e&autorun=0`, { timeout: 180_000 })
   await page.waitForFunction(() => !!window.__e2e, null, { timeout: 90_000 })
   await page.evaluate(() => window.__e2e.ready())
   await sleep(800)

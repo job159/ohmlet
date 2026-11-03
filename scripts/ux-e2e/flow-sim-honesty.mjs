@@ -154,6 +154,12 @@ for (const phone of [false, true]) {
   const r = await mod(page, '/src/ui/workspace/examples.ts', 'return await m.openExampleById("pwm-fade")')
   await sleep(1500)
   check(r?.ok === true, `B ${tag}: pwm-fade opened`, r)
+  // desktop: give the logic-analyzer tray its full IS-5 height (360 px) BEFORE framing. Otherwise the
+  // tray grows mid-run once the analyzer's footer fills in (lab-watchers giveLogicPlotRoom), the scene
+  // honestly re-frames to the new free area, and LED1 slides out from under the fixed crop — a
+  // redness jump that is camera motion, not the LED.
+  if (!phone) await mod(page, '/src/ui/embedded/lab.ts', 'const s = m.useLab.getState(); s.setWorkspace({ tray: { ...s.workspace.tray, height: 360 } })')
+  await sleep(300)
   await mod(page, '/src/ui/workspace/scene-bridge.ts', 'm.frameTargets({ components: ["LED1"] }, { minElevationDeg: 45 })')
   await sleep(900)
   await store(page, 'm.useStore.getState().setSimSpeed(0.25)') // a dozen snapshots per 1 s ramp
@@ -387,10 +393,22 @@ for (const phone of [false, true]) {
   })
   await sleep(1000)
   await store(page, 'm.useStore.getState().startSim()')
-  await until(page, 0.2)
-  await sleep(500)
   const issues = () => store(page, 'return m.useStore.getState().issues.map((i) => i.message)')
-  check((await issues()).some((m) => /^supply PS1 current > 2A/.test(m)), 'E: 1 Ω across PS1 raises the supply warning')
+  // The warning stands from the first telemetry pushes (≈ 0.1 s simulated) until R1 burns open
+  // (≈ 1.08 s simulated: the short ends, the warning is honestly retracted). Read it inside that
+  // window — a fixed wall-clock sleep after sim ≥ 0.2 s could land after the burn once the worker's
+  // start-up catch-up (MAX_CATCH_UP_MS) runs the first second faster than real time.
+  let raised = false
+  for (const w0 = Date.now(); Date.now() - w0 < 30000; ) {
+    const [t, list] = await Promise.all([simTime(page), issues()])
+    if (list.some((m) => /^supply PS1 current > 2A/.test(m))) {
+      raised = true
+      break
+    }
+    if (t > 1.0) break // past the window without the warning: a real failure
+    await sleep(50)
+  }
+  check(raised, 'E: 1 Ω across PS1 raises the supply warning')
   // the short ends (R1 burns open within about a second, or PS1 turned down): the warning is retracted
   await store(page, 'm.useStore.getState().setParam("PS1", "voltage", 1)')
   await until(page, 1.6)

@@ -12,7 +12,9 @@
  * a 22 px glyph disc + a verb, driven by the run phase (run-control.ts):
  *   idle    ▶ (green disc)  「執行模擬」
  *   paused  ▶ (green disc)  「已暫停 · 3.11 s」
- *   running ❚❚ in the pulsing green ring 「執行中 · 3.11 s」 (+ 「· 0.3 倍速」
+ *   running ❚❚ in the green ring 「執行中 · 3.11 s」 — the normal state with
+ *           auto-run (round 5), so the ring pulses only for ~3 s after a
+ *           start, then rests (app.css; none with reduced motion) (+ 「· 0.3 倍速」
  *           when the simulation has run slower than asked for over 2 s — SH-8)
  *           — but when EVERY board in the circuit is blocked (H5
  *           boardBlocker: no power / no firmware / lockup), ❚❚ on the

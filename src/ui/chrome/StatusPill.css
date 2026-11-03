@@ -113,6 +113,10 @@ body.ws-on .app-status-pill:not(.is-beside) {
 .app-status-pill.is-neutral .app-pill-dot {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
 }
+/* the learner's own pause (auto-run): the paused blue of the capsule's state dot */
+.app-status-pill.is-paused .app-pill-dot {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.22);
+}
 .app-pill-text {
   min-width: 0;
   overflow: hidden;
@@ -186,8 +190,34 @@ body.ws-on .app-status-pill:not(.is-beside) {
 .app-status-pill:not(:has(.app-pill-action)) .app-pill-body {
   padding-right: 4px;
 }
-.app-status-pill.is-neutral .app-pill-body.is-static {
+.app-status-pill.is-neutral .app-pill-body.is-static,
+.app-status-pill.is-paused .app-pill-body.is-static {
   padding-right: 6px;
+}
+
+/* phones: the 「電路說明」 line (explain.ts) — a statement, not a call to act:
+   regular weight, a neutral dot, no action / ›; a tap shows both lines */
+.app-status-pill.is-explain .app-pill-body.is-explain {
+  padding-right: 12px;
+  font-weight: 500;
+}
+.app-status-pill.is-explain .app-pill-dot {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+.app-status-pill.is-explain .app-pill-text {
+  font-variant-numeric: tabular-nums;
+}
+/* its polite live region (subject / state changes only): announced, not shown */
+.app-pill-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* a finger's target (release QA SH-F8): the one-click fix keeps its 28 /

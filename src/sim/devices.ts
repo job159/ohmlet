@@ -209,6 +209,18 @@ export interface AnalogDevice {
    * Pure: never changes the device's state.
    */
   terminalCurrents?(x: Float64Array, out: Float64Array, off: number): void
+  /**
+   * Optional (換新 — SimEngine.repairParts): the part is replaced by a new
+   * one IN PLACE — its latched damage (an LED burned open, a resistor burned
+   * open, a vented electrolytic) and the thermal / stress history that led
+   * there start afresh, as in a newly built model; the circuit, the solution
+   * and every other part carry on. Returns false, changing nothing, when no
+   * damage is latched (an intact or merely hot part is not replaced: its
+   * temperature is a real state, not damage). If the cause is still there the
+   * running simulation damages it again. Never called on devices that do not
+   * implement it.
+   */
+  repair?(): boolean
 }
 
 /**
@@ -295,8 +307,9 @@ export abstract class BaseDevice implements AnalogDevice {
  * Above RES_HOT_ON it is overheating (hot, smoking — telemetry damage
  * 'overheating', clears below RES_HOT_OFF). At RES_BURN_HEAT — ten times
  * the rated temperature rise, the film is destroyed — it burns open: the
- * resistor latches open (G_OFF, the current stops) until the simulation is
- * reset or the circuit is edited (a fresh engine). Only a sustained gross overload gets there: IEC 60115-1's
+ * resistor latches open (G_OFF, the current stops) until it is replaced
+ * (換新: repair()) or the simulation is reset or the circuit is edited (a
+ * fresh engine). Only a sustained gross overload gets there: IEC 60115-1's
  * short-time overload (6.25× rated power for 5 s) never does; 58× (10 Ω
  * across 12 V = 14.4 W in a ¼ W part) burns it in ≈ 1.9 s.
  */
@@ -379,6 +392,19 @@ class ResistorDevice extends BaseDevice {
     return this.open
   }
 
+  /** 換新 (AnalogDevice.repair): a new resistor — closed, cold, nothing to report */
+  repair(): boolean {
+    if (!this.open) return false
+    this.open = false
+    this.heat = 0
+    this.hot = false
+    this.hotSince = 0
+    this.burnedAt = NaN
+    this.burnPowerW = 0
+    this.reportPending = false
+    return true
+  }
+
   issues(): readonly SimIssue[] {
     if (!this.reportPending) return NO_ISSUES
     this.reportPending = false
@@ -415,8 +441,8 @@ export function fmtWatts(w: number): string {
  * stripped, it heats and its pressure vent opens. Modelled as accumulated
  * stress = ∫ (Vrev − CAP_REVERSE_OK) / CAP_VENT_VS dt — 5 V reverse vents it
  * in about one second, 2 V in four, ≤ 1 V never. Venting is latched
- * (telemetry damage 'vented') until the simulation is reset or the circuit
- * is edited (a fresh engine); the electrical
+ * (telemetry damage 'vented') until it is replaced (換新: repair()) or the
+ * simulation is reset or the circuit is edited (a fresh engine); the electrical
  * model itself is unchanged (a real vented part has lost capacitance and
  * may short — the problem text says so).
  */
@@ -455,6 +481,21 @@ class CapacitorDevice extends BaseDevice {
   /** the vent opened (reverse voltage, latched) */
   get isVented(): boolean {
     return this.vented
+  }
+
+  /**
+   * 換新 (AnalogDevice.repair): a new capacitor — vent closed, no reverse
+   * stress. Its voltage (vPrev) is kept: the new part takes the old one's
+   * place in a running circuit, so no artificial charging spike.
+   */
+  repair(): boolean {
+    if (!this.vented) return false
+    this.vented = false
+    this.ventedAt = NaN
+    this.ventStress = 0
+    this.ventReverseV = 0
+    this.reportPending = false
+    return true
   }
 
   issues(): readonly SimIssue[] {
@@ -902,7 +943,7 @@ export function junctionKclCurrent(isat: number, nVt: number, vd: number, v: num
  * Shockley diode above plus the junction-temperature burn model (see
  * LED_RTH_JA … LED_PEAK_TIME). Once burned it is OPEN — a real LED killed by
  * over-current almost always fails open (the bond wire breaks) — and dark,
- * latched until a fresh model (reset / rebuild). Its telemetry current,
+ * latched until a fresh model (換新: repair(), reset / rebuild). Its telemetry current,
  * power and light are eye-averaged over the last LED_EYE_S of simulated
  * time (LedWindow); ledBrightness (the I / 10 mA scale) stays the instant
  * value it always was — the classic chrome shows that scale of the eye mean
@@ -1010,6 +1051,26 @@ export class LedDevice extends DiodeDevice {
   /** modelled junction temperature (°C) */
   get junctionC(): number {
     return this.tj
+  }
+
+  /**
+   * 換新 (AnalogDevice.repair): a new LED — intact, at ambient temperature,
+   * its eye window empty (dark until the next solved step), and the Newton
+   * seed of a fresh junction (the burned stamp left vLast frozen at the burn).
+   */
+  repair(): boolean {
+    if (!this.burned) return false
+    this.burned = false
+    this.burnCurrentMa = 0
+    this.burnedAt = NaN
+    this.overTime = 0
+    this.tj = LED_AMBIENT_C
+    this.hot = false
+    this.hotSince = 0
+    this.brightness = 0
+    this.vLast = 0
+    this.win.clear()
+    return true
   }
 
   /** relative luminous intensity: I / rated (0 when burned or reverse-biased) */

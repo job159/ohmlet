@@ -149,8 +149,8 @@ describe('damage banner text — from telemetry, titled like the Problems row', 
     expect(b.title).toBe('R2 燒斷了')
     expect(b.body).toContain('電阻膜過熱燒穿')
     expect(b.body).toContain('請改用阻值更大或瓦數更高的電阻')
-    expect(b.body).toContain('「重置模擬」')
-    expect(b.body).toContain('真實的電阻只能更換')
+    // round 5: how it comes back — 〔換新〕, or by itself once the circuit or a value is fixed
+    expect(b.body).toContain('按〔換新〕就換上新的；改好電路或數值時也會自動換新')
     expect(problemsOf(resistorOn12V, burned).find((p) => p.fact === 'burned:R2')?.title).toBe(b.title)
   })
 
@@ -161,7 +161,7 @@ describe('damage banner text — from telemetry, titled like the Problems row', 
     expect(d.title).toBe('C1 反接爆開')
     expect(d.body).toContain('實際的電容已經損壞')
     expect(d.body).toContain('模擬仍沿用原本的容值')
-    expect(d.body).toContain('「重置模擬」')
+    expect(d.body).toContain('按〔換新〕就換上新的；改好電路或數值時也會自動換新')
     expect(problemsOf(reversedCap, tele).find((p) => p.fact === 'vented:C1')?.title).toBe(d.title)
   })
 

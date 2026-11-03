@@ -206,7 +206,18 @@ npm run dev            # http://localhost:5173
 ### 3.7 介面層
 
 - **殼層**（`src/ui/chrome`）：狀態膠囊是執行鍵；狀態提示列顯示問題模型最重要的一則；`run-control.ts` 是「執行／暫停／繼續被偵錯器停住的核心」的唯一入口（`useSimPhase()`：idle／running／paused／halted／fault）；
-  `keys.ts` 在 capture 階段路由空白鍵與 F5／F10／Shift+F5，不管焦點在哪裡都一致。
+  `keys.ts` 在 capture 階段路由空白鍵與 F5／F10／Shift+F5，不管焦點在哪裡都一致。用滑鼠點過的一般按鈕會失去焦點；選項組、分頁、滑桿、輸入框保留焦點，方向鍵與其他一般按鍵留在該控制項（`src/ui/kit/focus.ts`），切到別的視窗再回來也一樣；`Segmented` 的方向鍵讓焦點跟著新選的選項走（roving focus），用滑鼠點進去的選項組換選項後仍算滑鼠焦點，空白鍵照樣執行／暫停。手機版的面板（`.lg-sheet`）雖標 `aria-modal`，但不算擋住按鍵的對話框（`keys.ts` 的 `BLOCKING_MODAL`，與 `blockingModalOpen`、`part-keys.ts` 同一規則）：空白鍵、F5、F10 在裡面照常作用；只有快速鍵列表、新手導覽這類對話框會留住這些鍵。控制項已經用掉的方向鍵（`preventDefault`）不會再微移選取的元件。
+- **自動模擬**（`src/ui/chrome/auto-run.ts`，App 啟動時安裝，只在產品外觀）：電路文件、韌體綁定（含同一映像檔再次燒錄）、主機的重置、載入閘門的放行與外觀切換（經典→產品，'chrome'），
+  都合併成一次延後到 macrotask 的決定——空白麵包板不建立主機；使用者的暫停（`store.simStopReason() === 'user'`）只在結構改變（`circuitRevision`）、韌體或載入時繼續；
+  偵錯器停住與啟動失敗不自動重試。開機等 `labReady`，最多 `BOOT_TIMEOUT_MS`（5 s）。多步驟載入（`lab.importProject`、`loadLessonCircuit`）以 `src/state/run-gate.ts` 的
+  `holdAutoRun` 擋住自動模擬，直到新電路的韌體綁好；這段期間 `autoRunWaiting()` 為真，狀態提示列不顯示「電路已就緒」。`runStartedByAutoRun()` 告訴慶祝與課程引導卡
+  這次執行是不是自動開始的；開啟（boot／load／chrome）的電路由 `CheerJudge.quiet` 記為已運作，使用者操作數值後 `CheerJudge.wake` 恢復正常判斷。
+- **第五輪的其他殼層模組**（都只在產品外觀）：拖曳拉線的主機端在 `src/ui/workspace/wire-draw.ts`（`landingOf` 決定放在腳位上時改接同一排的哪個空孔，
+  `drawWire` 加導線並附〔復原〕，拒絕時播 `playMech('refuse')`；放回起點或放在空處是安靜的取消；放在起點同一排或同一條電源軌是 `joined`，導線模式的第二次點擊也用同一條規則：`joinedRefusalText`），改接導線端點在 `wire-ends.ts`；
+  複製貼上在 `src/ui/chrome/copy-paste.ts`（剪貼簿在 `src/state/clipboard.ts`）；換新在 `src/ui/embedded/replace-part.ts`（一次主機呼叫、一聲、一則提示，
+  〔全部換新〕也走這裡）與自動換新 `auto-heal.ts`；元件庫順序與搜尋排序在 `src/ui/workspace/library-order.ts`（`rankByMatch`：先依符合程度，使用順序只用來分高下相同的）；
+  電路說明在 `src/ui/chrome/explain.ts`、`explain-path.ts`、`useExplanation.ts`、`ExplainCard.tsx`；機械音效的配方在 `src/ui/fx/mech-voices.ts`，
+  由 `mech-watch.ts` 從 store 的變化分類出聲（經典外觀與 `?shotrig` 由 `setSoundGate` 完全靜音，也不建立 AudioContext）。
 - **桌面工作區**（`src/ui/workspace`，寬度 ≥ 1100 px 且為精確指標）：左側元件庫／範例／課程、右側屬性面板（未選取時為問題面板）、下方儀器匣；
   新面板使用 DESIGN.md 的 **Tier S** 配方（沒有 backdrop-filter），維持既有的毛玻璃預算。
 - **問題模型**（`src/ui/embedded/problems.ts`）：把 ERC 發現、模擬器問題與 MCU 狀態合成一份清單——一件事（`fact`）一列、依等級排序、附修正動作與標示目標；
@@ -474,6 +485,8 @@ VR_OUT=<資料夾> node scripts/visual-regression.mjs compare   # 輸出到自�
   `keys`（例如按空白鍵開始模擬）、`onboarding`、`select`。
 - 環境變數：`VR_URL`、`VR_CHANNEL`（`msedge`／`chrome`／`bundled`）、`VR_ONLY`（正規表示式）、`VR_OUT`、`VR_TONE`、`VR_EXTRA`。單一場景差異比例超過 1 % 即失敗。
 - **只有在刻意改變外觀時才更新基準**（`capture`），而且只更新自己負責的場景；改變了哪些場景要在變更說明中列出。不要為了讓比對通過而重新擷取別人的基準。
+- 測試架網址參數 `?shotrig`、`?perfwin`、`?perfrig` 下自動模擬預設關閉（截圖與效能場景維持可重現），加上 `&autorun` 才開啟；`?autorun=0` 在任何網址都關閉。
+  驗收腳本 `scripts/acceptance-e2e.mjs` 以 `?e2e&shotrig&autorun` 走真正的流程。`?shotrig` 下也不出任何音效、不顯示拖曳拉線的一次性小提示。
 
 **文件截圖**：README 與 `docs/` 的截圖（`docs/images/*.jpg`）由 `scripts/docs-shots.mjs` 從目前的介面重新擷取，介面改變後請重拍受影響的圖：
 

@@ -80,7 +80,7 @@
 ### 4.3 元件資料結構
 - `CatalogEntry`（`src/model/catalog.ts`）：`type/label/category/placement('leads'|'dip'|'footprint'|'offboard'|'probe')/pins/footprintOffsets/internalBridges/bodyFootprint/params(ParamDef)/sim({device|chip|probe})/visual/doc`。31 種元件。
 - **資料驅動**：validator、LLM schema/prompt、遮蔽、放置邏輯全部讀 catalog；新增型別只需 catalog + 模擬模型 + mesh。
-- 陷阱：pin 名稱必須唯一（engine 以 Map 索引）；`CATEGORY_ORDER` 漏列的類別會在零件庫**靜默消失**；單排 footprint 旋轉 90° 會讓所有腳落在同一 strip 造成靜默短路（validator 不檢查）。
+- 陷阱：pin 名稱必須唯一（engine 以 Map 索引）；元件庫順序在 `src/ui/workspace/library-order.ts`：沒排名的元件排在該分類最後、不在 `CATEGORY_ORDER` 的分類排在清單最後，不會消失（`tests/library-order.test.ts` 要求每個新元件都明確排名）；搜尋結果先依符合程度排列（`rankByMatch`），使用順序只用來分高下相同的；單排 footprint 旋轉 90° 會讓所有腳落在同一 strip 造成靜默短路（validator 不檢查）。
 
 ### 4.4 電路求解器
 - `src/sim/mna.ts`：稠密 Nodal Analysis，**僅 Norton 印記**（電源為 Thevenin→Norton，PSU rout 0.01 Ω），gmin 1e-9 S，LU 部分樞紐；矩陣與上次分解**逐位元相同**則重用 LU（因此可變 dt 是安全的，只有 RHS 改變不會重新分解）。

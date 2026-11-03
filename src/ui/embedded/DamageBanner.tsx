@@ -4,8 +4,10 @@
  * guessed (no `damage` / `burned` → no banner). Styled like the burned-LED
  * banner (PropertiesSheet .prs-burned): a title that matches the Problems
  * row (「R2 燒斷了」, 「C1 反接爆開」, 「R1 功率超過額定」), then the cause, the
- * fix and how the simulated part comes back (修改電路或按「重置模擬」 — the
- * model is rebuilt; a real part has to be replaced).
+ * fix and how the simulated part comes back: 〔換新〕 replaces it in one
+ * click (replace-part.ts — the banner's button on a destroyed part), and
+ * fixing the circuit or a value replaces it by itself (an edit rebuilds the
+ * model; a value change heals it — auto-heal.ts).
  *
  *  - LED burned (its junction-temperature model, or a gross overload) —
  *    error; LED overheating (junction above 100 °C) — warning;
@@ -22,7 +24,10 @@
  * banner leaves its title out and reads as that row's state detail —
  * cause, fix, recovery — next to the live values (an overheating LED's row
  * is its cause, 「LED1 的限流電阻太小」; the banner's own 「LED1 正在過熱」
- * shows only while no such row is up).
+ * shows only while no such row is up). 〔換新〕 is offered once, too: a
+ * destroyed part's banner carries the button unless that card row (its
+ * burned / vented row, which has 〔換新〕) is showing; an overheating part
+ * (a warning — not latched, it cools down) gets none.
  *
  * The English classic chrome keeps its single original LED sentence
  * (PropertiesSheet) and shows none of these.
@@ -32,7 +37,9 @@ import type { ComponentTelemetry } from '../../model/types'
 import { t, useLang } from '../../i18n'
 import { fmtCurrent, fmtPower } from '../../instruments/format'
 import { fmtRatedCurrent, LED_LIGHT_RATED_A } from '../../instruments/led-light'
+import { ChipButton } from './controls'
 import { useProblems } from './problems'
+import { replaceDamagedWithFeedback, replaceTargetOf } from './replace-part'
 import './damage-banner.css'
 
 export interface DamageText {
@@ -100,11 +107,11 @@ export function damageText(id: string, entry: CatalogEntry | undefined, tele: Co
       body:
         dies.length > 0
           ? t(
-              'Its {dies} die burned out from too much current: a burned die still conducts but no longer lights; the other dies still work. Give each die its own series resistor that keeps its current under {rated}; after you change the circuit or press “Reset simulation”, the simulated LED works again.',
+              'Its {dies} die burned out from too much current: a burned die still conducts but no longer lights; the other dies still work. Give each die its own series resistor that keeps its current under {rated}. Press “Replace” for a new one; fixing the circuit or a value also replaces it automatically.',
               vars,
             )
           : t(
-              'One of its dies burned out from too much current: a burned die still conducts but no longer lights; the other dies still work. Give each die its own series resistor that keeps its current under {rated}; after you change the circuit or press “Reset simulation”, the simulated LED works again.',
+              'One of its dies burned out from too much current: a burned die still conducts but no longer lights; the other dies still work. Give each die its own series resistor that keeps its current under {rated}. Press “Replace” for a new one; fixing the circuit or a value also replaces it automatically.',
               vars,
             ),
     }
@@ -117,7 +124,7 @@ export function damageText(id: string, entry: CatalogEntry | undefined, tele: Co
         tone: 'error',
         title: t('{id} burned out|banner', { id }),
         body: t(
-          'Too much current overheated its junction and burned it open: it no longer conducts or lights. Add a series resistor that keeps the current under {rated}; after you change the circuit or press “Reset simulation”, the simulated LED works again.',
+          'Too much current overheated its junction and burned it open: it no longer conducts or lights. Add a series resistor that keeps the current under {rated}. Press “Replace” for a new one; fixing the circuit or a value also replaces it automatically.',
           { rated },
         ),
       }
@@ -143,7 +150,7 @@ export function damageText(id: string, entry: CatalogEntry | undefined, tele: Co
         tone: 'error',
         title: t('{id} burned open|banner', { id }),
         body: t(
-          'It dissipated many times its {max} rating until its film overheated and burned through: it no longer conducts. Use a larger resistance or a higher-wattage resistor; after you change the circuit or press “Reset simulation”, the simulated resistor works again (a real one has to be replaced).',
+          'It dissipated many times its {max} rating until its film overheated and burned through: it no longer conducts. Use a larger resistance or a higher-wattage resistor. Press “Replace” for a new one; fixing the circuit or a value also replaces it automatically.',
           { max },
         ),
       }
@@ -165,7 +172,7 @@ export function damageText(id: string, entry: CatalogEntry | undefined, tele: Co
       tone: 'error',
       title: t('{id} vented (reversed)|banner', { id }),
       body: t(
-        'Its + lead sat more than 1 V below its − lead, and a reversed electrolytic capacitor heats up until its pressure vent opens. A real one is ruined (it loses capacitance and may short); the simulation keeps its value. Turn it around so + goes to the higher voltage; after you change the circuit or press “Reset simulation”, the simulated capacitor works again.',
+        'Its + lead sat more than 1 V below its − lead, and a reversed electrolytic capacitor heats up until its pressure vent opens. A real one is ruined (it loses capacitance and may short); the simulation keeps its value. Turn it around so + goes to the higher voltage. Press “Replace” for a new one; fixing the circuit or a value also replaces it automatically.',
       ),
     }
   }
@@ -189,13 +196,26 @@ export function cardShowsOwnRow(problems: readonly { componentIds: readonly stri
   return problems.find((p) => p.componentIds.includes(id))?.componentIds[0] === id
 }
 
+/**
+ * Does that card show part `id`'s own damage row — burned / vented, the row
+ * problems.ts gives 〔換新〕? Then the banner leaves its button out: one
+ * 〔換新〕 in the inspector.
+ */
+export function cardShowsOwnDamageRow(problems: readonly { componentIds: readonly string[]; fact?: string }[], id: string): boolean {
+  const p = problems.find((x) => x.componentIds.includes(id))
+  return p !== undefined && p.componentIds[0] === id && replaceTargetOf(p.fact) === id
+}
+
 /** The banner (product chrome); nothing when the part is intact. */
 export function DamageBanner({ id, entry, tele }: { id: string; entry: CatalogEntry | undefined; tele: ComponentTelemetry | undefined }) {
   useLang()
-  // a boolean: re-renders only when the card above starts / stops showing this part's own row (≤ 1 / s)
+  // booleans: re-render only when the card above starts / stops showing this part's own row (≤ 1 / s)
   const titled = !useProblems((s) => cardShowsOwnRow(s.problems, id))
+  const cardReplaces = useProblems((s) => cardShowsOwnDamageRow(s.problems, id))
   const d = damageText(id, entry, tele)
   if (!d) return null
+  // a destroyed part (latched): 〔換新〕 — once (see cardShowsOwnDamageRow); a hot one cools by itself
+  const replace = d.tone === 'error' && !cardReplaces
   return (
     <div
       className={`prs-burned dmg-banner${d.tone === 'warning' ? ' is-warn' : ''}${titled ? '' : ' is-untitled'}`}
@@ -203,6 +223,13 @@ export function DamageBanner({ id, entry, tele }: { id: string; entry: CatalogEn
     >
       {titled && <strong className="dmg-banner-title">{d.title}</strong>}
       <span className="dmg-banner-body">{d.body}</span>
+      {replace && (
+        <span className="dmg-banner-actions">
+          <ChipButton accent aria-label={t('Replace {id} with a new one', { id })} onClick={() => void replaceDamagedWithFeedback(id)}>
+            {t('Replace|damaged')}
+          </ChipButton>
+        </span>
+      )}
     </div>
   )
 }

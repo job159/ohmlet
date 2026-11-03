@@ -4,7 +4,9 @@
  * and animated purely via transform; widths are committed without animation.
  * Generic over the string values it selects between.
  *
- * Accessible: role="radiogroup"; Left/Right arrows move the selection.
+ * Accessible: role="radiogroup"; Left/Right arrows move the selection and,
+ * when a segment has the focus, the focus with it (roving focus — the ring
+ * never stays on the old, unselected segment; Enter never re-selects it).
  *
  * Usage:
  *   <Segmented value={speed} onChange={setSpeed} options={[
@@ -45,6 +47,8 @@ export function Segmented<T extends string>({
   const trackRef = useRef<HTMLDivElement | null>(null)
   const thumbRef = useRef<HTMLDivElement | null>(null)
   const firstPaintRef = useRef(true)
+  // the segment an arrow just selected: it takes the focus once it shows as selected
+  const focusNextRef = useRef<T | null>(null)
   // segment labels change width with the language: re-measure the thumb
   const lang = useLang()
 
@@ -93,8 +97,23 @@ export function Segmented<T extends string>({
     const idx = enabled.findIndex((o) => o.value === value)
     if (idx < 0) return
     const next = enabled[idx + (e.key === 'ArrowRight' ? 1 : -1)]
-    if (next) select(next.value)
+    if (!next) return
+    // roving focus: only when the focus is on a segment (an arrow on the group itself stays there)
+    const active = typeof document !== 'undefined' ? document.activeElement : null
+    if (active && active !== trackRef.current && trackRef.current?.contains(active)) focusNextRef.current = next.value
+    select(next.value)
   }
+
+  // …the segment the arrow selected takes the focus once it is the selected one
+  // (a parent that refuses the change leaves the focus where it was)
+  useLayoutEffect(() => {
+    const want = focusNextRef.current
+    focusNextRef.current = null
+    if (want === null || want !== value) return
+    const i = options.findIndex((o) => o.value === value)
+    trackRef.current?.querySelectorAll<HTMLElement>('[role="radio"]')[i]?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
 
   return (
     <div
@@ -128,7 +147,7 @@ export function Segmented<T extends string>({
           }}
           onClick={(e) => {
             select(o.value)
-            releaseAfterPointerClick(e) // a clicked tab keeps no claim on Space
+            releaseAfterPointerClick(e) // a clicked radio keeps its focus (focus.ts); Space still runs / pauses (keys.ts)
           }}
         >
           {o.label}

@@ -72,7 +72,7 @@ import type {
 import { buildBoard, type BoardBuild } from './internal/board'
 import { SpawnFX, type PuffRect } from './internal/spawn-fx'
 // vivid: damage / heat / sound / celebration FX + per-frame part animators
-import { SceneFx, partBodyBounds } from './internal/fx/scene-fx'
+import { SceneFx, emitFxCue, partBodyBounds, type FxCue } from './internal/fx/scene-fx'
 import { onSceneFx } from './internal/fx/bus'
 import { lookStructureRevision } from './internal/fx/registry'
 import { disposeGlowBackground } from './meshes/led-glow-render'
@@ -171,6 +171,8 @@ const TERMINAL_SNAP_DIST_TOUCH = 1.25
 /** touch slop for body/wire/post picking (px): a wire tube is ~6px on screen,
  *  far under the 44px touch-target rule (DESIGN.md §4) */
 const OBJECT_TOUCH_SLOP_PX = 22
+/** a finger's long-press: a part body this close (px — SLOP_RINGS' first ring) owns the hole under it (probeTargetAtPointer) */
+const BODY_TOUCH_SLOP_PX = 6
 /** ring sample pattern [radius px, sample count] for the slop raycast */
 const SLOP_RINGS: ReadonlyArray<readonly [number, number]> = [
   [6, 6],
@@ -304,6 +306,32 @@ const LED_LABEL_MIN_PX = 22
 /** drag must travel this many px before a move-drag/marquee starts (a tap stays a tap) */
 const DRAG_START_PX = 5
 const DRAG_START_PX_TOUCH = 8
+/**
+ * Drag-to-wire, mouse (round 5): a press this close (plan units) to a hole
+ * centre — the visible mouth, HOLE_CUT 0.34 (internal/board.ts) — starts a
+ * wire; the plastic between holes, the channel and the rail gaps still orbit
+ */
+const WIRE_DRAG_HOLE_DIST = 0.36
+/**
+ * …and only while a hole pitch reads at least this many CSS px there (zoomed
+ * far out, a drag orbits — onWireDrawTooSmall says how to zoom in). Persona
+ * fix: 4.5 (was 8), so the app's own framing draws — a board with a supply
+ * beside it reads 5.3–5.7 px a pitch at 1280×720, 6.1–6.6 at 1366×768,
+ * 6.9–7.4 at 1440×900 (measured in Edge).
+ */
+const WIRE_DRAG_MIN_PITCH_PX = 4.5
+/** a small pitch widens the mouth to at least this radius on screen (CSS px)… */
+const WIRE_DRAG_MOUTH_MIN_PX = 2.5
+/** …but never past this (plan units: the plastic between two mouths still orbits) */
+const WIRE_DRAG_HOLE_DIST_MAX = 0.45
+/** scene sound cues (emitFxCue): a repeat of the same cue inside its gap is dropped (ms) */
+const FX_CUE_GAP_MS: Readonly<Partial<Record<FxCue, number>>> = {
+  lift: 120,
+  settle: 120,
+  snap: 45,
+  'wire-tip': 120,
+  board: 300,
+}
 /** snap radius (plan units) for re-anchoring a dragged package */
 const MOVE_ANCHOR_SNAP = 0.9
 /** instrument drags snap their bench anchor to the model's 0.5 grid */
@@ -620,19 +648,60 @@ interface InstrumentDrag {
  * A drag of a selected wire's end handle (UX fix wave SC-13): the end
  * follows the aim resolver (hole / terminal, same chip as wiring) and the
  * drop re-routes it through the host (onWireEndMove — one undo step).
+ *
+ * Drag-to-wire (round 5) reuses it for a NEW wire (`wireId` null): the free
+ * end ('to') leaves `from` — where the host lets the wire start, the free
+ * hole of a pressed pin's strip — and the drop asks the host to add it
+ * (onWireDraw). A mouse press on ANY wire's end re-routes that end.
  */
 interface WireEndDrag {
-  wireId: string
+  /** the re-routed wire; null = a new wire drawn from `from` */
+  wireId: string | null
   end: 'from' | 'to'
+  /** new wire: the endpoint it starts from (the host's answer to the pressed point) */
+  from: string | null
+  /** new wire: the hole / terminal the press landed on */
+  pressed: string | null
+  /** new wire, touch: what a lift without a move measures (the probe sheet) … */
+  probe: SceneProbeTarget | null
+  /** …and the part / wire under the finger at the press (the long-press fallback) */
+  holder: string | null
   /** world point of the end that stays put */
   fixed: THREE.Vector3
   pointerId: number
   /** touch: armed by a long-press on the handle (a move before it is an orbit) */
   armed: boolean
+  /**
+   * pen (final round): held still LONG_PRESS_MS while armed — the grip chip
+   * shows, and a lift without a move asks for the probe sheet like a finger
+   */
+  held: boolean
   started: boolean
   target: AimTarget | null
   valid: boolean
   preview: THREE.Mesh | null
+  /** the target ref the validity was asked for (undefined = not yet) — once per new target */
+  aim: string | null | undefined
+  /** what the preview route was built for — rebuilt when the target (or a free end) moves */
+  previewKey: string
+  /**
+   * new wire (polish): where the drop at the current aim really lands — the
+   * aimed ref, or the free hole of its strip when a part pin is in it
+   * (host wireDrawLanding) — and the chip's words for that move (null: plain)
+   */
+  land: string | null
+  landNote: string | null
+  /** the chip this drag put up itself (a landing move / the start note) — '' = the aim pass's own */
+  chipFor: string
+}
+
+/** What a left press grabs for drag-to-wire: a point a new wire starts from, or a wire's end. */
+type WirePress = { kind: 'new'; ref: string } | { kind: 'end'; wireId: string; end: 'from' | 'to' }
+
+/** Is `ref` (a wire end, maybe '1:a12' / an alias) the canonical hole `hole`? */
+function endInHole(ref: string, hole: HoleRef): boolean {
+  const h = parseHole(ref)
+  return !!h && formatHole(h) === hole
 }
 
 /** A desktop shift+drag marquee (screen-space overlay rectangle). */
@@ -717,6 +786,19 @@ interface Mounted {
 // ---------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * What a placed part IS for the burn FX's quiet re-burn (scene-fx
+ * SceneFxHost.partKey): its type, its holes / anchor / rotation and EVERY
+ * param (sorted keys) — the same string means the same part, wired the same
+ * way. Null for an unknown part.
+ */
+export function fxPartKey(comp: ComponentInstance | undefined): string | null {
+  if (!comp) return null
+  const params: Record<string, ParamValue> = {}
+  for (const key of Object.keys(comp.params ?? {}).sort()) params[key] = comp.params![key]
+  return JSON.stringify([comp.id, comp.type, comp.at ?? null, comp.holes ?? null, comp.rotation ?? 0, params])
+}
 
 /**
  * Mesh-rebuild signature. Runtime params (pot position, switch state, pressed,
@@ -998,13 +1080,28 @@ function wireEndInvalidMaterial(): THREE.MeshBasicMaterial {
   return wireEndBadMat
 }
 
-/** Free the wire-end grip / refused-route materials (scene dispose; recreated on demand). */
+let wireLooseMat: THREE.MeshBasicMaterial | null = null
+/**
+ * The faint route of a wire drag aimed at NOTHING yet (final round): the
+ * wire in hand, the preview's yellow at low opacity — not the red of a
+ * refused target, since a drop there changes nothing: a new wire is
+ * silently dropped, a re-routed end springs back (the host only notes
+ * 「沒有放在孔位或端子上——導線 W1 維持原樣」).
+ */
+function wireLooseMaterial(): THREE.MeshBasicMaterial {
+  wireLooseMat ??= new THREE.MeshBasicMaterial({ color: 0xffd84d, transparent: true, opacity: 0.5, depthWrite: false })
+  return wireLooseMat
+}
+
+/** Free the wire-end grip / refused-route / loose-route materials (scene dispose; recreated on demand). */
 function disposeWireEndMaterials(): void {
   wireHandleMat?.map?.dispose()
   wireHandleMat?.dispose()
   wireEndBadMat?.dispose()
+  wireLooseMat?.dispose()
   wireHandleMat = null
   wireEndBadMat = null
+  wireLooseMat = null
 }
 
 function prefersReducedMotion(): boolean {
@@ -1561,6 +1658,20 @@ export class BreadboardScene implements IBreadboardScene {
   private wireEndDrag: WireEndDrag | null = null
   /** a wire-end drag aims like wire mode (resolver, fingertip cursor, touch gestures) */
   private forceWireAim = false
+  /** the first aim of a drag that just started makes no 'snap' (its 'lift' / 'wire-tip' just played) */
+  private snapQuiet = false
+  /** last time each scene sound cue went out (fxCue rate limit) */
+  private readonly fxCueAt = new Map<FxCue, number>()
+  /** Alt / Shift / Ctrl / ⌘ held at the last mouse move: no drag-to-wire crosshair */
+  private hoverMods = false
+  /** the last hover pass showed the crosshair over a free hole (onWireDrawHint fires on its off → on) */
+  private crossOnFreeHole = false
+  /** this mouse press is in a hole's mouth too small to draw from: its drag (an orbit) asks onWireDrawTooSmall */
+  private smallHolePress = false
+  /** the running drag's start note (host wireDrawStartText — asked once per drag) */
+  private startNoteMemo: { pressed: string; from: string; text: string | null } | null = null
+  /** the hover pass's last host answer — may a wire start at `ref` (wireDrawStart) on this layout / mode? */
+  private hoverStartMemo: { ref: string; layout: CircuitLayout; mode: string | null; ok: boolean } | null = null
   private instDrag: InstrumentDrag | null = null
   private marquee: MarqueeDrag | null = null
   /** controls.enabled was forced off for a drag — restore on gesture end */
@@ -1854,6 +1965,11 @@ export class BreadboardScene implements IBreadboardScene {
             return (rec.attach[i] ?? rec.built.pinWorld[i] ?? null)?.clone() ?? null
           },
           ids: () => this.components.keys(),
+          // quiet re-burn (polish): the same part in the same place, and the
+          // circuit's identity — an edit rebuilds and heals, and a part that
+          // burns again for the same reason only shows its burned look
+          partKey: (id) => fxPartKey(this.components.get(id)?.comp),
+          circuit: () => this.layout,
         },
         reduced,
       )
@@ -1956,6 +2072,7 @@ export class BreadboardScene implements IBreadboardScene {
     const onPointerMove = (e: PointerEvent) => {
       if (!e.isPrimary) return // ignore secondary fingers during a pinch
       this.lastPointerType = e.pointerType
+      this.hoverMods = e.altKey || e.shiftKey || e.ctrlKey || e.metaKey
       // a real move after the probe menu opened: the hover chip may show again
       const muted = this.chipMutedAt
       if (muted && Math.hypot(e.clientX - muted.x, e.clientY - muted.y) > PROBE_MAX_DRIFT_PX) this.chipMutedAt = null
@@ -1994,6 +2111,7 @@ export class BreadboardScene implements IBreadboardScene {
       this.pointerInside = true
       this.pointerDirty = true // fingertip cursor appears within one frame
       this.tapSuppressed = false // fresh gesture
+      this.smallHolePress = false
       this.downInfo = {
         x: e.clientX,
         y: e.clientY,
@@ -2027,7 +2145,11 @@ export class BreadboardScene implements IBreadboardScene {
           if (!g.swallowed) this.callbacks.onObjectPress?.(id, true)
           return
         }
-        if (id !== null) this.startLongPress(id)
+        // drag-to-wire, touch: a long-press on a hole, a pin or a terminal
+        // post arms a wire grip (drag = a new wire; lift = the probe sheet)
+        if (e.pointerType === 'touch' && this.beginWireDraw(e, id)) {
+          /* the grip's own long-press timer runs */
+        } else if (id !== null) this.startLongPress(id)
         else if (e.pointerType === 'touch' && this.m) {
           // touch removal affordance: long-pressing a "+" paddle on a
           // shrinkable edge removes the board there (no hover on touch, so
@@ -2046,6 +2168,10 @@ export class BreadboardScene implements IBreadboardScene {
         // can be suspended before OrbitControls rotates); shift+drag on empty
         // board (desktop mouse) arms the marquee rectangle.
         this.maybeBeginEditDrag(e, id)
+        // drag-to-wire, mouse: a press in a hole's mouth, on a part pin or a
+        // terminal post draws a new wire once it moves (a wire's end re-routes);
+        // anywhere else — and with Alt — the press stays an orbit
+        if (e.pointerType !== 'touch' && !this.moveDrag && !this.instDrag && !this.marquee) this.beginWireDraw(e, id)
       }
     }
     const onPointerUp = (e: PointerEvent) => {
@@ -3328,9 +3454,11 @@ export class BreadboardScene implements IBreadboardScene {
     if (groups.length === 0) return
 
     if (m.reduced) {
-      // reduced motion: simple fade-in — no fall, no squash, no dust
+      // reduced motion: simple fade-in — no fall, no squash, no dust (the
+      // new board is there at once: its clack too)
       this.fadeTween = { set: buildFadeSet(groups), t0: performance.now() }
       setFadeOpacity(this.fadeTween.set, 0)
+      this.fxCue('board')
       return
     }
 
@@ -4480,10 +4608,23 @@ export class BreadboardScene implements IBreadboardScene {
     // the aim resolver does) — a part pin or a wire end in it, or a free hole,
     // is the point to measure; a hole under a part body gives that body's sheet
     if (touch) {
+      // …unless a part's raised body is in front of it (persona fix: a hold
+      // on R1's body over a7 is R1's, as a tap there selects R1): then its own
+      // pin in that hole, or a wire's end in it, is still the point to
+      // measure; any other hole falls to the body below (its pin nearest the
+      // touch, else that part's sheet — 屬性／複製／換新／刪除). A wire in
+      // front is no body here: its thin tube arcs over pins that are still
+      // the points to measure.
+      const body = this.bodyInFront(m)
       this.raycaster.setFromCamera(this.pointerNdc, m.camera)
       const hole = this.pickHole(HOLE_SNAP_DIST_TOUCH)
-      if (hole && (this.pinOwner.has(hole) || !this.occluded.has(hole))) return { hole }
-      if (hole) return null
+      const owner = hole ? this.pinOwner.get(hole) : undefined
+      if (body === null || owner === body.id || (owner !== undefined && this.wires.has(owner))) {
+        if (hole && (owner !== undefined || !this.occluded.has(hole))) return { hole }
+        if (hole) return null
+      }
+      // the body only by a hair (its first slop ring): no hit point to snap a pin to — its sheet
+      if (body !== null && !body.direct) return null
     }
 
     this.raycaster.setFromCamera(this.pointerNdc, m.camera)
@@ -4539,6 +4680,20 @@ export class BreadboardScene implements IBreadboardScene {
   }
 
   /**
+   * The on-board part whose body is the first thing the finger's ray hits —
+   * or, missing every body by a hair, the part its first ring of offset rays
+   * hits (BODY_TOUCH_SLOP_PX: the thin edge of a resistor, the gap under an
+   * LED's dome); a wire first, nothing or an instrument → null.
+   */
+  private bodyInFront(m: Mounted): { id: string; direct: boolean } | null {
+    const direct = this.raycastRoots(m.objectPickRoots, this.pointerNdc)?.componentId
+    if (direct !== undefined && this.wires.has(direct)) return null
+    const id = direct ?? this.pickWithSlop(m.objectPickRoots, BODY_TOUCH_SLOP_PX)?.componentId
+    const rec = id !== undefined ? this.components.get(id) : undefined
+    return rec && rec.entry.placement !== 'offboard' ? { id: rec.comp.id, direct: direct !== undefined } : null
+  }
+
+  /**
    * A touch long-press fired (UX fix wave SC-14): with docked chrome a hole,
    * a part pin or a terminal post under the finger asks the host for the
    * probe menu (as an ActionSheet — onProbeRequest(…, { pointer: 'touch' }));
@@ -4549,7 +4704,9 @@ export class BreadboardScene implements IBreadboardScene {
   private touchLongPress(id: string | null, at?: SceneProbeTarget): void {
     const m = this.m
     const down = this.downInfo
-    if (m && down && down.type === 'touch' && this.isDocked() && this.callbacks.onProbeRequest) {
+    // a pen too, for the point its held wire grip names (final round — penGrip)
+    const finger = down?.type === 'touch' || (down?.type === 'pen' && at !== undefined)
+    if (m && down && finger && this.isDocked() && this.callbacks.onProbeRequest) {
       this.updateNdcXY(down.x, down.y)
       const target = at ?? this.probeTargetAtPointer(m, true)
       if (target) {
@@ -4791,8 +4948,8 @@ export class BreadboardScene implements IBreadboardScene {
   private processHover(m: Mounted): void {
     // an in-flight editing drag owns the pointer — its own handlers track it
     if (this.moveDrag?.started || this.instDrag?.started || this.marquee?.started) return
-    // …and a finger holding an armed wire end keeps the grabbed end's chip until it moves
-    if (this.wireEndDrag?.armed && !this.wireEndDrag.started && this.lastPointerType === 'touch') return
+    // …and a finger (or a pen held still — penGrip) holding an armed wire end keeps the grabbed end's chip until it moves
+    if (this.wireEndDrag?.armed && !this.wireEndDrag.started && (this.lastPointerType === 'touch' || this.wireEndDrag.held)) return
     // the probe menu just opened on this spot: its header names the point
     if (this.chipMutedAt) return
     // touch aiming (place/wire): the fingertip ghost-cursor drives hover
@@ -4811,6 +4968,8 @@ export class BreadboardScene implements IBreadboardScene {
     let first: PickHit | null = null
     let overObject = false
     let hoverId: string | null = null
+    /** the part / wire a press here would pick (drag-to-wire's precedence) */
+    let pressId: string | null = null
     if (!touch) {
       this.raycaster.setFromCamera(this.pointerNdc, m.camera)
       this.hitBuf.length = 0
@@ -4819,17 +4978,21 @@ export class BreadboardScene implements IBreadboardScene {
       first = this.pickOfHits(hits)
       if (this.callbacks.onObjectHover) hoverId = this.objectIdOfHits(hits)
       if (hits.length > 0) this.hoverPoint.copy(hits[0].point)
+      if (overObject && docked) pressId = this.bodyIdOfHits(hits)
     }
 
     // what the chip names: placing / wiring → the aim resolver (SC-9 — the
     // click commits the same thing); select → the hole under the pointer,
     // or (docked chrome) the terminal post / part body under it (SC-12)
     let target: HoverTarget | null
+    /** select mode: the snapped hole under the pointer (the drag-to-wire cursor reuses the scan) */
+    let snapped: HoleRef | null | undefined
     if (aiming) {
       target = this.resolveAimTarget(m, touch, touch ? undefined : first)
     } else {
       this.raycaster.setFromCamera(this.pointerNdc, m.camera)
       const hole = this.pickHole(touch ? HOLE_SNAP_DIST_TOUCH : HOLE_SNAP_DIST)
+      snapped = hole
       target = hole ? { kind: 'hole', hole, occluded: this.occluded.has(hole) } : null
       if (docked && !touch && first) {
         // a terminal post under (or a few px from) the pointer wins over the
@@ -4891,7 +5054,19 @@ export class BreadboardScene implements IBreadboardScene {
       return
     }
     this.applyHoverChip(m, t, target, aiming, docked)
-    m.container.style.cursor = overObject ? 'pointer' : ''
+    // drag-to-wire: a crosshair wherever a press would draw (or re-route) a wire
+    const draw = this.wireDrawHover(m, first, snapped, pressId)
+    m.container.style.cursor = draw ? 'crosshair' : overObject ? 'pointer' : ''
+    // …and the first time it rests on a free hole, the host's one-time tip
+    const freeHole = !!draw && draw.kind === 'new' && !aiming && !!parseHole(draw.ref) && !this.pinOwner.has(draw.ref)
+    if (freeHole && !this.crossOnFreeHole) {
+      try {
+        this.callbacks.onWireDrawHint?.()
+      } catch {
+        /* a host tip must never break the hover pass */
+      }
+    }
+    this.crossOnFreeHole = freeHole
     // OPTIONAL onObjectHover (additive): resolved from the SAME hits — no
     // extra raycast; terminal posts report their instrument
     if (this.callbacks.onObjectHover) this.setHoverObject(hoverId)
@@ -5407,6 +5582,7 @@ export class BreadboardScene implements IBreadboardScene {
     const m = this.m
     if (!m || this.wireEndDrag || this.moveDrag || this.instDrag || this.marquee || this.isPlaceOrWireMode()) return false
     const touch = e.pointerType === 'touch'
+    if (!touch && e.altKey) return false // Alt+drag always orbits
     // the selected wire's grips; a finger may also long-press ANY wire's end
     // (on a phone, selecting a wire opens its sheet over the board)
     let pick: { wireId: string; end: 'from' | 'to'; fixed: THREE.Vector3 } | null = null
@@ -5416,19 +5592,11 @@ export class BreadboardScene implements IBreadboardScene {
     if (h && end && other) pick = { wireId: h.wireId, end, fixed: other.at.clone() }
     else if (touch && this.isDocked()) pick = this.pickWireEndNear(m, e)
     if (!pick) return false
-    this.wireEndDrag = {
-      wireId: pick.wireId,
-      end: pick.end,
-      fixed: pick.fixed,
-      pointerId: e.pointerId,
-      armed: !touch,
-      started: false,
-      target: null,
-      valid: true,
-      preview: null,
-    }
+    const drag = this.wireDragRecord(e, pick.fixed, { wireId: pick.wireId, end: pick.end, armed: !touch })
+    this.wireEndDrag = drag
     if (!touch) {
       this.armWireEndDrag(m, e)
+      this.penGrip(e, drag)
       return true
     }
     this.cancelLongPress()
@@ -5442,24 +5610,412 @@ export class BreadboardScene implements IBreadboardScene {
     return true
   }
 
-  /** The end drag owns the pointer: no orbit, aim like wire mode (chip + fingertip cursor). */
+  /** A fresh wire drag record (re-route: `wireId`; new wire: `from` / `pressed`, wireId null). */
+  private wireDragRecord(e: PointerEvent, fixed: THREE.Vector3, fields: Partial<WireEndDrag>): WireEndDrag {
+    return {
+      wireId: null,
+      end: 'to',
+      from: null,
+      pressed: null,
+      probe: null,
+      holder: null,
+      fixed,
+      pointerId: e.pointerId,
+      armed: false,
+      held: false,
+      started: false,
+      target: null,
+      valid: true,
+      preview: null,
+      aim: undefined,
+      previewKey: '',
+      land: null,
+      landNote: null,
+      chipFor: '',
+      ...fields,
+    }
+  }
+
+  /**
+   * The end drag owns the pointer: no orbit. A finger aims like wire mode at
+   * once (chip + fingertip cursor on the grabbed end); a mouse only once the
+   * drag starts (aimWireEndDrag) — a plain click keeps its select-mode
+   * meaning (no occlusion toast, the chip's own tone).
+   */
   private armWireEndDrag(m: Mounted, e: PointerEvent): void {
     this.suspendControls(m, e)
-    this.forceWireAim = true
-    this.updateTouchGestures()
-    this.chipKey = STALE_CHIP_KEY
-    this.pointerDirty = true
+    if (e.pointerType !== 'touch') return
+    this.aimWireEndDrag()
     // a finger: the moment the long-press arms the grip, the ring and the
     // chip sit on the END it grabbed (「導線 W7 · a20（U1 PA5 這一排）」) — lift
     // there to measure that point, drag to re-route it (the aim ring then
     // floats above the finger as in wire mode)
-    if (e.pointerType === 'touch') this.showGrabbedEnd(m)
+    this.showGrabbedEnd(m)
   }
 
-  /** Touch end drag, armed but not moved: ring + chip on the grabbed end (no aim offset yet). */
+  /** A wire drag aims like wire mode from now on: the aim resolver, the fingertip cursor, one-finger aiming. */
+  private aimWireEndDrag(): void {
+    if (this.forceWireAim) return
+    this.forceWireAim = true
+    this.updateTouchGestures()
+    this.chipKey = STALE_CHIP_KEY
+    this.pointerDirty = true
+  }
+
+  // ------------------------------------------------ drag-to-wire (round 5)
+  //
+  // GESTURE DECISION: with docked chrome a wire no longer needs the wire
+  // mode. Mouse: a left press in a hole's MOUTH (WIRE_DRAG_HOLE_DIST — the
+  // plastic between holes, the channel, bodies and the desk still orbit), on
+  // a part pin's hole or on an off-board terminal post, then a drag past
+  // DRAG_START_PX draws a new wire with the wire mode's aim resolver, chip
+  // and preview; the press on ANY wire's end re-routes that end (SC-13 for
+  // unselected wires). A selected part still moves (maybeBeginEditDrag runs
+  // first), Shift still starts the marquee, Alt always orbits, and a press
+  // that never moves stays the click it was. Wire mode with no first end
+  // picked takes the same mouse drag. Touch: one finger still orbits — a
+  // LONG-PRESS on what the SC-14 long-press would measure arms the grip
+  // (ring + chip on the pressed point); drag = a new wire, lift = the probe
+  // sheet as before. The host decides where a wire really starts
+  // (wireDrawStart: a part pin's hole moves to its strip's free hole) and
+  // adds it on the drop (onWireDraw: one undo step). Released away from any
+  // hole or terminal — or back on the start — nothing happens (silently).
+  //
+  // Polish (round 5): hover and press agree — the crosshair never shows
+  // where onPointerDown gives the press to something else (a pressable part
+  // while a session runs, a selected part / instrument), and a press on the
+  // bare desk beside a terminal post orbits (the hover there names nothing).
+  // A mouse held still keeps its draw (no long-press sheet: a finger's
+  // gesture). A drop on a part's leg lands on the free hole of its strip
+  // (host wireDrawLanding — route, ring and chip show that hole); a start a
+  // pin's press moved is named in the chip while nothing is aimed at; a
+  // finger's grip chip says what a lift and a drag do (wireGripText); the
+  // first rest on a free hole asks for the host's one-time tip.
+  //
+  // Final round: the hover asks the host's wireDrawStart too (memoised), so
+  // a pin whose strip has no free hole shows no crosshair — it is part of
+  // its part there, as its press is. A drop on the start's own strip / rail
+  // says why it does nothing (host wireDrawLanding's `to: null` + note: red
+  // route, red chip 「d40 跟起點在同一排，本來就是通的」). A wire aimed at
+  // NOTHING hangs faint, not red (red = a target that refuses). A pen takes
+  // the mouse's press, and a hold then a lift opens the probe sheet like a
+  // finger (penGrip).
+
+  /**
+   * Pointerdown in select mode (or wire mode with no first end, mouse):
+   * arm a drag-to-wire when the press grabs a point a wire can start from
+   * (or, mouse, a wire's end). Returns true when a drag was armed; false
+   * leaves the press to today's gestures (orbit, tap, long-press).
+   */
+  private beginWireDraw(e: PointerEvent, id: string | null): boolean {
+    const m = this.m
+    if (!m || this.wireEndDrag || this.moveDrag || this.instDrag || this.marquee || this.press) return false
+    if (!this.isDocked() || !this.callbacks.wireDrawStart) return false
+    if (e.button !== 0 || e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) return false
+    const touch = e.pointerType === 'touch'
+    const select = !this.isPlaceOrWireMode()
+    if (!select && (touch || !this.wireIdle())) return false
+    this.raycaster.setFromCamera(this.pointerNdc, m.camera)
+    if (this.pickPaddle(m)) return false
+    if (touch) return this.armTouchWireDraw(m, e, id)
+    const hit = this.raycastRoots(m.hoverPickRoots, this.pointerNdc)
+    const press = this.mouseWirePress(m, hit)
+    if (!press) {
+      // zoomed too far out to draw from this hole: the drag orbits, and says why (persona fix)
+      this.smallHolePress = select && this.tooSmallToDraw(m, hit)
+      return false
+    }
+    if (press.kind === 'end') {
+      // SC-13 for any wire: the end follows the drag (the click still selects the wire)
+      const rec = this.wires.get(press.wireId)
+      const fixed = rec && this.callbacks.onWireEndMove && select ? this.resolveEndpoint(rec.wire[press.end === 'from' ? 'to' : 'from']) : null
+      if (!fixed) return false
+      const drag = this.wireDragRecord(e, fixed, { wireId: press.wireId, end: press.end, armed: true })
+      this.wireEndDrag = drag
+      this.cancelLongPress() // a mouse held still here waits for its drag — no action sheet (that is a finger's gesture)
+      this.armWireEndDrag(m, e)
+      this.penGrip(e, drag)
+      return true
+    }
+    const from = this.askWireDrawStart(press.ref)
+    const fixed = from ? this.resolveEndpoint(from) : null
+    if (!from || !fixed) return false
+    // armed at once: the orbit cannot start; the aim waits for the drag. A
+    // mouse held still on the pin first is still a wire about to be drawn:
+    // the long-press action sheet is a finger's gesture (a mouse has the
+    // click and the right-click), so its timer goes
+    const drag = this.wireDragRecord(e, fixed, { from, pressed: press.ref, holder: id, armed: true })
+    this.wireEndDrag = drag
+    this.cancelLongPress()
+    this.suspendControls(m, e)
+    this.penGrip(e, drag)
+    return true
+  }
+
+  /**
+   * A PEN's press armed a wire drag the mouse's way, at once (final round):
+   * held still for LONG_PRESS_MS it shows a finger's grip chip (「a33 · 放開：
+   * 探測選單／拖曳：拉線」), and a lift without a move then asks for the probe
+   * sheet as a finger's does (finishEditDrags) — a pen rarely has a
+   * right-click. A drag, before or after, draws as before. The mouse never:
+   * its hold keeps the wire in hand (polish (d)). The timer is the
+   * long-press one, so a drift past LONG_PRESS_MAX_PX, the drag's start and
+   * the lift stop it.
+   */
+  private penGrip(e: PointerEvent, d: WireEndDrag): void {
+    if (e.pointerType !== 'pen') return
+    this.cancelLongPress()
+    this.longPressTimer = window.setTimeout(() => {
+      this.longPressTimer = null
+      if (this.wireEndDrag !== d || d.started || !this.downInfo || !this.m) return
+      d.held = true
+      this.showGrabbedEnd(this.m)
+    }, LONG_PRESS_MS)
+  }
+
+  /** Wire mode (explicit) with no first end picked yet: a mouse press-drag draws there too. */
+  private wireIdle(): boolean {
+    return this.explicitMode === 'wire' && this.preview.from === null && !this.forceWireAim
+  }
+
+  /** The host's start for a press on `ref` (null = no wire starts there; a throwing host = none). */
+  private askWireDrawStart(ref: string): string | null {
+    try {
+      return this.callbacks.wireDrawStart?.(ref) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Touch: what the SC-14 long-press would measure — a free hole, a part
+   * pin, a terminal post (a wire's end is SC-13's, caught before) — arms a
+   * wire grip after LONG_PRESS_MS of holding still, instead of opening the
+   * probe sheet at once: the lift opens it then (finishEditDrags), a drag
+   * draws. A move before the timer is the orbit it always was. A selected
+   * part under the finger moves instead.
+   */
+  private armTouchWireDraw(m: Mounted, e: PointerEvent, id: string | null): boolean {
+    if (id !== null && this.selectedIds.includes(id)) return false
+    const probe = this.probeTargetAtPointer(m, true)
+    const pressed = probe?.hole ?? probe?.terminal ?? null
+    const from = pressed ? this.askWireDrawStart(pressed) : null
+    const fixed = from ? this.resolveEndpoint(from) : null
+    if (!probe || !pressed || !from || !fixed) return false
+    const d = this.wireDragRecord(e, fixed, { from, pressed, probe, holder: id })
+    this.wireEndDrag = d
+    this.cancelLongPress()
+    this.longPressTimer = window.setTimeout(() => {
+      this.longPressTimer = null
+      if (this.wireEndDrag !== d || !this.downInfo || !this.m) return
+      d.armed = true
+      this.armWireEndDrag(this.m, e)
+      this.callbacks.onWireDrawStarted?.(from) // the grip is in hand (haptic)
+    }, LONG_PRESS_MS)
+    return true
+  }
+
+  /**
+   * Mouse: what a left press here grabs (pointerNdc current; `hit` = the
+   * first pickable hit along the ray; `near` = the hover pass's snapped hole
+   * when it has one). A terminal post → a new wire from it (a post takes any
+   * number); the hole in the pointer's mouth → its wire's end, or a new wire
+   * from it / the pin in it (not a selected part's: that moves); a body or
+   * another wire in front of the hole, a covered hole, a hole too small on
+   * screen → nothing. Off the holes: the end of the wire under the pointer
+   * on a terminal post, or a post within a few px — only with something
+   * under the pointer (the post, its instrument's body, a wire), exactly as
+   * the hover chip and the crosshair find it (polish: a press on the bare
+   * desk beside a PSU orbits — the hover there promised nothing, so the
+   * press draws nothing either). Scene-only (the cursor asks it on every
+   * hover pass); the host still decides the start.
+   */
+  private mouseWirePress(m: Mounted, hit: PickHit | null, near?: HoleRef | null): WirePress | null {
+    if (hit?.terminalRef) return { kind: 'new', ref: hit.terminalRef }
+    const hole = this.mouthHole(m, near)
+    if (hole) {
+      if (this.pitchAtHole(m, hole) < WIRE_DRAG_MIN_PITCH_PX) return null
+      const owner = this.pinOwner.get(hole)
+      if (hit?.componentId && hit.componentId !== owner) return null // the press is on that body / wire
+      const wire = owner ? this.wires.get(owner) : undefined
+      if (wire) return { kind: 'end', wireId: wire.wire.id, end: endInHole(wire.wire.from, hole) ? 'from' : 'to' }
+      if (owner && this.selectedIds.includes(owner)) return null // a selected part moves
+      if (!owner && this.occluded.has(hole)) return null // under a part body
+      return { kind: 'new', ref: hole }
+    }
+    const wire = hit?.componentId ? this.wires.get(hit.componentId) : undefined
+    if (wire) {
+      const end = this.wireTerminalEndNear(m, wire)
+      return end ? { kind: 'end', wireId: wire.wire.id, end } : null
+    }
+    if (!hit) return null // the bare desk / board: hover and press agree — an orbit
+    const post = this.pickTerminalNearPointer(TERMINAL_HOVER_SLOP_PX)
+    return post ? { kind: 'new', ref: post } : null
+  }
+
+  /** The hole whose mouth the pointer is in (`near`: a snapped hole to test instead of a fresh scan). */
+  private mouthHole(m: Mounted, near?: HoleRef | null): HoleRef | null {
+    this.raycaster.setFromCamera(this.pointerNdc, m.camera)
+    const ref = near === undefined ? this.pickHole(WIRE_DRAG_HOLE_DIST_MAX) : near
+    const h = ref ? parseHole(ref) : null
+    if (!ref || !h || !this.rayToPlane(this.tmpVecC)) return null
+    const p = holePosition(h)
+    const dx = p.x - this.tmpVecC.x
+    const dz = p.z - this.tmpVecC.z
+    const r = this.mouthRadius(m, ref)
+    return dx * dx + dz * dz <= r * r ? ref : null
+  }
+
+  /**
+   * The mouth's radius at `hole` (plan units): WIRE_DRAG_HOLE_DIST, widened
+   * at a small pitch to WIRE_DRAG_MOUTH_MIN_PX on screen, at most
+   * WIRE_DRAG_HOLE_DIST_MAX (persona fix: a 6 px pitch still has a target a
+   * mouse can find — the crosshair says when it is on it).
+   */
+  private mouthRadius(m: Mounted, hole: HoleRef): number {
+    const pitch = this.pitchAtHole(m, hole)
+    if (!(pitch > 0)) return WIRE_DRAG_HOLE_DIST
+    return Math.min(WIRE_DRAG_HOLE_DIST_MAX, Math.max(WIRE_DRAG_HOLE_DIST, WIRE_DRAG_MOUTH_MIN_PX / pitch))
+  }
+
+  /**
+   * A mouse press in the mouth of a hole that is too small on screen to
+   * draw from (the press orbits): true when a wire would start there at a
+   * larger zoom — the pointer's ray in a mouth, the hole free or a pin's, no
+   * body in front (persona fix: the drag that then orbits says why, once —
+   * onWireDrawTooSmall).
+   */
+  private tooSmallToDraw(m: Mounted, hit: PickHit | null): boolean {
+    if (hit?.terminalRef) return false
+    const hole = this.mouthHole(m)
+    if (!hole) return false
+    const pitch = this.pitchAtHole(m, hole)
+    if (!(pitch > 0) || pitch >= WIRE_DRAG_MIN_PITCH_PX) return false
+    const owner = this.pinOwner.get(hole)
+    if (hit?.componentId && hit.componentId !== owner) return false
+    return owner !== undefined || !this.occluded.has(hole)
+  }
+
+  /** One hole pitch at `hole` as the live camera shows it (CSS px; 0 when it cannot be projected). */
+  private pitchAtHole(m: Mounted, hole: HoleRef): number {
+    const h = parseHole(hole)
+    if (!h) return 0
+    const p = holePosition(h)
+    m.camera.updateMatrixWorld()
+    const a = this.tmpVecB.set(p.x - 0.5, 0, p.z).project(m.camera)
+    const ax = a.x
+    const ay = a.y
+    const az = a.z
+    const b = this.tmpVecB.set(p.x + 0.5, 0, p.z).project(m.camera)
+    if (az > 1 || b.z > 1) return 0
+    return Math.hypot(((b.x - ax) * this.viewW) / 2, ((b.y - ay) * this.viewH) / 2)
+  }
+
+  /** The end of wire `rec` on a terminal post within the grip radius of the pointer (screen px), if one is. */
+  private wireTerminalEndNear(m: Mounted, rec: WireRecord): 'from' | 'to' | null {
+    const px = ((this.pointerNdc.x + 1) / 2) * this.viewW
+    const py = ((1 - this.pointerNdc.y) / 2) * this.viewH
+    let best: 'from' | 'to' | null = null
+    let bestD = WIRE_HANDLE_GRAB_PX * WIRE_HANDLE_GRAB_PX
+    m.camera.updateMatrixWorld()
+    for (const end of ['from', 'to'] as const) {
+      const ref = rec.wire[end]
+      if (parseHole(ref)) continue // a hole end: the mouth decides
+      const at = this.resolveEndpoint(ref)
+      if (!at) continue
+      const v = this.tmpVecB.copy(at).project(m.camera)
+      if (v.z > 1) continue
+      const dx = ((v.x + 1) / 2) * this.viewW - px
+      const dy = ((1 - v.y) / 2) * this.viewH - py
+      const d = dx * dx + dy * dy
+      if (d < bestD) {
+        bestD = d
+        best = end
+      }
+    }
+    return best
+  }
+
+  /**
+   * The hover pass (mouse): would a left press here draw — a new wire, or
+   * (select mode) a wire's end? Then that press (the crosshair cursor says
+   * so), else null. Scene-only, no host call. Never with a modifier held,
+   * the classic chrome, no host — and never where onPointerDown gives the
+   * press to something else first (polish: the crosshair never promises a
+   * wire a press would not draw): `pressId` = the part / wire the press
+   * would pick (objectPickRoots' first hit) — a pressable part while a
+   * session runs is PRESSED (SC-6), a selected part moves and a selected
+   * instrument takes its bench drag (maybeBeginEditDrag), its posts too.
+   * Final round: a new wire's point asks the host's wireDrawStart, as the
+   * press does (memoised per point, layout and mode — not per frame): a
+   * part pin whose strip has no free hole starts nothing, so it shows no
+   * crosshair either — it is part of its part there (pointer; a press
+   * orbits, a click selects, a hold opens the part's sheet like its body).
+   */
+  private wireDrawHover(m: Mounted, first: PickHit | null, near: HoleRef | null | undefined, pressId: string | null): WirePress | null {
+    if (this.hoverMods || !this.isDocked() || !this.callbacks.wireDrawStart) return null
+    const select = !this.isPlaceOrWireMode()
+    if (!select && !this.wireIdle()) return null
+    if (pressId !== null && select && this.pressable(pressId)) return null
+    const press = this.mouseWirePress(m, first, select ? near : undefined)
+    if (!press) return null
+    // a selected part moves — except at a selected instrument's terminal post, which draws (postPress)
+    if (pressId !== null && select && this.selectedIds.includes(pressId) && this.components.has(pressId) && !this.postPress(pressId, press)) return null
+    if (press.kind === 'new') return this.hoverStarts(press.ref) ? press : null
+    return select && !!this.callbacks.onWireEndMove ? press : null
+  }
+
+  /**
+   * Persona fix (round 5): a press on a terminal post of the off-board
+   * instrument `id` draws a new wire even while that instrument is selected
+   * (a supply placed from its card stays selected — its first wire must not
+   * lift it instead). The instrument moves by its body; its posts (and a
+   * few px around them, as their crosshair shows) always draw.
+   */
+  private postPress(id: string, press: WirePress): boolean {
+    if (press.kind !== 'new' || parseHole(press.ref)) return false
+    const rec = this.components.get(id)
+    return !!rec && rec.entry.placement === 'offboard' && rec.posts.some((p) => p.userData.terminalRef === press.ref)
+  }
+
+  /** Would a press on `ref` start a new wire (the host's wireDrawStart, as beginWireDraw asks it)? Memoised. */
+  private hoverStarts(ref: string): boolean {
+    const memo = this.hoverStartMemo
+    const mode = this.explicitMode
+    if (memo && memo.ref === ref && memo.layout === this.layout && memo.mode === mode) return memo.ok
+    const from = this.askWireDrawStart(ref)
+    const ok = from !== null && this.resolveEndpoint(from) !== null
+    this.hoverStartMemo = { ref, layout: this.layout, mode, ok }
+    return ok
+  }
+
+  /** The part / wire a press would pick from a hover pass's hits (objectPickRoots' first hit — terminal posts skipped). */
+  private bodyIdOfHits(hits: THREE.Intersection[]): string | null {
+    next: for (const hit of hits) {
+      let o: THREE.Object3D | null = hit.object
+      while (o) {
+        if (typeof o.userData.terminalRef === 'string') continue next
+        const id = o.userData.componentId
+        if (typeof id === 'string') return id
+        o = o.parent
+      }
+    }
+    return null
+  }
+
+  /** Voice a scene moment (emitFxCue), dropping a repeat of the same cue inside its FX_CUE_GAP_MS. */
+  private fxCue(cue: FxCue): void {
+    const now = performance.now()
+    const last = this.fxCueAt.get(cue)
+    if (last !== undefined && now - last < (FX_CUE_GAP_MS[cue] ?? 0)) return
+    this.fxCueAt.set(cue, now)
+    emitFxCue(cue)
+  }
+
+  /** Touch end drag, armed but not moved: ring + chip on the grabbed end — a new wire's pressed point (no aim offset yet). */
   private showGrabbedEnd(m: Mounted): void {
     const d = this.wireEndDrag
-    const ref = d ? this.wires.get(d.wireId)?.wire[d.end] : undefined
+    const ref = d ? (d.wireId !== null ? this.wires.get(d.wireId)?.wire[d.end] : (d.pressed ?? undefined)) : undefined
     const at = ref ? this.resolveEndpoint(ref) : null
     if (!ref || !at) {
       this.processFingertip(m)
@@ -5475,10 +6031,24 @@ export class BreadboardScene implements IBreadboardScene {
     m.hoverRing.hide(m.clock.getElapsedTime())
     this.chipKey = `grab:${ref}` // the first move's aim pass replaces it
     this.chipLive = hole ? { kind: 'hole', ref: hole } : { kind: 'terminal', ref }
-    const text = hole ? this.holeChipText(hole) : this.terminalChipText(ref)
+    // polish: the grip's chip says what comes next — 「a24 · 放開：探測選單／
+    // 拖曳：拉線」 (host words); without them, the plain hole / post chip
+    const grip = d ? this.gripText(ref, d.wireId) : null
+    if (grip) this.chipLive = null // its own words: no live re-ask over them
+    const text = grip ?? (hole ? this.holeChipText(hole) : this.terminalChipText(ref))
     this.chipTmp.copy(at)
     if (text) this.showChip(m, text, 'normal', this.chipTmp, FINGERTIP_LABEL_Y, null, true)
     else this.hideChip(m)
+  }
+
+  /** Host words for a finger's grip on `ref` (a new wire: wireId null) — null = none / a throwing host. */
+  private gripText(ref: string, wireId: string | null): string | null {
+    try {
+      const t = this.callbacks.wireGripText?.(ref, wireId)
+      return typeof t === 'string' && t.length > 0 ? t : null
+    } catch {
+      return null
+    }
   }
 
   /**
@@ -5531,46 +6101,196 @@ export class BreadboardScene implements IBreadboardScene {
     // directly (the hover pass is gated off while OrbitControls holds the
     // pointer it saw first)
     let target: AimTarget | null
+    /** a finger: the key the fingertip pass gave its chip (wireDragChip keeps its own words over it) */
+    let fingerKey = ''
     if (touch) {
       this.processFingertip(m)
       const f = this.pickFingertipTarget()
       target = f?.kind === 'hole' ? { kind: 'hole', hole: f.hole, occluded: this.occluded.has(f.hole) } : f ? { kind: 'terminal', ref: f.ref } : null
+      fingerKey = target ? `f:${target.kind === 'hole' ? target.hole : target.ref}` : ''
     } else {
       target = this.resolveAimTarget(m, false)
-      this.applyHoverChip(m, m.clock.getElapsedTime(), target, true, this.isDocked())
+    }
+    let ref = target ? (target.kind === 'hole' ? target.hole : target.ref) : null
+    // a new wire aimed back at its own start (or the pin it was pressed on) goes nowhere
+    if (ref !== null && d.wireId === null && (ref === d.from || ref === d.pressed)) {
+      target = null
+      ref = null
     }
     d.target = target
-    const ref = target ? (target.kind === 'hole' ? target.hole : target.ref) : null
-    let valid = !!target && !(target.kind === 'hole' && target.occluded)
-    if (valid && ref) {
-      try {
-        valid = this.callbacks.onWireEndPreview ? this.callbacks.onWireEndPreview(d.wireId, d.end, ref) !== false : true
-      } catch {
-        valid = true
-      }
+    // validity once per new target (the host's store checks — not per pointermove);
+    // a hole aimed at after the first is a 'snap'
+    if (ref !== d.aim) {
+      const snap = ref !== null && !this.snapQuiet
+      d.aim = ref
+      this.judgeWireDrag(d, target, ref)
+      if (snap) this.fxCue('snap')
     }
-    d.valid = valid
+    this.snapQuiet = false
+    // the chip and the ring: the aim pass's own, or this drag's words (a
+    // landing that moves along the strip, the start a pin's press moved)
+    this.wireDragChip(m, d, target, touch, fingerKey)
+    const valid = d.valid
+    // aimed at nothing (final round): the wire in hand hangs faint, not red —
+    // red is a target that refuses (the drop says why); a drop on nothing
+    // changes nothing and says nothing, so its route says "keep dragging"
+    // (and agrees with the neutral start note the chip may show meanwhile)
+    const loose = target === null
+    // a new wire's route ends where it will really land (polish: a part pin's
+    // hole → the free hole of its strip), a refused one at the aimed point
+    const end = d.wireId === null && d.land !== null ? d.land : ref
     // the preview route: from the fixed end to the target (or the pointer's plane point)
-    let to: THREE.Vector3 | null = ref ? this.resolveEndpoint(ref) : null
+    let to: THREE.Vector3 | null = end ? this.resolveEndpoint(end) : null
     if (!to) {
       this.raycaster.setFromCamera(this.pointerNdc, m.camera)
       if (touch && this.fingertipHasPoint) to = this.fingertipPoint.clone()
       else if (this.rayToPlane(this.tmpVecA)) to = this.tmpVecA.clone()
     }
-    if (d.preview) {
-      m.overlayGroup.remove(d.preview)
-      ;(d.preview.geometry as THREE.BufferGeometry).dispose()
-      d.preview = null
+    // rebuilt only when it would look different: another target, a free end that moved, the tint
+    const key = to ? `${end ?? `${to.x.toFixed(3)},${to.z.toFixed(3)}`}${loose ? '~' : valid ? '' : '!'}` : ''
+    if (key !== d.previewKey) {
+      d.previewKey = key
+      if (d.preview) {
+        m.overlayGroup.remove(d.preview)
+        ;(d.preview.geometry as THREE.BufferGeometry).dispose()
+        d.preview = null
+      }
+      if (to && to.distanceToSquared(d.fixed) > 1e-6) {
+        const mat = loose ? wireLooseMaterial() : valid ? m.previewMat : wireEndInvalidMaterial()
+        const mesh = new THREE.Mesh(previewWireGeometry(d.fixed, to, PREVIEW_RADIUS), mat)
+        mesh.renderOrder = 3
+        m.overlayGroup.add(mesh)
+        d.preview = mesh
+      }
     }
-    if (to && to.distanceToSquared(d.fixed) > 1e-6) {
-      const mesh = new THREE.Mesh(previewWireGeometry(d.fixed, to, PREVIEW_RADIUS), valid ? m.previewMat : wireEndInvalidMaterial())
-      mesh.renderOrder = 3
-      m.overlayGroup.add(mesh)
-      d.preview = mesh
-    }
-    // the dragged grip follows the target
-    const grip = this.wireHandles?.ends.find((x) => x.end === d.end)
+    // the dragged grip follows the target — only the re-routed wire's own grip
+    // (a selected wire's handle never follows a NEW wire)
+    const grip = d.wireId !== null && this.wireHandles?.wireId === d.wireId ? this.wireHandles.ends.find((x) => x.end === d.end) : undefined
     if (grip && to) grip.sprite.position.set(to.x, to.y + 0.12, to.z)
+  }
+
+  /**
+   * A new target for the drag: would the drop there be accepted (`valid`),
+   * and — a new wire — where would it really land (`land`) with what words
+   * (`landNote`)? With the host's wireDrawLanding a part pin's hole lands on
+   * the free hole of its strip (green route + ring on THAT hole); without
+   * it, the target itself (onWireDrawPreview). A re-route asks
+   * onWireEndPreview as before.
+   */
+  private judgeWireDrag(d: WireEndDrag, target: AimTarget | null, ref: string | null): void {
+    d.land = null
+    d.landNote = null
+    const landing = d.wireId === null && d.from !== null ? this.callbacks.wireDrawLanding : undefined
+    if (!landing || !target || ref === null || d.from === null) {
+      d.valid = this.wireDragValid(d, target, ref)
+      if (d.wireId === null && d.valid) d.land = ref
+      return
+    }
+    try {
+      const r = landing(d.from, ref)
+      const to = r && typeof r.to === 'string' && r.to.length > 0 ? r.to : null
+      const note = r && typeof r.note === 'string' && r.note.length > 0 ? r.note : null
+      d.valid = to !== null
+      if (to !== null) {
+        d.land = to
+        d.landNote = to !== ref ? note : null
+      } else d.landNote = note // final round: why it cannot land here — on the aimed point (「d40 跟起點在同一排，…」)
+    } catch {
+      d.valid = true // a throwing host never blocks the drop (it answers there)
+      d.land = ref
+    }
+  }
+
+  /**
+   * The chip (and ring) of a running wire drag. The aim pass's own (the
+   * hole / post under the pointer) — except a new wire's own words:
+   *  - its drop moves along the strip (a part pin's hole → the free hole the
+   *    wire will really use): ring + 「c25 被 R1 第 2 腳佔用 → 接到同一排的
+   *    a25」 on THAT hole;
+   *  - its target refuses and the host said why (final round: the start's
+   *    own strip): 「d40 跟起點在同一排，本來就是通的」, red, on that target;
+   *  - it aims at nothing yet and started off a pin it was not pressed on:
+   *    「c21 被 U1 PA4 佔用，已改從同一排的 a21 拉線」 at its start (the route
+   *    hangs faint meanwhile — not red: nothing is refused).
+   * A finger's fingertip pass ran already (its target is needed first): it
+   * is told the chip is taken (chipKey) so it leaves it alone, and redrawn
+   * when the drag's own words go.
+   */
+  private wireDragChip(m: Mounted, d: WireEndDrag, target: AimTarget | null, touch: boolean, fingerKey: string): void {
+    const t = m.clock.getElapsedTime()
+    const docked = this.isDocked()
+    let own: { at: string; text: string; tone: ChipTone } | null = null
+    if (d.wireId === null && docked) {
+      if (d.land !== null && d.landNote !== null) own = { at: d.land, text: d.landNote, tone: 'normal' }
+      // final round: a refused target with the host's reason (the start's own
+      // strip) — the reason in the red chip beside the red route, before the drop
+      else if (!d.valid && d.landNote !== null && target !== null && typeof d.aim === 'string') own = { at: d.aim, text: d.landNote, tone: 'locked' }
+      else if (target === null && d.from !== null && d.pressed !== null && d.pressed !== d.from) {
+        const note = this.startNote(d.pressed, d.from)
+        if (note) own = { at: d.from, text: note, tone: 'normal' }
+      }
+    }
+    if (!own) {
+      if (d.chipFor === '') {
+        if (!touch) this.applyHoverChip(m, t, target, true, docked)
+        return
+      }
+      // the drag's own words go: the aim pass draws its chip again
+      d.chipFor = ''
+      this.chipKey = STALE_CHIP_KEY
+      if (touch) this.processFingertip(m)
+      else this.applyHoverChip(m, t, target, true, docked)
+      return
+    }
+    const at = this.resolveEndpoint(own.at)
+    if (!at) return
+    const hole = parseHole(own.at) ? formatHole(parseHole(own.at)!) : null
+    const ringY = hole ? (touch ? 0.1 : HOVER_RING_LIFT) : at.y + (touch ? 0.05 : HOVER_RING_LIFT)
+    const landing = own.at !== d.from // (the start note leaves the aim ring with the finger)
+    if (touch && landing) m.fingertipGroup.position.set(at.x, ringY, at.z)
+    const key = `own:${own.at}:${own.text}`
+    if (d.chipFor !== key || !this.chipShown(m)) {
+      d.chipFor = key
+      this.chipLive = null // its own words: no live re-ask over them
+      if (!touch) {
+        if (!landing) m.hoverRing.hide(t)
+        else {
+          m.hoverRing.object.position.set(at.x, ringY, at.z)
+          m.hoverRing.show(t)
+        }
+      }
+      this.chipTmp.copy(at)
+      if (touch) this.showChip(m, own.text, own.tone, this.chipTmp, FINGERTIP_LABEL_Y, null, true)
+      else this.showChip(m, own.text, own.tone, this.chipTmp, HOLE_LABEL_Y, hole ? this.partNearHole(hole) : null)
+    }
+    // the aim pass leaves this chip alone until the drag's words change
+    this.chipKey = touch ? fingerKey : key
+  }
+
+  /** Host words for a running new wire whose start a pin's press moved (asked once per drag start). */
+  private startNote(pressed: string, from: string): string | null {
+    const memo = this.startNoteMemo
+    if (memo && memo.pressed === pressed && memo.from === from) return memo.text
+    let text: string | null = null
+    try {
+      const t = this.callbacks.wireDrawStartText?.(pressed, from)
+      text = typeof t === 'string' && t.length > 0 ? t : null
+    } catch {
+      text = null
+    }
+    this.startNoteMemo = { pressed, from, text }
+    return text
+  }
+
+  /** Would the drop at `ref` be accepted: a target that is not covered, and the host's own checks (missing = yes). */
+  private wireDragValid(d: WireEndDrag, target: AimTarget | null, ref: string | null): boolean {
+    if (!target || ref === null || (target.kind === 'hole' && target.occluded)) return false
+    try {
+      if (d.wireId === null) return d.from !== null && this.callbacks.onWireDrawPreview ? this.callbacks.onWireDrawPreview(d.from, ref) !== false : true
+      return this.callbacks.onWireEndPreview ? this.callbacks.onWireEndPreview(d.wireId, d.end, ref) !== false : true
+    } catch {
+      return true
+    }
   }
 
   /** End the end drag (drop or abandon): preview gone, aiming back to select, the handles re-synced. */
@@ -5578,6 +6298,7 @@ export class BreadboardScene implements IBreadboardScene {
     const d = this.wireEndDrag
     if (!d) return
     this.wireEndDrag = null
+    this.startNoteMemo = null
     const m = this.m
     if (m && d.preview) {
       m.overlayGroup.remove(d.preview)
@@ -5594,8 +6315,9 @@ export class BreadboardScene implements IBreadboardScene {
       this.chipKey = STALE_CHIP_KEY
       this.pointerDirty = true
     }
-    // snap the grips back (a committed move re-syncs them from the new layout)
-    if (m) this.clearWireHandles(m)
+    // snap the grips back (a committed move re-syncs them from the new layout);
+    // a new wire never moved one — the handles are only re-checked
+    if (m && d.wireId !== null) this.clearWireHandles(m)
     this.syncWireHandles()
   }
 
@@ -5609,6 +6331,10 @@ export class BreadboardScene implements IBreadboardScene {
     const m = this.m
     if (!m || this.moveDrag || this.instDrag || this.marquee) return
     if (this.isPlaceOrWireMode()) return
+    // Alt+drag always orbits (drag-to-wire's escape hatch, mouse — docked
+    // chrome only: the classic chrome has no drag-to-wire, Alt+drag on a
+    // selected part still moves it there as it always did)
+    if (e.altKey && e.pointerType === 'mouse' && this.isDocked()) return
 
     // shift+drag on empty board (desktop mouse) = marquee rectangle
     if (picked === null && e.shiftKey && e.pointerType === 'mouse') {
@@ -5635,8 +6361,16 @@ export class BreadboardScene implements IBreadboardScene {
     this.raycaster.setFromCamera(this.pointerNdc, m.camera)
     if (!this.rayToPlane(this.tmpVecA)) return
 
-    // selected off-board instrument → bench drag (0.5-grid, validity tint)
+    // selected off-board instrument → bench drag (0.5-grid, validity tint) —
+    // but a mouse / pen press on one of its terminal posts draws a wire
+    // (product chrome: beginWireDraw takes it, as the crosshair promised)
     if (rec.entry.placement === 'offboard') {
+      if (e.pointerType !== 'touch' && this.isDocked() && this.callbacks.wireDrawStart) {
+        const press = this.mouseWirePress(m, this.raycastRoots(m.hoverPickRoots, this.pointerNdc))
+        if (press?.kind === 'new' && this.postPress(picked, press) && this.askWireDrawStart(press.ref) !== null) return
+        this.raycaster.setFromCamera(this.pointerNdc, m.camera)
+        if (!this.rayToPlane(this.tmpVecA)) return
+      }
       const origin = rec.comp.pos ?? offboardBodyPosition(rec.slot, undefined, rec.entry.offboard)
       this.instDrag = {
         id: picked,
@@ -5723,6 +6457,15 @@ export class BreadboardScene implements IBreadboardScene {
     const m = this.m
     if (!m) return
     const startPx = e.pointerType === 'touch' ? DRAG_START_PX_TOUCH : DRAG_START_PX
+    if (this.smallHolePress && drift > startPx) {
+      // a press in a hole too small on screen became an orbit: the host says how to zoom in (once)
+      this.smallHolePress = false
+      try {
+        this.callbacks.onWireDrawTooSmall?.()
+      } catch {
+        /* a host tip must never break the drag */
+      }
+    }
     const we = this.wireEndDrag
     if (we) {
       // touch: a move before the long-press armed the handle is an orbit
@@ -5733,6 +6476,15 @@ export class BreadboardScene implements IBreadboardScene {
       if (!we.started && drift > startPx) {
         we.started = true
         this.cancelLongPress()
+        // a mouse aims from here (a finger since its long-press armed the grip)
+        this.aimWireEndDrag()
+        this.snapQuiet = true
+        if (we.wireId !== null) this.fxCue('lift')
+        else {
+          // the new wire leaves its start (a finger's haptic came at the arm)
+          if (e.pointerType !== 'touch' && we.from !== null) this.callbacks.onWireDrawStarted?.(we.from)
+          this.fxCue('wire-tip')
+        }
       }
       if (we.started) this.updateWireEndDrag(m)
       return
@@ -5752,6 +6504,8 @@ export class BreadboardScene implements IBreadboardScene {
         this.moveDrag.started = true
         this.cancelLongPress()
         this.buildMoveHolo(m)
+        this.snapQuiet = true
+        this.fxCue('lift')
       }
       if (this.moveDrag.started) this.updateMoveDrag(m)
       return
@@ -5761,6 +6515,7 @@ export class BreadboardScene implements IBreadboardScene {
         this.instDrag.started = true
         this.cancelLongPress()
         this.buildInstTint(m)
+        this.fxCue('lift')
       }
       if (this.instDrag.started) this.updateInstDrag(m)
     }
@@ -5860,6 +6615,9 @@ export class BreadboardScene implements IBreadboardScene {
             ? true // resting at the origin — dropping is a no-op, not an error
             : (this.callbacks.onMovePreview?.(d.ids, target) ?? true)
       this.setMoveHoloVariant(d, d.valid ? 'valid' : 'invalid')
+      // the package lines up with other holes (not its first aim right after the lift)
+      if (target !== null && !this.snapQuiet) this.fxCue('snap')
+      this.snapQuiet = false
     }
     d.holo?.position.set(planDx, 0, planDz)
   }
@@ -6016,19 +6774,47 @@ export class BreadboardScene implements IBreadboardScene {
       const d = this.wireEndDrag
       if (d.started) {
         consumed = true
-        // the drop: the host re-routes (one undo step) or says why not
+        // the drop: the host re-routes (one undo step) / adds the new wire
+        // (one undo step) or says why not; released away from any hole or
+        // terminal, a new wire is silently dropped
         const ref = d.target ? (d.target.kind === 'hole' ? d.target.hole : d.target.ref) : null
+        const current = d.wireId !== null ? this.wires.get(d.wireId)?.wire[d.end] : undefined
+        const lands = ref !== null && d.valid && !(current !== undefined && (current === ref || endInHole(current, ref)))
         this.dropWireEndDrag()
-        this.callbacks.onWireEndMove?.(d.wireId, d.end, ref)
+        // a re-routed end that stays put springs back audibly; a new wire
+        // released on nothing is a silent cancel, and a refused drop (red
+        // route) is the host's to voice — it says why, with its refusal sound
+        if (!lands && d.wireId !== null && (ref === null || d.valid)) this.fxCue('settle')
+        if (d.wireId !== null) this.callbacks.onWireEndMove?.(d.wireId, d.end, ref)
+        else if (d.from !== null) {
+          // the point pressed, when the host moved the start (a part pin's hole → its strip's free hole)
+          if (d.pressed !== null && d.pressed !== d.from) this.callbacks.onWireDraw?.(d.from, ref, d.pressed)
+          else this.callbacks.onWireDraw?.(d.from, ref)
+        }
       } else {
-        // a touch long-press that armed the grip but never moved: the
-        // long-press itself (the wire's action sheet / the probe sheet)
-        consumed = d.armed && d.pointerId === e.pointerId && e.pointerType === 'touch'
+        // a touch long-press that armed the grip but never moved — or a pen
+        // held still on it (final round, penGrip): the long-press itself
+        // (the wire's action sheet / the probe sheet)
+        consumed = d.armed && d.pointerId === e.pointerId && (e.pointerType === 'touch' || d.held)
         this.dropWireEndDrag()
-        // …on the wire's END: measure that point (the probe sheet), like any hole
-        const w = this.wires.get(d.wireId)?.wire
-        const ref = w ? w[d.end] : null
-        if (consumed) this.touchLongPress(d.wireId, ref ? (parseHole(ref) ? { hole: ref } : { terminal: ref }) : undefined)
+        if (consumed && d.wireId === null) {
+          // …on a hole / pin / terminal a new wire would have started from: measure it
+          // (a pen's press has no finger probe: the point it pressed)
+          const pressed = d.pressed ? parseHole(d.pressed) : null
+          const at = d.probe ?? (pressed ? { hole: formatHole(pressed) } : d.pressed ? { terminal: d.pressed } : undefined)
+          this.touchLongPress(d.holder, at)
+        } else if (consumed && d.wireId !== null) {
+          // …on the wire's END: measure that point (the probe sheet), like any hole
+          const w = this.wires.get(d.wireId)?.wire
+          const ref = w ? w[d.end] : null
+          this.touchLongPress(d.wireId, ref ? (parseHole(ref) ? { hole: ref } : { terminal: ref }) : undefined)
+        }
+        if (consumed && d.held && m) {
+          // the pen's grip chip goes; the menu's header names the point now (as after a right-click)
+          this.hideChip(m)
+          this.chipKey = STALE_CHIP_KEY
+          this.chipMutedAt = { x: e.clientX, y: e.clientY }
+        }
       }
     } else if (this.marquee) {
       const mq = this.marquee
@@ -6045,10 +6831,9 @@ export class BreadboardScene implements IBreadboardScene {
       this.moveDrag = null
       if (d.started) {
         consumed = true
-        if (d.valid && d.target) {
-          const noop = 'dCol' in d.target && d.target.dCol === 0 && d.target.dRowLattice === 0
-          if (!noop) this.callbacks.onMoveCommit?.(d.ids, d.target)
-        }
+        const noop = !!d.target && 'dCol' in d.target && d.target.dCol === 0 && d.target.dRowLattice === 0
+        if (d.valid && d.target && !noop) this.callbacks.onMoveCommit?.(d.ids, d.target)
+        else this.fxCue('settle') // refused or no-op: the part drops back into place
       }
       if (d.holo && m) m.overlayGroup.remove(d.holo) // clones share geometry — nothing to free
     } else if (this.instDrag) {
@@ -6059,7 +6844,7 @@ export class BreadboardScene implements IBreadboardScene {
         consumed = true
         if (d.valid && (d.pos.x !== d.origin.x || d.pos.z !== d.origin.z)) {
           this.callbacks.onInstrumentMoveCommit?.(d.id, d.pos)
-        }
+        } else this.fxCue('settle')
       }
     }
     this.restoreControls()
@@ -6069,6 +6854,8 @@ export class BreadboardScene implements IBreadboardScene {
   /** Abandon any editing drag (pointer cancel/leave, dispose). */
   private cancelEditDrags(): void {
     const m = this.m
+    // a drag already under way springs back audibly; an armed one was never felt
+    if (this.wireEndDrag?.started || this.moveDrag?.started || this.instDrag?.started) this.fxCue('settle')
     if (this.wireEndDrag) this.dropWireEndDrag()
     if (this.marquee) {
       this.marquee.el?.remove()
@@ -6097,7 +6884,15 @@ export class BreadboardScene implements IBreadboardScene {
     this.longPressTimer = window.setTimeout(() => {
       this.longPressTimer = null
       if (!this.downInfo) return // already released
+      // a mouse held still on a part pin / a wire's end with a wire drag
+      // armed: the drag waits for its move — the long-press action sheet is a
+      // finger's gesture (a mouse has the click and the right-click), so the
+      // pause never trades the wire in hand for a menu (beginWireDraw also
+      // stops this timer when it arms)
+      const d = this.wireEndDrag
+      if (d && this.downInfo.type !== 'touch') return
       this.tapSuppressed = true // swallow the matching pointerup tap
+      if (d && !d.started) this.dropWireEndDrag()
       this.touchLongPress(id)
     }, LONG_PRESS_MS)
   }
@@ -6375,8 +7170,10 @@ export class BreadboardScene implements IBreadboardScene {
     if (!tw.landed) {
       tw.landed = true
       // touchdown: tiny dust puff at the base edges (the store path already
-      // fired the haptic). The rAF loop only runs on a visible tab.
+      // fired the haptic) and the dovetail's clack. The rAF loop only runs
+      // on a visible tab.
       m.spawnFx.burst(tw.rect, now, 12, 1)
+      this.fxCue('board')
     }
     const settle = (now - tw.t0 - SPAWN_DROP_MS) / SPAWN_SETTLE_MS
     if (settle < 1) {

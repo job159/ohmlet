@@ -171,7 +171,26 @@ budget is structural, same as blur:
 |---|---|---|
 | **L — lens** (≤3 concurrent, ≤1 band/sheet-size) | dock, status capsule (visible layer), the topmost regular sheet's 44px grabber BAND (mobile — its body is tier R; desktop panels lens whole), empty-state card | blur 12–16px + saturate + displacement, thinner paint |
 | **R — rim+specular** | everything `.lg-surface` (incl. the mobile sheet body); toast pills and the dock's selection bubble carry rim + tracked specular WITHOUT any backdrop-filter | rim + inner shadows + (where registered) tracked specular; full 22px blur where not lens-gated |
-| **S — static glass** | wire strip, undo pill, nested cards, ActionSheet's clear cards | rim + tint only, NO backdrop-filter (they stack) |
+| **S — static glass** | wire strip, undo pill, nested cards, ActionSheet's clear cards, the 電路說明 explain card | rim + tint only, NO backdrop-filter (they stack) |
+
+**電路說明 explain card** (`ExplainCard`, round 5): Tier S — no
+backdrop-filter, so the ≤4-blur budget stays with dock + capsule (+ a
+sheet); `z-index` 41, the pills' layer (above the canvas and workspace
+panels, below sheets and the capsule). In the desktop workspace it sits
+at the top of the right column at a reserved height — three text lines,
+growing to four only while the words need it (line 1 + the fix on line 2
+are never cut off), grown before paint and shrunk back only after the
+words have fitted three lines for a few seconds (`EXPLAIN_SHRINK_MS`), so
+the inspector below moves at most twice, never with every update; the
+inspector moves down by `--ws-explain-h`, reserved before the first paint
+so nothing jumps after boot or onboarding. With the inspector collapsed, or without the workspace, it
+floats top right and glides (transform only, house spring; reduced
+motion: none) below the capsule, the 顯示電流 chip and the status pill.
+Hovering it marks its subject in 3D (H7, no camera move); a click
+selects it. Phones have no card: the explanation is the status pill's
+lowest tier `'explain'` (neutral dot, no action button; a tap toasts
+both lines; a separate polite live region announces subject / state
+changes only, never the 2 Hz numbers). Classic chrome: none.
 
 Filter ids = class names: `lg-lens-capsule` (220×44 nominal, bezel 11,
 26px bend) · `lg-lens-dock` (372×61, 13, 30px) · `lg-lens-card`
@@ -240,6 +259,34 @@ interactive must respond on pointerdown (within one frame), not on click.
 **Haptics.** `navigator.vibrate?.(8)` on: placement commit, wire complete,
 Run/Pause, delete, sheet snap. Silently no-op elsewhere.
 
+**Sound (round 5, product chrome).** Short synthesized mechanical cues
+(WebAudio, no samples; `src/ui/fx/sound.ts` + `mech-voices.ts`), chosen
+by a store-diff watcher (`mech-watch.ts`) so every path that changes the
+document sounds once: a part plugged in (one click per lead, up to six,
+then a body thud — heavier for DIPs and modules, a soft set-down for
+bench instruments), pulled, moved, rotated; a wire in / out / re-routed;
+button press / release / keep-pressed, toggle and slide switches, DIP
+bits, pot ticks, encoder detents, jumpers, the multimeter dial. The 3D
+scene adds its own drag moments through `emitFxCue` (lift, aim snap,
+spring-back, a new board's touchdown). Relays click only on the model's
+real contact edges, only while running and the tab is visible. Undo /
+redo play one swish (falling / rising), never the inverse edit; a paste
+or duplicate is ONE insert (even onto an empty board). A refusal (a
+placement that does not fit, a wire drop that cannot connect, a paste
+with no room) is a soft, low thunk unlike any success; a cancel is
+silent. A part that burns again for the same reason after an unrelated
+edit shows its burned look without the burst and the pop. Aiming a
+placement ghost is silent (turning it with Shift+R — R in the classic chrome — clicks like a placed part);
+the buzzer and motors stay silent. Feel: crisp,
+≤ 0.6 s, layered transient + body, slight per-hit variation, a gentle
+compressor on the mech bus and a voice cap — never harsh or loud (for
+its first 0.1 s a dry path carrying the compressor's own static curve and
+make-up stands in while its detector settles, so the very first cue is as
+loud as every later one). ONE
+「音效」 switch (More → Settings) gates everything; audio starts inside
+the first user gesture (iOS-safe) and nothing sounds before it. Classic
+chrome and `?shotrig` are silent and never create an `AudioContext`.
+
 ## 2. App structure (phone portrait, the primary layout)
 
 - **3D canvas full-bleed** edge to edge, under everything (`100dvh`).
@@ -247,6 +294,12 @@ Run/Pause, delete, sheet snap. Silently no-op elsewhere.
   run state dot (green pulsing when running), sim clock, tap = Run/Pause,
   long-press = Reset. Expands briefly to show issues/AI status as they occur
   (auto-collapse 3s). Respects `env(safe-area-inset-top)`.
+  *Round 5 (product chrome): auto-run* — a non-empty board simulates by
+  itself and every structural edit re-simulates, so RUNNING is the normal
+  state: the green ring pulses only for ~3 s after a start (reduced
+  motion: none) and a tap means Pause / Resume. A pause the learner made
+  holds until parts or wires change, and the status pill says so with a
+  〔繼續執行〕 action. Classic chrome keeps the manual Run.
 - **Dock** — bottom floating glass tab bar, 5 tabs with SF-style line icons +
   11px labels: **Parts · Wire · AI · Scope · More**. Active tab: filled icon,
   blue tint, springy selection bubble behind it. Sits above
@@ -290,7 +343,10 @@ Run/Pause, delete, sheet snap. Silently no-op elsewhere.
 - **Buttons**: pill (filled blue / tinted / plain); destructive = red tinted.
 - **Pushbutton part** gets a giant circular "HOLD" button in Properties.
 - **Action sheet** (long-press a component on canvas): Properties / Duplicate
-  / Delete — bottom action sheet with red Delete + Cancel.
+  / Delete — bottom action sheet with red Delete + Cancel. Round 5 (product
+  chrome): Duplicate drops a copy WITH its settings beside the part at once
+  (the same path as Ctrl/⌘+D and the selection pill's 複製), and a part the
+  simulation destroyed also offers 換新 (a new one in place, params kept).
 - **Toasts**: top capsule expansion (status) or small glass pill above dock.
 
 ## 4. Touch & canvas interaction
@@ -301,6 +357,44 @@ Run/Pause, delete, sheet snap. Silently no-op elsewhere.
 - OrbitControls: `touches: { ONE: ROTATE, TWO: DOLLY_PAN }`; damped; tap =
   moved < 10px && < 350ms; long-press 500ms (with 10px tolerance) = action
   sheet; double-tap empty space = re-frame board.
+- **Drag-to-wire** (round 5, product chrome only): in select mode a mouse
+  press inside a hole's visible mouth (widened to ≥ 2.5 px on screen; only
+  while one pitch projects ≥ 4.5 px — below that a hole drag orbits and a
+  once-per-page toast says how to zoom in), on a part pin's hole or on an off-board terminal post
+  arms a wire drag at pointerdown (orbit suspended); past a few pixels it
+  aims like wire mode (resolver, hover chip, routed preview, red where it
+  cannot connect, a faint 50 % yellow while it aims at nothing yet) and the drop adds the wire through the host — one undo
+  step, role colour, 「已接上 …」 toast with 〔復原〕, never selected; a
+  drop off any hole or back on the start does nothing. A drop on a part
+  pin's hole follows the start's rule: it lands on the free hole of that
+  strip / rail nearest the pin (preview, ring and chip show that hole first;
+  the toast names it) and only a full strip refuses; a hole on the START's
+  own strip / rail (free or a leg) is refused with one reason, on the red
+  chip and in the toast (「這裡不能接：d40 跟起點在同一排，本來就是通的」 —
+  wire mode's second click keeps the same rule); a refusal plays the
+  soft refusal thunk. A press on ANY wire's end in its hole re-routes that
+  end (SC-13; toast with 〔復原〕). Presses elsewhere still orbit;
+  Alt/Option+drag always orbits; a selected part still moves; a pressable
+  part is still pressed while a session runs; Shift still starts the
+  marquee. Touch: the 500 ms long-press on a hole / pin / terminal — or on
+  ANY wire's end — arms the grip, and its chip says what comes next
+  (「a24 · 放開：探測選單／拖曳：拉線」 / 「…／拖曳：改接這一端」) — drag =
+  wire / re-route, lift = the probe sheet. A crosshair cursor marks where a
+  mouse press draws, and only there — hover and press share one precedence
+  (polish): no crosshair over a pressable part while a session runs, over a
+  selected part, over a part pin whose strip has no free hole (that press
+  is the part's: it orbits, a hold opens the part's sheet) or over bare desk
+  beside a post (the press must hit the post or its instrument body; the desk
+  orbits). A selected instrument's posts still draw (persona fix: a supply
+  just placed from its card stays selected); its body moves it. A mouse press-and-hold never opens the long-press sheet (touch
+  only: a mouse clicks to select or right-clicks to probe), so a pause
+  before dragging still draws. A pen holds like a finger: 500 ms still shows
+  the grip chip and a lift without a move opens the probe sheet. A touch
+  long-press on a raised part body opens that part's sheet even over a free
+  hole; only its own pin or a wire end opens the probe sheet there. The first time the mouse rests there a one-time tip
+  (once per browser, never under `?shotrig`) teaches the gesture. Wire
+  mode is unchanged and its hint stays short (a mouse drag also works
+  there while no first end is picked).
 - Hole snap radius 0.55 units with mouse, **0.9 with coarse pointers**
   (`pointerType === 'touch'`); during placement/wiring show a magnified
   ghost-cursor ring above the fingertip (offset +2.5 units toward camera top)
@@ -363,7 +457,12 @@ Same components, same glass: dock becomes a **left vertical glass rail**;
 sheets become **floating glass panels** anchored left (Parts) / right
 (Properties, AI) with the same springs; status capsule stays top-center;
 Scope docks bottom-right as a card. Pointer hover states activate. Keyboard
-shortcuts (Esc, Delete, Space = run/pause) active on desktop.
+shortcuts (Esc, Delete, Space = run/pause; round 5: Ctrl/⌘ + C / X / V / D
+copy, cut, paste and duplicate placed parts with their settings — native
+copy wins in text fields and over a text selection; one letter per common part
+picks it up — R resistor, C capacitor, L LED, P supply, B button, V pot,
+U Blue Pill, Q NPN, D diode, M meter, with keycaps on the desktop library
+cards — so rotate is Shift+R and show-current Shift+C) active on desktop.
 
 ## 7. Performance budget
 

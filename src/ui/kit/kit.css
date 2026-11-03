@@ -1519,6 +1519,15 @@ html:lang(zh) .lg-caption2 {
   pointer-events: none;
   font-family: var(--lg-font);
 }
+/* product chrome, phones: while a sheet rests (the parts sheet's peek, a properties sheet — Sheet.tsx
+   publishRest) the toasts float just above its top edge instead of printing over its words and controls
+   (persona fix); never above 60 % of the screen (a tall sheet keeps them over its lower part). Ahead of
+   the undo / wire-mode rows (UndoPill.css, app.css: one class fewer); the selection pill's row yields. */
+@media (max-width: 899px) {
+  body.lg-sheet-resting:not(.ws-on) .lg-toast-host.is-wide {
+    bottom: max(calc(var(--lg-safe-bottom) + 86px), min(calc(var(--lg-sheet-rest) + 10px), 60vh));
+  }
+}
 .lg-toast {
   position: relative; /* hosts the lg-rim ring + lg-specular sheen layers */
   display: flex;

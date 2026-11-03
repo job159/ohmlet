@@ -11,7 +11,9 @@
  *   - 更多 → 模擬 「顯示電流」 and 更多 → 設定 「音效」 (product chrome), the C
  *     key in the shortcuts list;
  *   - the wire hover chip names the wire's role;
- *   - quiet edit cues: delete / place / wire (product chrome only);
+ *   - the edit sounds come from the board (mech-watch), once: a delete
+ *     pulls, a placement inserts, a wire clicks in, an undo swishes; the
+ *     old editCue call sites are inert (product chrome only);
  *   - the user guide describes all of it in the interface's own words.
  */
 import { readFileSync } from 'node:fs'
@@ -23,7 +25,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const cues = vi.hoisted(() => [] as string[])
 vi.mock('../src/ui/fx/sound', async (orig) => {
   const real = await orig<typeof import('../src/ui/fx/sound')>()
-  return { ...real, playCue: (cue: string) => void cues.push(cue) }
+  return { ...real, playCue: (cue: string) => void cues.push(cue), playMech: (cue: string) => void cues.push(cue) }
 })
 
 import { __setLangForTests, t } from '../src/i18n'
@@ -34,7 +36,8 @@ import { __setFirmwareBlobStoreForTests, createMemoryBlobStore } from '../src/st
 import { __resetHistoryForTests, useStore } from '../src/state/store'
 import { SHORTCUTS, SHORTCUT_GROUPS, shortcutKeysText, withKey } from '../src/ui/chrome/ShortcutsSheet'
 import { WireColorStrip, wireLegendItems } from '../src/ui/chrome/WireColorStrip'
-import { deletedToast, editCue, firmwareAtRisk, firmwareRiskDialog, removeSelectedWithFeedback } from '../src/ui/chrome/edit-feedback'
+import { deletedToast, editCue, firmwareAtRisk, firmwareRiskDialog, removeSelectedWithFeedback, undoWithFeedback } from '../src/ui/chrome/edit-feedback'
+import { startMechSoundWatch } from '../src/ui/fx/mech-watch'
 import { useLab } from '../src/ui/embedded/lab'
 import { dismissToast, getToasts } from '../src/ui/kit'
 import { goToLesson, loadLessonCircuit, startGuide, stopGuide } from '../src/ui/lessons/actions'
@@ -249,17 +252,18 @@ describe('F8 the phone wire legend is one compact row', () => {
 })
 
 // ---------------------------------------------------------------- 顯示電流 / 音效 / C
-describe('顯示電流 and 音效 are one tap away in 更多; C is in the shortcuts list', () => {
-  it('C 「顯示電流」 is listed in the View group; the chip’s tooltip reads it from the table', () => {
-    expect(SHORTCUTS['current-flow']).toEqual({ combos: [['C']], label: 'Show current' })
+describe('顯示電流 and 音效 are one tap away in 更多; Shift+C is in the shortcuts list', () => {
+  it('Shift+C 「顯示電流」 is listed in the View group; the chip’s tooltip reads it from the table', () => {
+    // round 5: a plain C picks up a capacitor (part-keys.ts), so 顯示電流 moved to Shift+C
+    expect(SHORTCUTS['current-flow']).toEqual({ combos: [['Shift', 'C']], label: 'Show current' })
     const view = SHORTCUT_GROUPS.find((g) => g.title === 'View')!
     expect(view.rows).toContain(SHORTCUTS['current-flow'])
     expect(view.rows.indexOf(SHORTCUTS['current-flow'])).toBe(view.rows.indexOf(SHORTCUTS.frame) + 1)
-    expect(shortcutKeysText('current-flow')).toBe('C')
-    expect(withKey(t('Show current'), 'current-flow')).toEqual({ title: '顯示電流（C）', ariaKeyshortcuts: 'C' })
-    // C means nothing else
+    expect(shortcutKeysText('current-flow')).toBe('Shift+C')
+    expect(withKey(t('Show current'), 'current-flow')).toEqual({ title: '顯示電流（Shift+C）', ariaKeyshortcuts: 'Shift+C' })
+    // a plain C is no shortcut of the table: it is the capacitor's part key
     const singles = Object.entries(SHORTCUTS).filter(([, r]) => r.combos.some((c) => c.length === 1 && c[0].toUpperCase() === 'C'))
-    expect(singles.map(([id]) => id)).toEqual(['current-flow'])
+    expect(singles.map(([id]) => id)).toEqual([])
   })
 
   it('更多: 「顯示電流」 right after the speed row (模擬), 「音效」 in 設定 — product chrome only', () => {
@@ -299,26 +303,34 @@ describe('the wire hover chip names the wire’s role (product chrome)', () => {
 })
 
 // ---------------------------------------------------------------- sound cues
-describe('quiet edit cues (product chrome; sound.ts is rate-limited, silent before a gesture and when 音效 is off)', () => {
-  it('a delete plays the delete cue — the Delete key, the inspector, the long-press menu', () => {
+describe('edit sounds come from the board, once (product chrome; sound.ts is rate-limited, silent before a gesture and when 音效 is off)', () => {
+  let stopWatch: () => void = () => undefined
+  beforeEach(() => {
+    stopWatch = startMechSoundWatch()
+  })
+  afterEach(() => stopWatch())
+
+  it('a delete pulls the part out once — the Delete key, the inspector, the long-press menu; the toast itself is silent', () => {
     st().loadLayout(LED)
+    expect(cues).toEqual(['load'])
+    cues.length = 0
     st().select('LED1')
     removeSelectedWithFeedback()
-    expect(cues).toEqual(['delete'])
-    deletedToast(['R1'])
-    expect(cues).toEqual(['delete', 'delete'])
+    expect(cues).toEqual(['pull'])
+    deletedToast(['R1']) // the toast names a removal another call already made: no second sound
+    expect(cues).toEqual(['pull'])
   })
 
-  it('placement and wire commits call editCue (App.tsx, the library and the parts sheet)', () => {
+  it('placement and wire commits sound from the store watcher; editCue is inert (no double sound)', () => {
     editCue('place')
     editCue('wire')
-    expect(cues).toEqual(['place', 'wire'])
-    const app = read('src/App.tsx')
-    expect(app.match(/tick\(\) \/\/ wire complete[^\n]*\n\s*editCue\('wire'\)/g)).toHaveLength(2)
-    expect(app.match(/tick\(\) \/\/ placement commit\n\s*editCue\('place'\)/g)).toHaveLength(2)
-    expect(read('src/ui/workspace/LibraryPanel.tsx').match(/editCue\('place'\)/g)).toHaveLength(2) // arming an off-board part, drag-to-place
-    expect(read('src/ui/sheets/PartsSheet.tsx')).toContain("editCue('place')")
-    expect(read('src/ui/sheets/MoreSheet.tsx')).toContain("editCue('delete')") // 清空麵包板
+    editCue('delete')
+    expect(cues).toEqual([])
+    st().addComponent('resistor', { holes: ['c20', 'c24'] })
+    st().addWire('a20', 'top+5')
+    expect(cues).toEqual(['insert', 'wire-in'])
+    undoWithFeedback() // one swish, not the wire pulled out
+    expect(cues).toEqual(['insert', 'wire-in', 'undo'])
   })
 
   it('the classic chrome stays silent', () => {
@@ -326,6 +338,7 @@ describe('quiet edit cues (product chrome; sound.ts is rate-limited, silent befo
     st().loadLayout(LED)
     st().select('LED1')
     removeSelectedWithFeedback()
+    st().addComponent('resistor', { holes: ['c20', 'c24'] })
     editCue('place')
     editCue('wire')
     expect(cues).toEqual([])
@@ -397,11 +410,13 @@ describe('the user guide describes the simplified operation in the interface’s
     expect(section(21)).not.toContain('會先確認，可以復原')
   })
 
-  it('顯示電流 (chip, 更多 row, key C), 音效, the cheer and the damage looks, 保持按下', () => {
+  it('顯示電流 (chip, 更多 row, key Shift+C), 音效, the cheer and the damage looks, 保持按下', () => {
     const s5 = section(5)
     expect(s5).toContain(`「${flowLegend()}」`) // the chip's / the 更多 row's legend, word for word
     expect(s5).toContain('「更多 → 模擬 → 顯示電流」')
-    expect(section(23)).toMatch(/\| C \| 顯示電流/)
+    // round 5: a plain C picks up a capacitor (part-keys.ts) — 顯示電流 is Shift+C
+    expect(section(23)).toMatch(/\| Shift\+C \| 顯示電流/)
+    expect(section(23)).not.toMatch(/\| C \| 顯示電流/)
     expect(section(22)).toContain('**顯示電流**開關')
     expect(section(22)).toContain('**音效**開關')
     expect(s5).toContain(`「${t('Circuit working ✓')}」`)

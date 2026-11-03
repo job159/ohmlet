@@ -1,0 +1,265 @@
+/* ==========================================================================
+   ExplainCard — 「電路說明」 at the top right (explain stream).
+   Tier-S Liquid Glass (the StatusPill / workspace panel recipe): near-opaque
+   over-scene tint + the bent-light rim (lg-rim) + slab inset shadows. NO
+   backdrop-filter — dock + capsule (+ a sheet) keep the ≤4 concurrent-blur
+   budget (DESIGN.md §7). A steady height (EXPLAIN_CARD_H) that holds three
+   text lines — line 1 + two of line 2, or (.is-l1-long) two of line 1 + one
+   of line 2 — and (.is-tall, EXPLAIN_CARD_TALL_H) four while the words need
+   them: two + two, or one + three. ExplainCard grows it at once and shrinks
+   it only after a dwell, so the inspector under it moves rarely and the fix
+   is never cut off; a new subject crossfades its lines (opacity only).
+   ========================================================================== */
+
+.app-explain {
+  position: fixed;
+  z-index: 41; /* the pills' layer: above the canvas + workspace panels (40), below sheets (51) / capsule (55) */
+  display: flex;
+  box-sizing: border-box;
+  height: 72px; /* = EXPLAIN_CARD_H */
+  font-family: var(--lg-font);
+  color: var(--label);
+  border-radius: var(--lg-radius-surface);
+  background: linear-gradient(180deg, rgba(50, 54, 66, 0.95), rgba(31, 33, 43, 0.94));
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -8px 18px -12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+  --lg-rim-hi: 0.3;
+  --lg-rim-mid: 0.18;
+  --lg-rim-cool: 0.13;
+  --lg-rim-warm: 0.1;
+  --lg-rim-w: 1px;
+  --lg-ink-shadow: 0 1px 3px rgba(8, 10, 14, 0.55);
+  --lg-radius-parent: var(--lg-radius-surface);
+  text-shadow: var(--lg-ink-shadow);
+  user-select: none;
+  -webkit-user-select: none;
+  animation: app-explain-in var(--lg-dur-control) var(--lg-spring);
+}
+
+/* four text lines while the words need them (ExplainCard explainBoxFit; = EXPLAIN_CARD_TALL_H) */
+.app-explain.is-tall {
+  height: 90px;
+}
+
+/* the top of the workspace's right column: the inspector's width, the inspector below it */
+.app-explain.is-column {
+  top: 16px;
+  right: calc(var(--lg-safe-right) + 16px);
+  width: var(--ws-right-w, 340px);
+}
+
+/* the top-right corner (inspector collapsed / no workspace); ExplainCard glides it below the capsule row
+   when they meet (--app-explain-dy: a transform, so its CSS spot can still be measured) */
+.app-explain.is-floating {
+  top: calc(var(--lg-safe-top) + 10px);
+  right: calc(var(--lg-safe-right) + 16px);
+  width: min(352px, 40vw);
+  transform: translate3d(0, var(--app-explain-dy, 0px), 0);
+  transition: transform 240ms var(--lg-spring);
+}
+
+@keyframes app-explain-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, calc(var(--app-explain-dy, 0px) - 6px), 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, var(--app-explain-dy, 0px), 0);
+  }
+}
+
+/* ---- body: dot · line 1 / line 2, the row centred in the fixed box ---- */
+.app-explain-body {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 9px 14px 9px 13px;
+  border: none;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-shadow: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-explain-body.is-static {
+  cursor: default;
+}
+.app-explain-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+}
+.app-explain.is-single .app-explain-row {
+  align-items: center;
+}
+.app-explain-body[data-pressed='true'] {
+  background: var(--fill-2);
+}
+.app-explain-body:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .app-explain-body:not(.is-static):hover {
+    background: var(--fill-3, rgba(255, 255, 255, 0.06));
+  }
+}
+
+/* the dot: the state colour (H6 for a board state, else the line's severity) */
+.app-explain-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px; /* beside line 1 (19 px) */
+  border-radius: 50%;
+  background: var(--app-explain-dot, var(--label-3));
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+.app-explain.is-single .app-explain-dot {
+  margin-top: 0;
+}
+.app-explain.is-error .app-explain-dot {
+  box-shadow: 0 0 0 3px rgba(255, 69, 58, 0.22);
+}
+.app-explain.is-warning .app-explain-dot {
+  box-shadow: 0 0 0 3px rgba(255, 159, 10, 0.22);
+}
+.app-explain.is-ok .app-explain-dot {
+  box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.2);
+}
+
+.app-explain-lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  transition: opacity 160ms linear;
+  animation: app-explain-swap 160ms linear;
+}
+/* line 1: one line (ellipsis); line 2: up to two lines — the fix is not cut off */
+.app-explain-l1,
+.app-explain-l2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-explain-l1 {
+  font: 600 14px/19px var(--lg-font);
+  white-space: nowrap;
+}
+.app-explain-l2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font: 400 13px/17px var(--lg-font);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+/* line 1 too long for one line (measured): two of line 1, one of line 2 */
+.app-explain.is-l1-long .app-explain-l1 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.app-explain.is-l1-long .app-explain-l2 {
+  display: block;
+  white-space: nowrap;
+}
+/* no line 2 and a line 1 that needs three: the four-line box gives it three */
+.app-explain.is-single.is-tall.is-l1-long .app-explain-l1 {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+/* the four-line box: line 1 + three of line 2 … */
+.app-explain.is-tall .app-explain-l2 {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+/* … or two of line 1 + two of line 2 */
+.app-explain.is-tall.is-l1-long .app-explain-l2 {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+/* measuring (ExplainCard, one layout pass, never painted): each line at its natural height.
+   !important: it must lift the clamps of every box state, the four-line ones included
+   (.app-explain.is-single.is-tall.is-l1-long … outranks a plain .is-measuring rule) */
+.app-explain.is-measuring .app-explain-l1,
+.app-explain.is-measuring .app-explain-l2 {
+  display: block !important;
+  -webkit-line-clamp: none !important;
+  line-clamp: none !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere;
+}
+/* numbers keep their width while they update (2 Hz) */
+.app-explain-l1,
+.app-explain-l2 {
+  font-variant-numeric: tabular-nums;
+}
+
+/* the previous circuit's lines while an edit settles */
+.app-explain.is-stale .app-explain-lines {
+  opacity: 0.55;
+}
+
+@keyframes app-explain-swap {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* announced to screen readers, not shown */
+.app-explain-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-explain,
+  .app-explain.is-floating,
+  .app-explain-lines {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-explain {
+    background: linear-gradient(180deg, rgba(46, 50, 62, 0.99), rgba(30, 32, 42, 0.99));
+  }
+}
+
+/* line 1's 「（已暫停）」 never breaks inside (persona fix) */
+.app-explain-keep {
+  white-space: nowrap;
+}

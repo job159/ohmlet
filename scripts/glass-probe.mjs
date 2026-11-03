@@ -197,15 +197,22 @@ async function perf() {
     await page.waitForSelector('canvas')
     await page.waitForTimeout(1800)
 
-    // measure rAF deltas for `ms` while the camera orbits (mouse drag loops)
+    // measure rAF deltas for `ms` while the camera orbits (mouse drag loops;
+    // Alt held — a left-drag that starts in a hole's mouth draws a wire in
+    // the product chrome since round 5, Alt+drag always orbits)
     const measure = async (label) => {
       const dragLoop = (async () => {
-        for (let i = 0; i < 4; i++) {
-          await page.mouse.move(720, 450)
-          await page.mouse.down()
-          await page.mouse.move(520, 380, { steps: 25 })
-          await page.mouse.move(900, 500, { steps: 25 })
-          await page.mouse.up()
+        await page.keyboard.down('Alt')
+        try {
+          for (let i = 0; i < 4; i++) {
+            await page.mouse.move(720, 450)
+            await page.mouse.down()
+            await page.mouse.move(520, 380, { steps: 25 })
+            await page.mouse.move(900, 500, { steps: 25 })
+            await page.mouse.up()
+          }
+        } finally {
+          await page.keyboard.up('Alt')
         }
       })()
       const stats = await page.evaluate(

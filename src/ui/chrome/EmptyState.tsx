@@ -80,7 +80,8 @@ export function EmptyState({ onBrowseParts, onAskAi, onStartLesson, onOpenExampl
           </div>
           <div className="lg-title app-empty-title">{t('Where to start?')}</div>
           <div className="lg-subhead app-empty-body">
-            {t('Follow a lesson step by step, or open a ready-made example and press “▶ Run simulation” to see it work.')}
+            {/* auto-run (round 5): what is opened starts simulating by itself — nothing to press */}
+            {t('Follow a lesson step by step, or open a ready-made example — it starts simulating by itself.|autosim')}
           </div>
           <div className="app-empty-actions">
             <PressableButton variant="filled" size="lg" haptic icon={<BookIcon size={20} />} onClick={onStartLesson}>

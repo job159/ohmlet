@@ -159,7 +159,7 @@ export const LESSON: Lesson = {
       id: 'no-pullup',
       title: '先不加上拉電阻，載入韌體',
       body:
-        '按下方的「載入 `lesson-i7-i2c` 到 U1」，再按「▶ 執行模擬」（或空白鍵），打開儀器的「UART 終端機」（U1 的 USART1，115200 8N1）。\n\n' +
+        '按下方的「載入 `lesson-i7-i2c` 到 U1」，載入後模擬會自動執行，打開儀器的「UART 終端機」（U1 的 USART1，115200 8N1）。\n\n' +
         '沒有上拉電阻，終端機會印出 `bus busy at 0x08: SDA/SCL stuck low (pull-ups?)` 與 `scan done 0`——開汲極線路沒有東西把它們拉回高準位。',
       highlight: { components: ['U1'] },
       check: { kind: 'firmware-loaded', component: 'U1', project: 'lesson-i7-i2c', label: 'U1 已載入 lesson-i7-i2c.elf' },
@@ -185,7 +185,7 @@ export const LESSON: Lesson = {
       id: 'scan',
       title: '重新執行：掃描到 0x50',
       body:
-        '按下方的「重置 MCU」，讓韌體重新掃描（模擬沒在執行的話，再按「▶ 執行模擬」）：終端機出現 `I2C1 scan 0x08-0x77`、`found 0x50`、`scan done 1`。\n\n' +
+        '按下方的「重置 MCU」，讓韌體重新掃描（模擬暫停了的話，再按「▶ 執行模擬」）：終端機出現 `I2C1 scan 0x08-0x77`、`found 0x50`、`scan done 1`。\n\n' +
         '把邏輯分析儀接到 PB6、PB7 並加上 I²C 解碼器：每個沒有回應的位址是 START、位址、NACK、STOP；0x50 的那一次在第 9 個時脈看得到 EEPROM 把 SDA 拉低（ACK）。',
       highlight: { components: ['U2'] },
       check: { kind: 'uart-contains', component: 'U1', port: 'USART1', text: 'found 0x50', seconds: 1, label: '掃描到 0x50' },

@@ -668,6 +668,27 @@ and the classic chrome (including its keys) stays pixel- and
 behaviour-identical to the pre-extension UI — the legacy visual-regression
 scenes pin it at 0 diff.
 
+Round 5 adds, product chrome only: auto-run (`src/ui/chrome/auto-run.ts`,
+one deferred decision per document / firmware / reset / chrome change; a
+user pause holds until a structural edit; `src/state/run-gate.ts` holds it
+during multi-step loads); drag-to-wire (scene `beginWireDraw` → host
+`src/ui/workspace/wire-draw.ts`: `landingOf` moves a drop on a part pin to
+the free hole of the same strip, `drawWire` adds the wire with 〔復原〕);
+copy / paste (`src/ui/chrome/copy-paste.ts`, `src/state/clipboard.ts`);
+replace-in-place (`src/ui/embedded/replace-part.ts`, one host
+`repairParts` call per gesture, and `auto-heal.ts`); the usage-ordered
+library (`src/ui/workspace/library-order.ts`, search ranked by match
+quality first, `rankByMatch`); the 「電路說明」 card
+(`src/ui/chrome/explain.ts` — the pure summariser `explainCircuit`, tiers
+P0–P7, never repeating a Problems title; `explain-path.ts` — the drive
+path from the ERC graph, cached per layout; `useExplanation.ts` — the
+ref-counted watcher, ≤ 2 Hz, holding the old words until fresh readings
+after a runtime change, hiding the value a guided lesson step asks the
+learner to measure; `ExplainCard.tsx` — the desktop card, which publishes
+`--ws-explain-h` before its first paint); and synthesized mechanical
+sounds (`src/ui/fx/mech-voices.ts` recipes, `mech-watch.ts` classifying
+store changes, gated off in the classic chrome and under `?shotrig`).
+
 ### Problems model and shared UX helpers
 
 `src/ui/embedded/problems.ts` merges ERC findings, simulator issues and MCU

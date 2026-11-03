@@ -200,7 +200,7 @@ export const LESSON: Lesson = {
       id: 'b2-s2',
       title: '用 DMM1 量分壓點',
       body: doc(
-        '按下方的「開始接線」（或用「導線」工具）把 DMM1 IN 端接到 `e12`、DMM1 COM 端接到 `top-12`，再按「▶ 執行模擬」（或空白鍵）。',
+        '按下方的「開始接線」（或用「導線」工具）把 DMM1 IN 端接到 `e12`、DMM1 COM 端接到 `top-12`，接好後模擬會自動執行。',
         'DMM1 應顯示約 **2.499 V**。比 2.500 V 少的那 1 mV，是電表 10 MΩ 輸入阻抗與 R2 並聯造成的。',
       ),
       highlight: { holes: ['e12', 'top-12'], components: ['DMM1'] },

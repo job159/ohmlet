@@ -94,7 +94,7 @@ export function checkDamage(c: Circuit, out: ErcFinding[]): void {
           key: `${id}:burned`,
           message:
             `${id} (${label}) burned open in the simulation: it dissipated many times its ${pMax !== undefined ? fmtW(pMax) : 'rated'} power until its film overheated and burned through, ` +
-            `so it no longer conducts. Use a larger resistance or a higher-wattage resistor, then reset the simulation.`,
+            `so it no longer conducts. Use a larger resistance or a higher-wattage resistor; a circuit edit puts in a new one (in the workspace, “Replace” and a value change do too).`,
           short: `${id} burned open`,
           fact: `burned:${id}`,
           componentIds: [id],
@@ -111,7 +111,7 @@ export function checkDamage(c: Circuit, out: ErcFinding[]): void {
           key: `${id}:polarity`,
           message:
             `${id} (${label}) vented in the simulation: its + lead sat more than 1 V below its − lead, and a reversed electrolytic capacitor heats up until its pressure vent opens. ` +
-            `A real one is ruined (it loses capacitance and may short); the simulation keeps its value. Turn it around so + goes to the higher voltage, then reset the simulation.`,
+            `A real one is ruined (it loses capacitance and may short); the simulation keeps its value. Turn it around so + goes to the higher voltage; a circuit edit puts in a new one (in the workspace, “Replace” and a value change do too).`,
           short: `${id} vented (reversed)`,
           fact: `vented:${id}`,
           componentIds: [id],

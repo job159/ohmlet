@@ -344,12 +344,12 @@ export const MESSAGES_ZH: MessagePattern[] = [
 
   // ------------------------------------------------------------ live ratings
   tpl(
-    `«id» burned out in the simulation (the LED model latches it as burned when ${LED_BURN_RULE_WHEN_EN}). Add or enlarge its series resistor, then reset the simulation.`,
-    (g) => `${g.id} 在模擬中燒毀（LED 模型在${LED_BURN_RULE_ZH}時鎖定為燒毀）。請加上或加大串聯電阻，然後重置模擬。`,
+    `«id» burned out in the simulation (the LED model latches it as burned when ${LED_BURN_RULE_WHEN_EN}). Add or enlarge its series resistor; a circuit edit puts in a new one (in the workspace, “Replace” and a value change do too).`,
+    (g) => `${g.id} 在模擬中燒毀（LED 模型在${LED_BURN_RULE_ZH}時鎖定為燒毀）。請加上或加大串聯電阻，再按〔換新〕；改好電路或數值時也會自動換新。`,
   ),
   tpl(
-    '«id» («l») burned out in the simulation (its model latched an over-current). Limit the current through it, then reset the simulation.',
-    (g) => `${g.id}（${labelZh(g.l)}）在模擬中燒毀（其模型鎖定了過電流狀態）。請限制流經它的電流，然後重置模擬。`,
+    '«id» («l») burned out in the simulation (its model latched an over-current). Limit the current through it; a circuit edit puts in a new one (in the workspace, “Replace” and a value change do too).',
+    (g) => `${g.id}（${labelZh(g.l)}）在模擬中燒毀（其模型鎖定了過電流狀態）。請限制流經它的電流，再按〔換新〕；改好電路或數值時也會自動換新。`,
   ),
   tpl(
     '«id» («l») carries «i» forward current in the simulation, above its «max» rated continuous current: a real part ages quickly or fails. Increase its series resistor.',
@@ -613,6 +613,7 @@ export const MESSAGES_ZH: MessagePattern[] = [
       `韌體寫入 ${g.g} 時，${g.g2} 的時脈沒有打開（RCC_APB2ENR.${g.bit} = 0），寫入被忽略，所以 ${g.pin} 一直是浮接輸入。請先呼叫 __HAL_RCC_${g.g3}_CLK_ENABLE()。`,
   ),
   tpl('«id» «w=anode|cathode|lead \\d+» not connected', (g) => `${g.id} ${leadWordZh(g.w)}沒接`),
+  tpl('«id» «w=anode|cathode|lead \\d+» on an unfed rail', (g) => `${g.id} ${leadWordZh(g.w)}的電源軌沒接電`),
 ]
 
 /** "DS5319 Tables 7 and 9 note 3" → 「DS5319 表 7 與 9 註 3」; "NXP UM10204 §3.1.1" / "RM0008 §7.3.7" stay. */
