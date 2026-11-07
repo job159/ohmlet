@@ -498,6 +498,7 @@ SHOTS_HEADED=1 SHOTS_URL=http://localhost:5345/ node scripts/docs-shots.mjs "pic
 
 - 每張圖都從全新的瀏覽器環境開始：中文介面、桌面工作區、1440×900（手機圖 390×844），導覽已完成（導覽本身的圖除外）。
   電路由範例庫與課程電路以 App 自己的開啟流程載入，介面狀態盡量以真實點擊操作到位；JPEG 品質 80（`tests/docs-links.test.ts` 要求每張圖 ≤ 300 KB）。
+  頁面以 `?e2e&shotrig&autorun` 開啟：自動模擬維持開啟，電路一開啟就開始模擬，和使用者看到的一樣。
 - 環境變數：`SHOTS_URL`（預設 `http://localhost:5173/`）、`SHOTS_OUT`（預設 `docs/images`）、`SHOTS_CHANNEL`（`msedge`／`chrome`／`bundled`，未設定時沿用 `VR_CHANNEL`）、
   `SHOTS_TEXT=1`（另存每張圖的頁面文字，方便核對用語；不要放進 `docs/`）、`SHOTS_HEADED=1`（開啟真正的前景視窗擷取）。任何一張失敗會印出 `FAILED <名稱>`，其他照常擷取，結束碼為 1。
 - **`docs/images` 請用 `SHOTS_HEADED=1` 擷取**：Windows 把無頭瀏覽器當成在背景執行的程式（排到省電核心），模擬執行緒只有約 0.3 倍速，膠囊會誠實寫出「0.3 倍速」；

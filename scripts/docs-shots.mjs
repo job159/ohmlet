@@ -9,10 +9,12 @@
  * example library and the lesson circuits through the app's own openers
  * (the code paths of the 「開啟」 / 「載入起始電路」 buttons, imported from the
  * page's own module instances); UI states are reached with real clicks
- * where practical. The page is opened with `?e2e&shotrig`: the read-only
- * window.__e2e hooks (src/dev/e2e-hooks.ts — simulation time, terminal /
- * hole world points) and the scene's projection rig (window.__shotRig) aim
- * the clicks at the 3D board. JPEG, quality 80 (tests/docs-links.test.ts
+ * where practical. The page is opened with `?e2e&shotrig&autorun`: the
+ * read-only window.__e2e hooks (src/dev/e2e-hooks.ts — simulation time,
+ * terminal / hole world points) and the scene's projection rig
+ * (window.__shotRig) aim the clicks at the 3D board; `autorun` keeps the
+ * product's auto-run on (?shotrig alone turns it off), so a circuit runs as
+ * soon as it is opened, as the user sees it. JPEG, quality 80 (tests/docs-links.test.ts
  * keeps every image ≤ 300 KB). A shot waits for the toasts of the steps
  * before it to leave (they belong to the step, not to the picture).
  *
@@ -81,7 +83,7 @@ async function fresh(browser, opts = {}) {
     },
     [opts.onboarded !== false],
   )
-  await page.goto(`${URL_}?e2e&shotrig`)
+  await page.goto(`${URL_}?e2e&shotrig&autorun`)
   await page.waitForSelector('canvas')
   await page.waitForFunction(() => typeof window.__shotRig?.project === 'function' && window.__e2e)
   await page.evaluate(() => window.__e2e.ready())
@@ -184,7 +186,11 @@ const SHOTS = {
     const { ctx, page } = await fresh(browser)
     await openExample(page, 'blink')
     await sleep(2000)
+    // auto-run ran hal-blink for a moment: clear the program, then power up again from 0 s so the
+    // recorders hold no traces of it — the board as a learner meets it before loading a program
     await lab(page, 'lab.clearFirmware("U1")')
+    await sleep(300)
+    await store(page, 'st.resetSim()')
     await sleep(2500)
     await save(page, 'status-pill')
     await ctx.close()
@@ -209,6 +215,8 @@ const SHOTS = {
     await openExample(page, 'blink')
     await sleep(1500)
     await lab(page, 'lab.clearFirmware("U1")')
+    await sleep(300)
+    await store(page, 'st.resetSim()') // as in statusPill
     await store(page, 'st.select("U1")')
     await sleep(1500)
     await page.locator('button', { hasText: '選擇內建韌體' }).first().click()
@@ -258,7 +266,27 @@ const SHOTS = {
     await untilSim(page, 1.5)
     await page.locator('button', { hasText: '自動設定' }).first().click()
     await sleep(3200)
-    await save(page, 'scope')
+    // hal-pwm-fade sweeps the duty (≈ 2 s a cycle): wait for a mid duty — a short pulse leaves
+    // 峰對峰值 「取樣不足」 and the sampling warning in the picture. The duty keeps moving until
+    // the capture: a picture counts only when the duty read just before AND just after it is mid.
+    await page.mouse.move(2, 2)
+    await noToasts(page)
+    const duty = () => page.evaluate(() => Number(/工作週期[^\n]*\n(?:ⓘ\n)?([\d.]+) %/.exec(document.body.innerText)?.[1] ?? NaN))
+    const mid = (d) => d >= 30 && d <= 70
+    const t0 = Date.now()
+    for (;;) {
+      if (Date.now() - t0 > 30000) throw new Error('no mid duty on the scope within 30 s')
+      if (!mid(await duty())) {
+        await sleep(50)
+        continue
+      }
+      const shot = await page.screenshot({ type: 'jpeg', quality: 80 })
+      if (!mid(await duty())) continue
+      writeFileSync(path.join(OUT, 'scope.jpg'), shot)
+      if (WITH_TEXT) writeFileSync(path.join(OUT, 'scope.txt'), await page.evaluate(() => document.body.innerText))
+      console.log('shot scope', `${Math.round(shot.length / 1024)} KB`)
+      break
+    }
     await ctx.close()
   },
 
@@ -268,6 +296,7 @@ const SHOTS = {
     await sleep(2000)
     await run(page)
     await untilSim(page, 1)
+    await noToasts(page) // 「已收合元件庫…」 from the opening would cover the menu
     const p = await screenOf(page, 'a19')
     await page.mouse.click(p.x, p.y, { button: 'right' })
     await sleep(1000)
@@ -451,7 +480,7 @@ const SHOTS = {
 }
 
 // a headed window must keep rendering when another window covers it
-const HEADED_ARGS = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding']
+const HEADED_ARGS = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--window-position=-3000,0']
 const browser = await chromium.launch(
   CHANNEL === 'bundled'
     ? { headless: !HEADED, ...(HEADED ? { args: HEADED_ARGS } : {}) }
